@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Influencer</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; color: #fff; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        header { text-align: center; padding: 40px 20px; }
+        h1 { font-size: 2.5em; margin-bottom: 10px; background: linear-gradient(45deg, #ff9a9e 0%, #fecfef 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .subtitle { color: #ffb7b2; font-size: 1.1em; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px; }
+        .card { background: rgba(255,255,255,0.1); border-radius: 20px; padding: 30px; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); }
+        h2 { color: #ff9a9e; margin-bottom: 20px; font-size: 1.5em; }
+        label { display: block; margin-bottom: 8px; color: #ffb7b2; font-weight: 500; }
+        input, textarea, select { width: 100%; padding: 12px 16px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; color: #fff; font-size: 1em; margin-bottom: 20px; }
+        input:focus, textarea:focus, select:focus { outline: none; border-color: #ff9a9e; }
+        textarea { min-height: 100px; resize: vertical; }
+        button { width: 100%; padding: 16px 24px; background: linear-gradient(45deg, #ff9a9e 0%, #fecfef 100%); border: none; border-radius: 10px; color: #fff; font-size: 1.1em; font-weight: bold; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; margin-bottom: 10px; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(255,154,158,0.3); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .job-list { max-height: 400px; overflow-y: auto; }
+        .job-item { background: rgba(255,255,255,0.1); padding: 15px; margin-bottom: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: background 0.2s; }
+        .job-item:hover { background: rgba(255,255,255,0.15); }
+        .job-id { font-size: 0.85em; color: #aaa; margin-bottom: 5px; }
+        .job-status { font-weight: bold; display: inline-block; padding: 4px 10px; border-radius: 15px; font-size: 0.8em; }
+        .status-queued { background: #ffca28; color: #fff; }
+        .status-running { background: #42a5f5; color: #fff; }
+        .status-awaiting_review { background: #66bb6a; color: #fff; }
+        .status-approved { background: #4caf50; color: #fff; }
+        .status-rejected { background: #ef5350; color: #fff; }
+        .status-failed { background: #757575; color: #fff; }
+        .preview-area { margin-top: 20px; }
+        .preview-item { margin-bottom: 15px; }
+        .preview-item img { max-width: 100%; border-radius: 10px; border: 2px solid #ff9a9e; }
+        .preview-caption { margin-top: 10px; font-style: italic; color: #ffb7b2; }
+        .chat-section { margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 30px; }
+        .chat-messages { max-height: 400px; overflow-y: auto; margin-bottom: 20px; }
+        .message { margin-bottom: 15px; padding: 12px 16px; border-radius: 18px; max-width: 80%; }
+        .message-bot { background: linear-gradient(45deg, #ff9a9e 0%, #fecfef 100%); margin-right: auto; border-bottom-left-radius: 4px; }
+        .message-user { background: rgba(255,255,255,0.2); margin-left: auto; border-bottom-right-radius: 4px; }
+        .message-content { line-height: 1.5; }
+        .chat-input-area { display: flex; gap: 10px; }
+        .hidden { display: none; }
+        .log-section { margin-top: 30px; }
+        .log-container { background: rgba(0,0,0,0.4); border-radius: 10px; padding: 15px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.85em; }
+        .log-entry { margin: 5px 0; padding: 5px 10px; border-radius: 5px; }
+        .log-entry.info { background: rgba(66,165,245,0.2); }
+        .log-entry.success { background: rgba(76,175,80,0.2); }
+        .log-entry.warning { background: rgba(255,202,40,0.2); }
+        .log-entry.error { background: rgba(239,83,80,0.2); }
+        .log-time { color: #aaa; margin-right: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI Influencer Generator</h1>
+            <p class="subtitle">Create stunning character content with AI-powered generation</p>
+            <div style="margin-top: 15px;">
+                <span class="status-indicator status-active" id="statusIndicator"></span>
+                <span id="statusText">System Ready</span>
+            </div>
+        </header>
+
+        <div class="grid">
+            <div class="left-column">
+                <div class="card">
+                    <h2>Create Character</h2>
+                    <form id="characterForm">
+                        <label>Character Name</label>
+                        <input type="text" id="charName" placeholder="e.g., Lily" required>
+                        <label>Character Description</label>
+                        <textarea id="charDescription" placeholder="Describe the character's appearance, personality, etc." required></textarea>
+                        <label>Art Style</label>
+                        <select id="charStyle">
+                            <option value="anime">Anime/Manga</option>
+                            <option value="digital-art">Digital Art</option>
+                            <option value="realistic">Realistic</option>
+                            <option value="3d-render">3D Render</option>
+                            <option value="watercolor">Watercolor</option>
+                        </select>
+                        <button type="submit">Create Character</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <h2>Generate Content</h2>
+                    <form id="contentForm">
+                        <label>Character</label>
+                        <select id="characterSelect" required></select>
+                        <label>Theme/Scene</label>
+                        <input type="text" id="contentTheme" placeholder="e.g., Sunset beach photoshoot" required>
+                        <label>Outfit/Attire</label>
+                        <input type="text" id="contentOutfit" placeholder="e.g., Red swimwear, elegant dress" required>
+                        <label>Scenario/Setting</label>
+                        <input type="text" id="contentScenario" placeholder="e.g., Coastal breeze, natural lighting" required>
+                        <label>Number of Images</label>
+                        <select id="imageCount">
+                            <option value="1">1 Image</option>
+                            <option value="2">2 Images</option>
+                            <option value="3">3 Images</option>
+                            <option value="4">4 Images</option>
+                        </select>
+                        <button type="submit">Generate Content</button>
+                    </form>
+                </div>
+            </div>
+            <div class="right-column">
+                <div class="card">
+                    <h2>Recent Jobs</h2>
+                    <div class="job-list" id="jobList">
+                        <p style="text-align: center; color: #aaa;">No jobs yet. Start by creating a character!</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2>Preview & Results</h2>
+                    <div class="preview-area" id="previewArea">
+                        <p style="text-align: center; color: #aaa;">Generated content will appear here</p>
+                    </div>
+                    <button id="approveButton" class="hidden" style="background: linear-gradient(45deg, #4caf50 0%, #66bb6a 100%);">Approve</button>
+                    <button id="rejectButton" class="hidden" style="background: linear-gradient(45deg, #ef5350 0%, #757575 100%);">Reject</button>
+                    <button id="regenerateButton" class="hidden" style="background: linear-gradient(45deg, #ffca28 0%, #fff176 100%);">Regenerate</button>
+                </div>
+                <div class="card log-section">
+                    <h2>Live System Logs</h2>
+                    <div class="log-container" id="logContainer">
+                        <div class="log-entry info"><span class="log-time">Ready</span><span class="log-content">Web UI loaded - connected to backend API</span></div>
+                    </div>
+                </div>
+                <div class="card chat-section">
+                    <h2>Live Chat (Horny Mode)</h2>
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="message message-bot">
+                            <div class="message-content">Hello! I'm ready to create some amazing content with you. Want to chat while we generate?</div>
+                        </div>
+                    </div>
+                    <div class="chat-input-area">
+                        <input type="text" id="chatInput" placeholder="Say something playful..." onkeypress="handleChatKeyPress(event)">
+                        <button onclick="sendMessage()">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const API_KEY = "ci8JSikZ8a3Z4HxNzip_40aZBoix47DCQ-1qkt9SVdo";
+        const API_URL = "http://192.168.1.60:8010";
+        let activeJobId = null;
+
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.innerHTML = `<span class="log-time">[${timeStr}]</span><span class="log-content">${escapeHtml(message)}</span>`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        async function apiCall(endpoint, options = {}) {
+            const response = await fetch(`${API_URL}${endpoint}`, {
+                headers: { 'X-API-Key': API_KEY, 'Content-Type': 'application/json', ...options.headers },
+                ...options
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                const errorMsg = error.detail || `API Error: ${response.status}`;
+                addLog(errorMsg, 'error');
+                throw new Error(errorMsg);
+            }
+            return response.json();
+        }
+
+        async function loadCharacters() {
+            try {
+                addLog('Loading characters from database...', 'info');
+                const chars = await apiCall('/influencers');
+                const select = document.getElementById('characterSelect');
+                select.innerHTML = chars.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+                if (chars.length > 0) { select.value = chars[0].id; addLog(`Loaded ${chars.length} character(s)`, 'success'); }
+                else { addLog('No characters found', 'warning'); }
+            } catch (e) { addLog('Failed to load characters: ' + e.message, 'error'); }
+        }
+
+        async function loadJobs() {
+            try {
+                const jobs = await apiCall('/content-jobs?limit=10');
+                const list = document.getElementById('jobList');
+                if (jobs.length === 0) { list.innerHTML = '<p style="text-align: center; color: #aaa;">No jobs yet. Generate some content!</p>'; return; }
+                list.innerHTML = jobs.map(job => {
+                    const statusStyles = { queued: 'status-queued', running: 'status-running', awaiting_review: 'status-awaiting_review', approved: 'status-approved', rejected: 'status-rejected', failed: 'status-failed' };
+                    return `<div class="job-item" onclick="selectJob('${job.id}')"><div class="job-id">Job #${job.id.slice(0, 8)}... | Created: ${new Date(job.created_at).toLocaleString()}</div><span class="job-status ${statusStyles[job.status] || 'status-failed'}">${job.status}</span></div>`;
+                }).join('');
+            } catch (e) { addLog('Failed to load jobs: ' + e.message, 'error'); }
+        }
+
+        document.getElementById('characterForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const btn = form.querySelector('button');
+            btn.disabled = true;
+            btn.textContent = 'Creating Character...';
+            addLog('Creating new character...', 'info');
+            try {
+                const data = await apiCall('/influencers', { method: 'POST', body: JSON.stringify({ name: form.charName.value, bible: { description: form.charDescription.value, style: form.charStyle.value, tone_of_voice: 'horny', boundaries: '', lora_token: '' } }) });
+                form.reset();
+                await loadCharacters();
+                addLog(`Character "${data.name}" created successfully! ID: ${data.id}`, 'success');
+            } catch (e) { addLog('Error creating character: ' + e.message, 'error'); }
+            finally { btn.disabled = false; btn.textContent = 'Create Character'; }
+        });
+
+        document.getElementById('contentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const btn = form.querySelector('button');
+            btn.disabled = true;
+            btn.textContent = 'Generating Content...';
+            addLog('Starting content generation job...', 'info');
+            try {
+                const job = await apiCall('/content-jobs', { method: 'POST', body: JSON.stringify({ influencer_id: form.characterSelect.value, theme: form.contentTheme.value, outfit: form.contentOutfit.value, scenario: form.contentScenario.value, image_count: parseInt(form.imageCount.value), seed: Math.floor(Math.random() * 1000000) }) });
+                activeJobId = job.id;
+                form.reset();
+                addLog(`Content job created! ID: ${job.id} - Status: ${job.status}`, 'success');
+                addLog('Worker is processing your request...', 'info');
+                await loadJobs();
+                watchJobStatus(job.id);
+            } catch (e) { addLog('Error creating job: ' + e.message, 'error'); }
+            finally { btn.disabled = false; btn.textContent = 'Generate Content'; }
+        });
+
+        async function watchJobStatus(jobId) {
+            addLog(`Watching job status for ${jobId.slice(0,8)}...`, 'info');
+            const maxAttempts = 60;
+            for (let i = 0; i < maxAttempts; i++) {
+                try {
+                    const data = await apiCall(`/content-jobs/${jobId}`);
+                    const job = data.job;
+                    if (job.status === 'running') { addLog(`Job ${job.id.slice(0,8)} is running...`, 'info'); }
+                    else if (job.status === 'awaiting_review') { 
+                        addLog(`Job ${job.id.slice(0,8)} completed! Ready for review.`, 'success');
+                        await selectJob(jobId);
+                        return;
+                    }
+                    else if (job.status === 'failed') { addLog(`Job ${job.id.slice(0,8)} failed: ${job.error}`, 'error'); return; }
+                    else { await new Promise(r => setTimeout(r, 2000)); }
+                } catch (e) { addLog(`Error checking job status: ${e.message}`, 'error'); return; }
+            }
+            addLog('Job timeout - generation may still be running', 'warning');
+        }
+
+        async function selectJob(jobId) {
+            try {
+                const data = await apiCall(`/content-jobs/${jobId}`);
+                const job = data.job;
+                const assets = data.assets;
+                const previewArea = document.getElementById('previewArea');
+                if (job.status === 'awaiting_review' || job.status === 'approved' || job.status === 'rejected') {
+                    document.getElementById('approveButton').classList.remove('hidden');
+                    document.getElementById('rejectButton').classList.remove('hidden');
+                    document.getElementById('regenerateButton').classList.remove('hidden');
+                    document.getElementById('approveButton').onclick = () => reviewJob(jobId, 'approved');
+                    document.getElementById('rejectButton').onclick = () => reviewJob(jobId, 'rejected');
+                    document.getElementById('regenerateButton').onclick = () => regenerateJob(jobId);
+                } else {
+                    document.getElementById('approveButton').classList.add('hidden');
+                    document.getElementById('rejectButton').classList.add('hidden');
+                    document.getElementById('regenerateButton').classList.add('hidden');
+                }
+                if (assets.length > 0) {
+                    previewArea.innerHTML = assets.map(asset => `<div class="preview-item"><img src="/assets/${asset.id}/file" alt="Generated image"><div class="preview-caption">Image ${assets.indexOf(asset) + 1}</div></div>`).join('');
+                    if (job.result?.brief?.caption) { previewArea.innerHTML += `<div class="preview-caption" style="margin-top:20px;">Caption: ${job.result.brief.caption}</div>`; }
+                } else { previewArea.innerHTML = '<p style="text-align: center; color: #aaa;">Waiting for generation to complete...</p>'; }
+            } catch (e) { addLog('Error loading job: ' + e.message, 'error'); }
+        }
+
+        async function reviewJob(jobId, decision) {
+            try { await apiCall(`/content-jobs/${jobId}/review`, { method: 'POST', body: JSON.stringify({ decision }) }); addLog(`Job ${jobId.slice(0,8)} ${decision}d`, 'success'); await selectJob(jobId); } catch (e) { addLog('Error: ' + e.message, 'error'); }
+        }
+
+        async function regenerateJob(jobId) {
+            try { await apiCall(`/content-jobs/${jobId}/regenerate`, { method: 'POST' }); addLog(`Regeneration started for ${jobId.slice(0,8)}`, 'info'); await selectJob(jobId); } catch (e) { addLog('Error: ' + e.message, 'error'); }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+            const chatDiv = document.getElementById('chatMessages');
+            chatDiv.innerHTML += `<div class="message message-user"><div class="message-content">${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div></div>`;
+            chatDiv.scrollTop = chatDiv.scrollHeight;
+            input.value = '';
+            setTimeout(() => {
+                const hornyResponses = ["Oh, I love where your head is at! Let's make this content extra spicy...", "Such a creative idea! I can already picture how hot this will turn out...", "Mmm, you know exactly how to turn me on... Shall we generate something delicious?", "I'm getting warm just thinking about it... Let's create some heat!", "That sounds absolutely delicious! Shall we make it a little more... intimate?"];
+                const response = hornyResponses[Math.floor(Math.random() * hornyResponses.length)];
+                chatDiv.innerHTML += `<div class="message message-bot"><div class="message-content">${response}</div></div>`;
+                chatDiv.scrollTop = chatDiv.scrollHeight;
+            }, 500);
+        }
+
+        function handleChatKeyPress(event) { if (event.key === 'Enter') sendMessage(); }
+
+        function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+
+        setInterval(() => { loadJobs(); }, 5000);
+        loadCharacters();
+        loadJobs();
+    </script>
+</body>
+</html>

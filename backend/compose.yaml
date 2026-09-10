@@ -1,0 +1,66 @@
+name: ai-influencer
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: influencer
+      POSTGRES_USER: influencer
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U influencer -d influencer"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  api:
+    build: .
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010"]
+    ports:
+      - "8010:8010"
+    volumes:
+      - ./data/media:/app/data/media
+      - ./workflows:/app/workflows:ro
+    network_mode: host
+    environment:
+      DATABASE_URL: postgresql+psycopg://influencer:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@127.0.0.1:55432/influencer
+      API_KEY: ci8JSikZ8a3Z4HxNzip_40aZBoix47DCQ-1qkt9SVdo
+      MEDIA_DIR: /app/data/media
+      TEXT_PROVIDER: ollama
+      IMAGE_PROVIDER: comfyui
+      OLLAMA_URL: http://127.0.0.1:11434
+      OLLAMA_MODEL: llama3.1:8b
+      COMFYUI_URL: http://127.0.0.1:8188
+      WORKFLOW_PATH: /app/workflows/default.json
+      GENERATION_TIMEOUT: 900
+      WORKER_LEASE_SECONDS: 1200
+    depends_on:
+      db:
+        condition: service_healthy
+  worker:
+    build: .
+    command: ["python", "-m", "app.worker"]
+    volumes:
+      - ./data/media:/app/data/media
+      - ./workflows:/app/workflows:ro
+    network_mode: host
+    environment:
+      DATABASE_URL: postgresql+psycopg://influencer:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@127.0.0.1:55432/influencer
+      API_KEY: ci8JSikZ8a3Z4HxNzip_40aZBoix47DCQ-1qkt9SVdo
+      MEDIA_DIR: /app/data/media
+      TEXT_PROVIDER: ollama
+      IMAGE_PROVIDER: comfyui
+      OLLAMA_URL: http://127.0.0.1:11434
+      OLLAMA_MODEL: llama3.1:8b
+      COMFYUI_URL: http://127.0.0.1:8188
+      WORKFLOW_PATH: /app/workflows/default.json
+      GENERATION_TIMEOUT: 900
+      WORKER_LEASE_SECONDS: 1200
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  postgres_data:
