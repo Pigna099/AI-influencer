@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     image_provider: Literal["mock", "comfyui"] = "mock"
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.1:8b"
+    ollama_timeout_seconds: int = 120
+    ollama_embedding_model: str = "embeddinggemma"
+    chat_temperature: float = 0.7
+    cors_origins: str = "http://localhost:3000"
     comfyui_url: str = "http://127.0.0.1:8188"
     workflow_path: Path = Path("workflows/default.json")
     generation_timeout: int = 900

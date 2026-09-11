@@ -27,12 +27,16 @@ services:
     network_mode: host
     environment:
       DATABASE_URL: postgresql+psycopg://influencer:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@127.0.0.1:55432/influencer
-      API_KEY: ci8JSikZ8a3Z4HxNzip_40aZBoix47DCQ-1qkt9SVdo
+      API_KEY: ${API_KEY}
       MEDIA_DIR: /app/data/media
       TEXT_PROVIDER: ollama
       IMAGE_PROVIDER: comfyui
       OLLAMA_URL: http://127.0.0.1:11434
       OLLAMA_MODEL: llama3.1:8b
+      OLLAMA_TIMEOUT_SECONDS: 120
+      OLLAMA_EMBEDDING_MODEL: embeddinggemma
+      CHAT_TEMPERATURE: 0.7
+      CORS_ORIGINS: http://localhost:3000
       COMFYUI_URL: http://127.0.0.1:8188
       WORKFLOW_PATH: /app/workflows/default.json
       GENERATION_TIMEOUT: 900
@@ -49,12 +53,16 @@ services:
     network_mode: host
     environment:
       DATABASE_URL: postgresql+psycopg://influencer:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@127.0.0.1:55432/influencer
-      API_KEY: ci8JSikZ8a3Z4HxNzip_40aZBoix47DCQ-1qkt9SVdo
+      API_KEY: ${API_KEY}
       MEDIA_DIR: /app/data/media
       TEXT_PROVIDER: ollama
       IMAGE_PROVIDER: comfyui
       OLLAMA_URL: http://127.0.0.1:11434
       OLLAMA_MODEL: llama3.1:8b
+      OLLAMA_TIMEOUT_SECONDS: 120
+      OLLAMA_EMBEDDING_MODEL: embeddinggemma
+      CHAT_TEMPERATURE: 0.7
+      CORS_ORIGINS: http://localhost:3000
       COMFYUI_URL: http://127.0.0.1:8188
       WORKFLOW_PATH: /app/workflows/default.json
       GENERATION_TIMEOUT: 900

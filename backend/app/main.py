@@ -2,11 +2,13 @@ import secrets
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, text, update
 
+from .characters import router as characters_router
 from .config import settings
 from .db import Asset, BibleVersion, Influencer, Job, Review, Session
 from .schemas import Bible, InfluencerInput, JobInput, ReviewInput
@@ -21,16 +23,31 @@ def authorize(key: str | None = Depends(key_header)):
         raise HTTPException(401, "Invalid API key")
 
 
-app = FastAPI(title="AI Influencer Backend", version="0.1.0", )
+app = FastAPI(
+    title="AI Influencer Backend",
+    version="0.1.0",
+)
 
-WEBUI_DIR = Path(__file__).parent.parent / "webui"
+origins = [origin.strip() for origin in settings.cors_origins.split(",")]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["*"],
+)
 
-app.mount("/static", StaticFiles(directory=WEBUI_DIR), name="webui")
+WEBUI_DIR = Path(__file__).parent.parent / "webui_dist"
+app.mount("/assets", StaticFiles(directory=WEBUI_DIR / "assets"), name="webui_assets")
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False, dependencies=[])
 def root():
-    return FileResponse(WEBUI_DIR / "index.html")
+    webui_dir = Path(__file__).parent.parent / "webui_dist"
+    index_file = webui_dir / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+    raise HTTPException(status_code=404)
 
 
 def required(db, model, item_id):
@@ -67,7 +84,7 @@ def create_influencer(body: InfluencerInput):
     return item
 
 
-@app.get("/influencers", tags=["Influencers"])
+@app.get("/influencers", tags=["Influencers"], dependencies=[Depends(authorize)])
 def list_influencers(limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0)):
     with Session() as db:
         return list(
@@ -75,13 +92,13 @@ def list_influencers(limit: int = Query(50, ge=1, le=100), offset: int = Query(0
         )
 
 
-@app.get("/influencers/{influencer_id}", tags=["Influencers"])
+@app.get("/influencers/{influencer_id}", tags=["Influencers"], dependencies=[Depends(authorize)])
 def get_influencer(influencer_id: str):
     with Session() as db:
         return required(db, Influencer, influencer_id)
 
 
-@app.put("/influencers/{influencer_id}/bible", tags=["Influencers"])
+@app.put("/influencers/{influencer_id}/bible", tags=["Influencers"], dependencies=[Depends(authorize)])
 def update_bible(influencer_id: str, body: Bible):
     with Session.begin() as db:
         item = required(db, Influencer, influencer_id)
@@ -99,7 +116,7 @@ def update_bible(influencer_id: str, body: Bible):
     return item
 
 
-@app.get("/influencers/{influencer_id}/versions", tags=["Influencers"])
+@app.get("/influencers/{influencer_id}/versions", tags=["Influencers"], dependencies=[Depends(authorize)])
 def versions(influencer_id: str):
     with Session() as db:
         required(db, Influencer, influencer_id)
@@ -128,14 +145,14 @@ def new_job(db, body):
     return job
 
 
-@app.post("/content-jobs", status_code=202, tags=["Content"])
+@app.post("/content-jobs", status_code=202, tags=["Content"], dependencies=[Depends(authorize)])
 def create_job(body: JobInput):
     with Session.begin() as db:
         job = new_job(db, body)
     return job
 
 
-@app.get("/content-jobs", tags=["Content"])
+@app.get("/content-jobs", tags=["Content"], dependencies=[Depends(authorize)])
 def list_jobs(status: str | None = None, limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0)):
     with Session() as db:
         query = select(Job).order_by(Job.created_at.desc())
@@ -144,7 +161,7 @@ def list_jobs(status: str | None = None, limit: int = Query(50, ge=1, le=100), o
         return list(db.scalars(query.limit(limit).offset(offset)))
 
 
-@app.get("/content-jobs/{job_id}", tags=["Content"])
+@app.get("/content-jobs/{job_id}", tags=["Content"], dependencies=[Depends(authorize)])
 def get_job(job_id: str):
     with Session() as db:
         job = required(db, Job, job_id)
@@ -155,7 +172,7 @@ def get_job(job_id: str):
         }
 
 
-@app.post("/content-jobs/{job_id}/review", tags=["Review"])
+@app.post("/content-jobs/{job_id}/review", tags=["Review"], dependencies=[Depends(authorize)])
 def review_job(job_id: str, body: ReviewInput):
     with Session.begin() as db:
         required(db, Job, job_id)
@@ -168,7 +185,9 @@ def review_job(job_id: str, body: ReviewInput):
     return {"id": job_id, "status": body.decision}
 
 
-@app.post("/content-jobs/{job_id}/regenerate", status_code=202, tags=["Review"])
+@app.post(
+    "/content-jobs/{job_id}/regenerate", status_code=202, tags=["Review"], dependencies=[Depends(authorize)]
+)
 def regenerate(job_id: str):
     with Session.begin() as db:
         old = required(db, Job, job_id)
@@ -182,7 +201,7 @@ def regenerate(job_id: str):
     return job
 
 
-@app.get("/assets/{asset_id}/file", tags=["Media"])
+@app.get("/assets/{asset_id}/file", tags=["Media"], dependencies=[Depends(authorize)])
 def download_asset(asset_id: str):
     with Session() as db:
         asset = required(db, Asset, asset_id)
@@ -190,3 +209,6 @@ def download_asset(asset_id: str):
         if not path.is_relative_to(settings.media_dir.resolve()) or not path.is_file():
             raise HTTPException(404, "Media file unavailable")
         return FileResponse(path, media_type=asset.media_type, filename=asset.filename)
+
+
+app.include_router(characters_router)
