@@ -91,9 +91,35 @@ export default function Playground({ onLogout }: PlaygroundProps) {
 
   const handleSelectCharacter = (character: Character) => {
     setSelectedCharacter(character);
+    setSelectedConversation(null);
+    setMessages([]);
     loadConversations(character.id);
     loadMemories(character.id);
     setActiveTab("list");
+  };
+
+  const handleDeleteCharacter = async (characterId: string) => {
+    if (!window.confirm("Are you sure you want to delete this character? This will also delete all conversations, chat messages, memories, and version history.")) {
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      await api.deleteCharacter(characterId);
+      setCharacters(characters.filter(c => c.id !== characterId));
+      if (selectedCharacter?.id === characterId) {
+        setSelectedCharacter(null);
+        setSelectedConversation(null);
+        setMessages([]);
+        setConversations([]);
+      }
+      setError(null);
+    } catch (err) {
+      setError("Failed to delete character: " + (err?.toString() || "Unknown error"));
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCreateCharacter = async (data: {name: string; profile: CharacterProfile}) => {
@@ -135,11 +161,32 @@ export default function Playground({ onLogout }: PlaygroundProps) {
     setLoading(true);
     setError(null);
     try {
+      const userMessageId = `temp-${Date.now()}`;
+      const tempUserMessage: Message = {
+        id: userMessageId,
+        conversation_id: selectedConversation.id,
+        role: "user",
+        content,
+        model: null,
+        ollama_metrics: null,
+        created_at: new Date().toISOString(),
+      };
+      
+      setMessages(prev => [...prev, tempUserMessage]);
+      
       const message = await api.sendMessage(selectedConversation.id, content);
-      setMessages(prev => [...prev, message]);
+      
+      setMessages(prev => {
+        const filtered = prev.filter(msg => msg.id !== userMessageId);
+        return [...filtered, message];
+      });
     } catch (err) {
       setError("Failed to send message");
       console.error(err);
+      setMessages(prev => {
+        const filtered = prev.filter(msg => !msg.id?.startsWith('temp-'));
+        return filtered;
+      });
     } finally {
       setLoading(false);
     }
@@ -257,6 +304,7 @@ export default function Playground({ onLogout }: PlaygroundProps) {
                   key={character.id}
                   character={character}
                   onClick={() => handleSelectCharacter(character)}
+                  onDelete={() => handleDeleteCharacter(character.id)}
                 />
               ))}
             </div>

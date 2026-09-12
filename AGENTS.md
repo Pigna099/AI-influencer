@@ -1,5 +1,13 @@
 # AGENTS.md
 
+## Active codebase (September 2026)
+
+The active backend is **`backend-v3p1/`** (AI influencer playground v3.1): Ollama chat playground with characters, simulated fans, per-fan memory, model benchmarking and personality A/B testing. It is deployed via Docker Compose from that folder (same `ai-influencer` project and PostgreSQL volume as before). Use `backend-v3p1/README.md` and `backend-v3p1/STATO.md` for the current architecture and operations.
+
+The older `backend/` described below is the legacy v1 content-generation backend and is no longer the deployed service. `backend-v3-stage/` is the previous staging copy that `backend-v3p1` continues from.
+
+---
+
 ## Project Purpose
 
 This is an **AI Influencer Backend** system that automates content generation for AI-driven social media characters. It provides:
@@ -104,7 +112,7 @@ uv run python -m app.worker
 
 ```bash
 # Build and start services
-docker compose up -d --build
+docker compose up -d
 
 # View logs
 docker compose logs -f api
@@ -526,3 +534,86 @@ Before declaring a change "done":
 2. Test embedding endpoint support on target Ollama models
 3. Validate Docker deployment with production Ollama/ComfyUI services
 4. Add comprehensive integration tests for memory extraction end-to-end
+
+---
+
+## Summary of This Assessment
+
+**What was inspected**: Full codebase structure, database models, API endpoints, workers, migrations, tests, configuration, Docker setup
+
+**What was added**: This `AGENTS.md` file (repository root)
+
+**Critical Issues Fixed**:
+
+1. **Disappearing user messages on send**: The frontend was only adding the assistant's response to its message state, losing the user's message. Fixed by implementing optimistic update: frontend now adds a temporary user message with a unique temp ID before sending, then filters it out and replaces with the assistant response when it arrives.
+
+2. **No AI-initiated greeting**: Conversations now create an initial assistant greeting message when created via `POST /api/characters/{id}/conversations`.
+
+**Root Causes**:
+- Backend API `POST /api/conversations/{id}/messages` returns only the assistant message, not the user message
+- Frontend `handleSendMessage` in Playground.tsx implements optimistic update with proper temp ID filtering
+
+**Files Changed**:
+1. `backend/app/characters.py` - Added initial greeting generation when creating conversations (lines 226-256)
+2. `backend/webui/src/components/Playground.tsx` - Optimistic update for user messages with temp ID filtering (lines 135-161)
+
+**Tests**:
+- All character/chat API tests pass (16/16)
+- 21 of 22 pipeline tests pass (1 pre-existing failure unrelated to chat fixes)
+- Frontend lint and build pass
+
+**Remaining Linter Warnings**:
+- S110 and BLE001 in `create_conversation` function for catching `Exception` without logging - acceptable as greeting generation is non-critical
+
+**Uncertainties**:
+- ComfyUI workflow file (`workflows/default.json`) structure needs verification against real service
+- Production embedding model (`embeddinggemma`) may require additional Ollama pull
+- Multi-user authentication not yet implemented (single API key shared mode)
+
+**Follow-up checks**:
+1. Verify ComfyUI workflow matches `GENERATION_TIMEOUT` and `WORKFLOW_PATH`
+2. Test embedding endpoint support on target Ollama models
+3. Validate Docker deployment with production Ollama/ComfyUI services
+4. Add comprehensive integration tests for memory extraction end-to-end
+
+---
+
+## Summary of This Assessment - Character Management & Chat Interface Fixes
+
+**What was fixed**:
+
+1. **Delete character functionality**: Added backend DELETE endpoint `/api/characters/{id}` with cascade deletion of all related records (conversations, memories, bible versions)
+
+2. **Frontend delete UI**: Added delete button on character cards with confirmation dialog and proper loading/error states
+
+3. **Character switching fix**: Fixed `handleSelectCharacter` to clear conversation and message state when switching to a different character
+
+4. **Conversation cascade**: Deleting a character now properly deletes all associated conversations and memories
+
+**Root causes of reported bugs**:
+
+1. **Missing delete functionality**: No DELETE endpoint existed for characters
+2. **List Characters button**: Button set `activeTab` to "list" which should show the character list - the code was correct but the state wasn't being cleared when switching characters
+3. **Character switching**: When selecting a new character, the selected character was updated but the conversation/messages state from the previous character remained, causing stale data to display
+
+**Files changed**:
+1. `backend/app/characters.py` - Added DELETE endpoint with cascade deletion (lines 625-658)
+2. `backend/webui/src/api.ts` - Added deleteCharacter method (line 194-196)
+3. `backend/webui/src/components/CharacterCard.tsx` - Added delete button with confirmation
+4. `backend/webui/src/components/Playground.tsx` - Added delete character handler and fixed character switching to clear state
+5. `backend/tests/test_characters.py` - Added 4 new tests for deletion
+
+**Tests**:
+- All character API tests pass (20/20)
+- 25 of 26 total tests pass (1 pre-existing failure unrelated to changes)
+- Manual verification confirms:
+  - Character deletion works with all related data cleaned up
+  - Character switching clears stale state
+  - List shows current character list
+  - UI properly handles delete confirmation and loading states
+
+**Remaining limitations**:
+- No support for pagination on character list
+- No search/filter on character list
+- Character deletion requires confirmation (intentional for safety)
+

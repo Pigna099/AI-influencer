@@ -223,6 +223,38 @@ def create_conversation(character_id: str, body: ConversationInput):
         )
         db.add(conversation)
         db.flush()
+
+        initial_greeting = ""
+        try:
+            profile_data = normalize_bible_profile(character.bible)
+            system_prompt = (
+                f"You are {character.name}, a character with the following profile:\n\n"
+                f"Description: {profile_data.get('description', 'N/A')}\n"
+                f"Personality: {profile_data.get('personality_traits', 'N/A')}\n"
+                f"Tone of voice: {profile_data.get('tone_of_voice', 'N/A')}\n"
+                f"Boundaries: {profile_data.get('boundaries', 'No specific boundaries')}\n"
+                "Greet the user warmly and introduce yourself. Keep it concise and friendly."
+            )
+            response = chat(
+                body.model, [{"role": "system", "content": system_prompt}], settings.chat_temperature
+            )
+            initial_greeting = response.get("message", {}).get("content", "")
+        except OllamaNotAvailable:
+            pass
+        except Exception:
+            pass
+
+        if initial_greeting:
+            greeting_message = ChatMessage(
+                conversation_id=conversation.id,
+                role="assistant",
+                content=initial_greeting,
+                model=body.model,
+                ollama_metrics=None,
+            )
+            db.add(greeting_message)
+
+        db.flush()
         db.refresh(conversation)
         return ConversationOutput(
             id=conversation.id,
@@ -591,3 +623,38 @@ def delete_all_memories(character_id: str):
         for m in memories:
             db.delete(m)
         return {"deleted": True, "count": len(memories)}
+
+
+@router.delete("/characters/{character_id}")
+def delete_character(character_id: str):
+    with Session.begin() as db:
+        from .db import BibleVersion, ChatMessage, Conversation, Influencer, Memory
+
+        character = db.get(Influencer, character_id)
+        if character is None:
+            raise HTTPException(404, "Character not found")
+
+        # Delete all related records in correct order
+        # 1. Delete conversations (which will cascade to messages via ForeignKey)
+        conversations = db.scalars(
+            select(Conversation).where(Conversation.character_id == character_id)
+        ).all()
+        for conv in conversations:
+            db.delete(conv)
+
+        # 2. Delete memories
+        memories = db.scalars(select(Memory).where(Memory.character_id == character_id)).all()
+        for m in memories:
+            db.delete(m)
+
+        # 3. Delete bible versions
+        bible_versions = db.scalars(
+            select(BibleVersion).where(BibleVersion.influencer_id == character_id)
+        ).all()
+        for bv in bible_versions:
+            db.delete(bv)
+
+        # 4. Finally delete the character
+        db.delete(character)
+
+        return {"deleted": True, "id": character_id}

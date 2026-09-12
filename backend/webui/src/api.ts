@@ -191,6 +191,10 @@ export class ApiClient {
   async clearMemories(characterId: string): Promise<{deleted: boolean; count: number}> {
     return this.request(`/api/characters/${characterId}/memories`, {method: "DELETE"});
   }
+
+  async deleteCharacter(id: string): Promise<{deleted: boolean; id: string}> {
+    return this.request(`/api/characters/${id}`, {method: "DELETE"});
+  }
 }
 
 export const api = new ApiClient();

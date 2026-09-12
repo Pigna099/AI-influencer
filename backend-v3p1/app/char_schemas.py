@@ -1,0 +1,102 @@
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class CharacterProfile(StrictModel):
+    description: str = Field(min_length=1, max_length=5000)
+    appearance: str = Field(default="", max_length=2000)
+    background: str = Field(default="", max_length=5000)
+    personality_traits: str = Field(default="", max_length=2000)
+    tone_of_voice: str = Field(default="cordiale", max_length=1000)
+    speech_style: str = Field(default="", max_length=1000)
+    vocabulary: str = Field(default="", max_length=1000)
+    likes: str = Field(default="", max_length=2000)
+    dislikes: str = Field(default="", max_length=2000)
+    boundaries: str = Field(default="", max_length=2000)
+    relationship_style: str = Field(default="", max_length=1000)
+    language: str = Field(default="en", max_length=10)
+    custom_instructions: str = Field(default="", max_length=5000)
+
+
+class CharacterInput(StrictModel):
+    name: str = Field(min_length=1, max_length=120)
+    profile: CharacterProfile
+
+
+class CharacterOutput(StrictModel):
+    id: str
+    name: str
+    profile: CharacterProfile
+    version: int
+    avatar_filename: str | None = None
+    created_at: str
+
+
+class CharacterUpdate(StrictModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    profile: CharacterProfile | None = None
+
+
+class CharacterClone(StrictModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+
+
+class ConversationInput(StrictModel):
+    title: str | None = Field(default=None, max_length=200)
+    model: str = Field(min_length=1, max_length=120)
+    fan_id: str | None = None
+    auto_greet: bool = True
+
+
+class ChatMessageInput(StrictModel):
+    content: str = Field(min_length=1, max_length=10000)
+
+
+class MemoryInput(StrictModel):
+    content: str = Field(min_length=1, max_length=5000)
+    category: Literal["preference", "personal_fact", "relationship", "goal", "context"]
+    importance: int = Field(ge=1, le=5)
+    source_message_id: str | None = None
+
+
+class FanInput(StrictModel):
+    name: str = Field(min_length=1, max_length=120)
+    notes: str = Field(default="", max_length=3000)
+
+
+class ConversationPatch(StrictModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    model: str | None = Field(default=None, min_length=1, max_length=120)
+    images_enabled: bool | None = None
+
+
+class InitiateInput(StrictModel):
+    kind: Literal["opener", "reengage"] = "reengage"
+    absence_hours: int = Field(default=48, ge=1, le=8760)
+
+
+class EnhanceInput(StrictModel):
+    name: str = Field(min_length=1, max_length=120)
+    profile: CharacterProfile
+    model: str = Field(min_length=1, max_length=120)
+    direction: str = Field(default="Rendi la personalità distintiva, giocosa e propositiva.", max_length=2000)
+
+
+class BenchmarkInput(StrictModel):
+    batch_id: str = Field(min_length=1, max_length=36)
+    character_id: str
+    fan_id: str | None = None
+    model: str = Field(min_length=1, max_length=120)
+    prompt: str = Field(min_length=1, max_length=4000)
+    temperature: float = Field(default=0.7, ge=0, le=2)
+    profile: CharacterProfile | None = None
+    label: str | None = Field(default=None, max_length=120)
+
+
+class MemoryExtraction(StrictModel):
+    memories: list[MemoryInput] = Field(default_factory=list, max_length=8)
