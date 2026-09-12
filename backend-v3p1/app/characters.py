@@ -26,8 +26,11 @@ from .char_schemas import (
     ConversationPatch,
     EnhanceInput,
     FanInput,
+    ImageCheckpointInput,
+    ImageStyleInput,
     InitiateInput,
     MemoryInput,
+    PhotoInput,
 )
 from .chat_service import (
     FAN_MESSAGE_REMINDER,
@@ -39,6 +42,7 @@ from .chat_service import (
     fan_message,
     generate_reply,
     measured_chat,
+    translate_scene,
 )
 from .config import settings
 from .db import (
@@ -58,7 +62,8 @@ from .db import (
     identifier,
     now,
 )
-from .integrations.comfyui import ComfyUIError, comfyui_available, generate_image
+from .integrations.comfyui import ComfyUIError, comfyui_available, generate_image, get_checkpoints
+from .integrations.gpu import gpu_status
 from .integrations.ollama import OllamaNotAvailable, chat, get_models, validate_model
 
 logger = logging.getLogger(__name__)
@@ -86,6 +91,8 @@ def character_out(item):
         profile=CharacterProfile(**normalize_bible_profile(item.bible)),
         version=item.version,
         avatar_filename=item.avatar_filename,
+        image_checkpoint=item.image_checkpoint,
+        image_style=item.image_style,
         created_at=item.created_at.isoformat(),
     )
 
@@ -143,6 +150,16 @@ def list_ollama_models():
         raise HTTPException(503, str(error)) from error
 
 
+@router.get("/images/checkpoints")
+def list_image_checkpoints():
+    return {"available": comfyui_available(), "checkpoints": get_checkpoints()}
+
+
+@router.get("/system/gpus")
+def system_gpus():
+    return gpu_status()
+
+
 @router.post("/characters", status_code=201)
 def create_character(body: CharacterInput):
     with Session.begin() as db:
@@ -197,10 +214,23 @@ def generate_avatar(character_id: str):
         character = required(db, Influencer, character_id)
         name = character.name
         profile = normalize_bible_profile(character.bible)
-    prompt = build_avatar_prompt(name, profile)
-    negative = build_negative_prompt()
+        old_avatar = character.avatar_filename
+        checkpoint = character.image_checkpoint
+        style = character.image_style or "real"
+    appearance = (profile.get("appearance") or profile.get("description") or "").strip()
+    profile = {**profile, "appearance": translate_scene(appearance, style)}
+    prompt = build_avatar_prompt(name, profile, style)
+    negative = build_negative_prompt(style)
+    reference = (settings.media_dir / old_avatar) if old_avatar else None
     try:
-        data, _ = generate_image(prompt, negative, size_label="NSFW DEMO AVATAR")
+        data, _ = generate_image(
+            prompt,
+            negative,
+            reference_path=reference,
+            checkpoint=checkpoint,
+            style=style,
+            size_label="NSFW DEMO AVATAR",
+        )
     except ComfyUIError as error:
         raise HTTPException(502, f"Generazione immagine profilo non riuscita: {error}") from error
     settings.media_dir.mkdir(parents=True, exist_ok=True)
@@ -217,6 +247,28 @@ def generate_avatar(character_id: str):
         result = character_out(item)
     unlink_media([old] if old else [])
     return result
+
+
+@router.put("/characters/{character_id}/image-checkpoint")
+def set_image_checkpoint(character_id: str, body: ImageCheckpointInput):
+    if body.checkpoint:
+        checkpoints = get_checkpoints()
+        if checkpoints and body.checkpoint not in checkpoints:
+            raise HTTPException(400, "Checkpoint non installato in ComfyUI")
+    with Session.begin() as db:
+        item = required(db, Influencer, character_id)
+        item.image_checkpoint = body.checkpoint
+        db.flush()
+        return character_out(item)
+
+
+@router.put("/characters/{character_id}/image-style")
+def set_image_style(character_id: str, body: ImageStyleInput):
+    with Session.begin() as db:
+        item = required(db, Influencer, character_id)
+        item.image_style = body.style
+        db.flush()
+        return character_out(item)
 
 
 @router.get("/characters/{character_id}/avatar/file")
@@ -433,12 +485,31 @@ def run_turn(conversation_id, *, content=None, kind="reply", absence_hours=48, b
         image_data, image_meta, image_prompt, image_negative, filename = None, None, None, None, None
         scene = metrics.get("photo_scene")
         if scene:
-            image_prompt = build_scene_prompt(conv, scene)
-            image_negative = build_negative_prompt()
+            with Session() as db:
+                character = db.get(Influencer, conv.character_id)
+                reference = (
+                    settings.media_dir / character.avatar_filename
+                    if character and character.avatar_filename
+                    else None
+                )
+                checkpoint = character.image_checkpoint if character else None
+                style = (character.image_style or "real") if character else "real"
+            image_prompt = build_scene_prompt(conv, translate_scene(scene, style), style)
+            image_negative = build_negative_prompt(style)
             try:
                 image_start = time.perf_counter()
-                image_data, image_meta = generate_image(image_prompt, image_negative)
+                image_data, image_meta = generate_image(
+                    image_prompt,
+                    image_negative,
+                    reference_path=reference,
+                    checkpoint=checkpoint,
+                    style=style,
+                )
                 metrics["image_seconds"] = time.perf_counter() - image_start
+                metrics["image_reference"] = image_meta.get("reference", False)
+                metrics["image_style"] = style
+                if image_meta.get("checkpoint"):
+                    metrics["image_checkpoint"] = image_meta["checkpoint"]
                 filename = f"{identifier()}.png"
                 settings.media_dir.mkdir(parents=True, exist_ok=True)
                 (settings.media_dir / filename).write_bytes(image_data)
@@ -502,6 +573,97 @@ def create_chat_message(conversation_id: str, body: ChatMessageInput, background
 @router.post("/conversations/{conversation_id}/initiate")
 def initiate(conversation_id: str, body: InitiateInput):
     return run_turn(conversation_id, kind=body.kind, absence_hours=body.absence_hours)
+
+
+@router.post("/conversations/{conversation_id}/photo", status_code=201)
+def send_photo(conversation_id: str, body: PhotoInput):
+    """Manual photo: the operator generates a photo without asking the chat model."""
+    if not settings.chat_image_enabled:
+        raise HTTPException(409, "Le foto in chat sono disattivate")
+    if not comfyui_available():
+        raise HTTPException(503, "ComfyUI non è raggiungibile: avvia il servizio immagini")
+    lease = now() + timedelta(seconds=settings.generation_timeout + 60)
+    with Session.begin() as db:
+        changed = db.execute(
+            update(Conversation)
+            .where(
+                Conversation.id == conversation_id,
+                or_(Conversation.busy_until.is_(None), Conversation.busy_until < now()),
+            )
+            .values(busy_until=lease)
+        )
+        if changed.rowcount != 1:
+            raise HTTPException(409, "Il personaggio sta già rispondendo in questa conversazione")
+        conv = required(db, Conversation, conversation_id)
+        character = required(db, Influencer, conv.character_id)
+        reference = settings.media_dir / character.avatar_filename if character.avatar_filename else None
+        checkpoint = character.image_checkpoint
+        style = character.image_style or "real"
+    try:
+        scene = body.scene or "sensual selfie, lying on bed, looking at viewer, flirty expression"
+        prompt = build_scene_prompt(conv, translate_scene(scene, style), style)
+        negative = build_negative_prompt(style)
+        try:
+            image_start = time.perf_counter()
+            image_data, image_meta = generate_image(
+                prompt, negative, reference_path=reference, checkpoint=checkpoint, style=style
+            )
+        except ComfyUIError as error:
+            raise HTTPException(502, f"Generazione foto non riuscita: {error}") from error
+        seconds = time.perf_counter() - image_start
+        settings.media_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"{identifier()}.png"
+        try:
+            (settings.media_dir / filename).write_bytes(image_data)
+        except OSError as error:
+            raise HTTPException(500, "Impossibile salvare la foto") from error
+        metrics = {
+            "kind": "photo",
+            "manual": True,
+            "image_sent": True,
+            "image_seconds": seconds,
+            "image_reference": image_meta.get("reference", False),
+            "image_style": style,
+            "request_seconds": seconds,
+            "guarded": False,
+            "guard_reason": None,
+        }
+        if image_meta.get("checkpoint"):
+            metrics["image_checkpoint"] = image_meta["checkpoint"]
+        with Session.begin() as db:
+            required(db, Conversation, conversation_id)
+            assistant = ChatMessage(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=body.caption or "",
+                model=None,
+                ollama_metrics=metrics,
+            )
+            db.add(assistant)
+            db.flush()
+            db.add(
+                ChatImage(
+                    message_id=assistant.id,
+                    conversation_id=conversation_id,
+                    character_id=conv.character_id,
+                    filename=filename,
+                    sha256=hashlib.sha256(image_data).hexdigest(),
+                    media_type="image/png",
+                    prompt=prompt,
+                    negative_prompt=negative,
+                    seed=image_meta["seed"],
+                    nsfw=settings.chat_image_nsfw,
+                    provider=image_meta["provider"],
+                )
+            )
+            return messages_out(db, [assistant])[0]
+    finally:
+        with Session.begin() as db:
+            db.execute(
+                update(Conversation)
+                .where(Conversation.id == conversation_id, Conversation.busy_until == lease)
+                .values(busy_until=None)
+            )
 
 
 @router.get("/conversations/{conversation_id}/messages")

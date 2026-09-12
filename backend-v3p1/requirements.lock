@@ -36,6 +36,8 @@ mako==1.4.1
     # via alembic
 markupsafe==3.0.3
     # via mako
+nvidia-ml-py==13.610.43
+    # via ai-influencer-backend
 pillow==12.3.0
     # via ai-influencer-backend
 psycopg==3.3.5

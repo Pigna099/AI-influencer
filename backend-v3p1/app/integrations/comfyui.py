@@ -42,6 +42,34 @@ def comfyui_available(ttl_seconds: float = 15.0) -> bool:
     return _probe["ok"]
 
 
+def get_checkpoints() -> list[str]:
+    """Checkpoints installed in ComfyUI, for the per-character selector."""
+    if settings.image_provider == "mock":
+        return ["mock-sdxl.safetensors"]
+    try:
+        response = httpx.get(f"{settings.comfyui_url}/object_info/CheckpointLoaderSimple", timeout=10)
+        response.raise_for_status()
+        options = response.json()["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
+        return list(options)
+    except (httpx.HTTPError, KeyError, TypeError):
+        return []
+
+
+def apply_checkpoint(workflow: dict, checkpoint: str | None) -> dict:
+    """Override the checkpoint of every CheckpointLoaderSimple node in the workflow."""
+    if not checkpoint:
+        return workflow
+    patched = json.loads(json.dumps(workflow))
+    found = False
+    for node in patched.values():
+        if isinstance(node, dict) and node.get("class_type") == "CheckpointLoaderSimple":
+            node.setdefault("inputs", {})["ckpt_name"] = checkpoint
+            found = True
+    if not found:
+        raise ComfyUIError("Il workflow non contiene un nodo CheckpointLoaderSimple")
+    return patched
+
+
 def upload_reference(path: Path) -> str:
     """Upload the character picture to ComfyUI and return its input filename."""
     try:
@@ -61,12 +89,14 @@ def upload_reference(path: Path) -> str:
     return f"{data.get('subfolder', '')}/{data['name']}".lstrip("/")
 
 
-def _run_workflow(workflow: dict, replacements: dict, expected: int, timeout: int) -> list[bytes]:
+def _run_workflow(
+    workflow: dict, replacements: dict, expected: int, timeout: int, checkpoint: str | None = None
+) -> list[bytes]:
     serialized = json.dumps(workflow)
     for placeholder in PLACEHOLDERS:
         if placeholder not in serialized:
             raise ComfyUIError(f"Workflow missing placeholder: {placeholder}")
-    prompt = parameterize(workflow, replacements)
+    prompt = parameterize(apply_checkpoint(workflow, checkpoint), replacements)
     deadline = time.monotonic() + timeout
     try:
         with httpx.Client(base_url=settings.comfyui_url, timeout=30) as client:
@@ -140,38 +170,70 @@ def generate_images(brief, request):
     return outputs, {"provider": "comfyui", "workflow": "default"}
 
 
+def _style_workflows(style: str) -> tuple[Path, Path]:
+    """Plain and reference workflow for the requested style, with legacy fallback."""
+    if style == "anime":
+        plain, reference = settings.chat_anime_workflow_path, settings.chat_anime_reference_workflow_path
+    else:
+        plain, reference = settings.chat_real_workflow_path, settings.chat_real_reference_workflow_path
+    if not plain.is_file():
+        return settings.chat_workflow_path, settings.chat_reference_workflow_path
+    return plain, reference
+
+
 def generate_image(
     prompt: str,
     negative_prompt: str,
     *,
     seed: int | None = None,
     reference_path: Path | None = None,
+    checkpoint: str | None = None,
+    style: str = "real",
     size_label: str = "NSFW DEMO",
 ) -> tuple[bytes, dict]:
-    """Generate one image for chat or the character avatar. Returns (png_bytes, metadata)."""
+    """Generate one image for chat or the character avatar. Returns (png_bytes, metadata).
+
+    The style picks the workflow pair (`chat_real*` or `chat_anime*`). When the
+    character has a picture and a reference workflow is configured (IPAdapter),
+    that workflow is used with the picture uploaded to ComfyUI. Otherwise the plain
+    text-to-image workflow is used as a fallback.
+    """
     seed = random.randrange(2**31) if seed is None else seed
     if settings.image_provider == "mock":
         image = Image.new("RGB", (512, 768), (45, 32, 55))
         ImageDraw.Draw(image).text((30, 340), f"DEMO - NOT AI GENERATED\n{size_label}", fill="white")
         output = io.BytesIO()
         image.save(output, format="PNG")
-        return output.getvalue(), {"provider": "mock", "seed": seed}
-    workflow = json.loads(settings.chat_workflow_path.read_text())
+        return output.getvalue(), {"provider": "mock", "seed": seed, "checkpoint": checkpoint, "style": style}
+    plain_path, reference_setting = _style_workflows(style)
+    has_reference = reference_path is not None and reference_path.is_file()
+    workflow_path = plain_path
+    if has_reference and reference_setting.is_file():
+        workflow_path = reference_setting
+    workflow = json.loads(workflow_path.read_text())
     replacements = {
         "{{positive_prompt}}": prompt,
         "{{negative_prompt}}": negative_prompt,
         "{{seed}}": seed,
         "{{image_count}}": 1,
     }
+    used_reference = False
     if "{{reference_image}}" in json.dumps(workflow):
-        # Only used by workflows that wire a reference image (for example IPAdapter).
-        if reference_path is None or not reference_path.is_file():
-            raise ComfyUIError("Workflow requires {{reference_image}} but the character has no picture")
-        replacements["{{reference_image}}"] = upload_reference(reference_path)
+        if not has_reference:
+            # Reference node present but the character has no picture: fall back to text-to-image.
+            workflow = json.loads(plain_path.read_text())
+            if "{{reference_image}}" in json.dumps(workflow):
+                raise ComfyUIError("Workflow requires {{reference_image}} but the character has no picture")
+        else:
+            replacements["{{reference_image}}"] = upload_reference(reference_path)
+            used_reference = True
     start = time.perf_counter()
-    output = _run_workflow(workflow, replacements, 1, settings.generation_timeout)[0]
+    output = _run_workflow(workflow, replacements, 1, settings.generation_timeout, checkpoint=checkpoint)[0]
     return output, {
         "provider": "comfyui",
         "seed": seed,
+        "checkpoint": checkpoint,
+        "style": style,
+        "reference": used_reference,
         "seconds": time.perf_counter() - start,
     }

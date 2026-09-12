@@ -34,7 +34,22 @@ class CharacterOutput(StrictModel):
     profile: CharacterProfile
     version: int
     avatar_filename: str | None = None
+    image_checkpoint: str | None = None
+    image_style: str | None = None
     created_at: str
+
+
+class ImageCheckpointInput(StrictModel):
+    checkpoint: str | None = Field(default=None, max_length=200)
+
+
+class ImageStyleInput(StrictModel):
+    style: Literal["anime", "real"] | None = None
+
+
+class PhotoInput(StrictModel):
+    scene: str | None = Field(default=None, max_length=1500)
+    caption: str | None = Field(default=None, max_length=1000)
 
 
 class CharacterUpdate(StrictModel):

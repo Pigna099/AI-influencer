@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { api, ChatImage, Conversation, Message } from "../api";
+import Lightbox from "./Lightbox";
 
-function MessagePhoto({ image }: { image: ChatImage }) {
+function MessagePhoto({ image, onView }: { image: ChatImage; onView: (url: string, alt: string) => void }) {
   const [url, setUrl] = useState("");
+  const alt = `Foto generata: ${image.prompt.slice(0, 80)}`;
   useEffect(() => {
     let objectUrl = "";
     let alive = true;
@@ -20,7 +22,7 @@ function MessagePhoto({ image }: { image: ChatImage }) {
     };
   }, [image.id]);
   if (!url) return <span className="photo-loading">Caricamento foto…</span>;
-  return <img className="chat-photo" src={url} alt={`Foto generata: ${image.prompt.slice(0, 80)}`} loading="lazy" />;
+  return <img className="chat-photo" src={url} alt={alt} loading="lazy" onClick={() => onView(url, alt)} />;
 }
 
 interface Props {
@@ -35,6 +37,7 @@ interface Props {
 
 export default function ChatPanel({ conversation, messages, onSendMessage, loading, busyLabel, elapsed, fanName }: Props) {
   const [input, setInput] = useState("");
+  const [viewer, setViewer] = useState<{ url: string; alt: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [showAll, setShowAll] = useState(false);
@@ -56,8 +59,8 @@ export default function ChatPanel({ conversation, messages, onSendMessage, loadi
         const tps = m?.eval_duration && m?.eval_count ? m.eval_count / (m.eval_duration / 1e9) : null;
         return <div key={msg.id} className={`message-row ${msg.role}`}><div className="message-block">
           <div className="message-author">{msg.role === "user" ? fanName : conversation?.character_snapshot.name}<span>{new Date(msg.created_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</span></div>
-          <div className="bubble"><p>{msg.content}</p>{!!msg.images?.length && <div className="message-photos">{msg.images.map(image => <MessagePhoto key={image.id} image={image} />)}</div>}</div>
-          {m && <div className="message-metrics"><span>{msg.model}</span>{m.request_seconds != null && <b>{m.request_seconds.toFixed(2)} s</b>}{tps != null && <span>{tps.toFixed(1)} token/s</span>}{m.kind && m.kind !== "reply" && <span>{m.kind === "opener" ? "Primo messaggio" : "Ritorno"}</span>}{m.guarded && <span className="warning">Bloccata dal filtro anti-iniezione</span>}{m.image_error && <span className="warning">Foto non generata</span>}{m.done_reason === "length" && <span>Limite token raggiunto</span>}</div>}
+          <div className="bubble"><p>{msg.content}</p>{!!msg.images?.length && <div className="message-photos">{msg.images.map(image => <MessagePhoto key={image.id} image={image} onView={(url, alt) => setViewer({ url, alt })} />)}</div>}</div>
+          {m && <div className="message-metrics"><span>{msg.model}</span>{m.request_seconds != null && <b>{m.request_seconds.toFixed(2)} s</b>}{tps != null && <span>{tps.toFixed(1)} token/s</span>}{m.kind && m.kind !== "reply" && <span>{m.kind === "opener" ? "Primo messaggio" : m.kind === "photo" ? "Foto manuale" : "Ritorno"}</span>}{m.guarded && <span className="warning">Bloccata dal filtro anti-iniezione</span>}{m.image_error && <span className="warning">Foto non generata</span>}{m.done_reason === "length" && <span>Limite token raggiunto</span>}</div>}
         </div></div>;
       })}
       {loading && <div className="message-row assistant"><div className="thinking" role="status"><span className="typing-dots"><i /><i /><i /></span><span>{busyLabel || "Sta scrivendo"} <b>{elapsed.toFixed(1)} s</b></span></div></div>}
@@ -68,5 +71,6 @@ export default function ChatPanel({ conversation, messages, onSendMessage, loadi
         onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void submit(); } }} />
       <div><span>Invio per inviare · Maiusc + Invio per andare a capo</span><button className="primary" disabled={!conversation || loading || !input.trim()} type="submit">Invia <span aria-hidden="true">↑</span></button></div>
     </form>
+    {viewer && <Lightbox src={viewer.url} alt={viewer.alt} onClose={() => setViewer(null)} />}
   </section>;
 }

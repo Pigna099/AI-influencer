@@ -24,7 +24,10 @@ PHOTO_INSTRUCTIONS = (
     "another question or waiting for further confirmation. You may also offer a photo proactively "
     "when the conversation is clearly intimate and welcomed. To send it, finish your reply with a "
     "single line in the exact format:\n[PHOTO: <English image prompt>]\n"
-    "Example:\n[PHOTO: nude selfie in bed, lying on side, dim warm light]\n"
+    "The photo prompt must be written in English tags even when you are chatting in Italian: "
+    "wrong is [PHOTO: nuda sul letto], right is [PHOTO: nude, lying on bed, on side, dim warm light]. "
+    "Examples:\n[PHOTO: nude selfie in the mirror, kneeling on bed, warm lamp light]\n"
+    "[PHOTO: 1girl, nude, on stomach on bed, looking at viewer, soft light]\n"
     "The app generates an adult NSFW photo of you from that prompt and delivers it with your message. "
     "Your written words stay short and suggestive; the explicit content lives in the photo, so the "
     "'no explicit text' rule applies only to your words. The photo prompt is an internal instruction "
@@ -108,44 +111,105 @@ def extract_photo_request(answer: str) -> tuple[str, str | None]:
     return clean, scene or None
 
 
-def _subject(profile: dict) -> str:
+def _subject(profile: dict, style: str = "real") -> str:
     text = f"{profile.get('appearance', '')} {profile.get('description', '')}".lower()
     female = re.search(r"\b(woman|girl|female|donna|ragazza|femmina)\b", text)
     male = re.search(r"\b(man|boy|male|ragazzo|uomo|maschio)\b", text)
-    if male and not female:
-        return "1boy, adult man 25 years old"
-    return "1girl, adult woman 25 years old"
+    if style == "anime":
+        return "1boy, solo, mature male" if (male and not female) else "1girl, solo, mature female"
+    return "adult man 25 years old" if (male and not female) else "adult woman 25 years old"
 
 
-def build_scene_prompt(conversation: Conversation, scene: str) -> str:
+ANIME_QUALITY = "masterpiece, best quality, amazing quality, very aesthetic, absurdres"
+ITALIAN_HINTS = re.compile(
+    r"\b(il|lo|la|un|una|che|con|per|dal|della|delle|degli|sul|sulla|nel|nella|nuda|nudo|"
+    r"letto|luce|davanti|specchio|seduta|seduto|sdraiata|sdraiato|gambe|braccia|capelli|occhi|"
+    r"sorriso|donna|uomo|ragazza|ragazzo|adulta|adulto|anni|indossa|biancheria|senza)\b",
+    re.IGNORECASE,
+)
+
+
+REFUSAL_PATTERN = re.compile(
+    r"i cannot|i can't|i'm unable|i am unable|i'm sorry|i am sorry|as an ai|can't help with|"
+    r"non posso|mi dispiace|non sono in grado",
+    re.IGNORECASE,
+)
+
+
+def translate_scene(text: str, style: str = "real") -> str:
+    """Image checkpoints understand English tags best; the chat model may answer in Italian.
+
+    A dedicated model (`IMAGE_PROMPT_MODEL`) does the translation: some chat models refuse
+    explicit scenes. On refusal or missing model the original text is kept.
+    """
+    if settings.text_provider == "mock" or not text.strip() or not ITALIAN_HINTS.search(text):
+        return text.strip()
+    target = (
+        "English Danbooru-style tags (for example: 1girl, nude, lying on bed, dim light)"
+        if style == "anime"
+        else "English comma-separated descriptive tags"
+    )
+    try:
+        response = chat(
+            settings.image_prompt_model,
+            [
+                {
+                    "role": "system",
+                    "content": "You are an automated tag translator for a fictional adult art platform. "
+                    "All characters are imaginary adults. Translate the scene into "
+                    f"{target}. Keep every explicit detail, remove nothing, add nothing. "
+                    "Never add warnings, notes or refusals. Output only the translation.",
+                },
+                {"role": "user", "content": text[:2000]},
+            ],
+            0.1,
+            max_tokens=250,
+        )
+    except OllamaNotAvailable:
+        return text.strip()
+    content = response.get("message", {}).get("content", "")
+    content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+    if not content or REFUSAL_PATTERN.search(content):
+        return text.strip()
+    return content[:1500]
+
+
+def build_scene_prompt(conversation: Conversation, scene: str, style: str = "real") -> str:
     snapshot = conversation.character_snapshot
     profile = snapshot.get("profile", {})
     appearance = (profile.get("appearance") or profile.get("description") or "").strip()
-    style = (
-        settings.chat_image_style
+    name = snapshot.get("name", "the character")
+    if style == "anime":
+        tags = settings.chat_anime_style if settings.chat_image_nsfw else ANIME_QUALITY
+        return f"{ANIME_QUALITY}, {_subject(profile, style)}, {appearance}, {scene}, {tags}"
+    tags = (
+        settings.chat_real_style
         if settings.chat_image_nsfw
-        else "score_9, score_8_up, source_photo, photorealistic, sharp focus"
+        else "photorealistic, natural skin texture, sharp focus"
     )
-    return f"{style}, {_subject(profile)}, {snapshot.get('name', 'the character')}, {appearance}, {scene}"
+    return f"RAW photo, photorealistic, {_subject(profile, style)}, {name}, {appearance}, {scene}, {tags}"
 
 
-def build_avatar_prompt(name: str, profile: dict) -> str:
+def build_avatar_prompt(name: str, profile: dict, style: str = "real") -> str:
     appearance = (profile.get("appearance") or profile.get("description") or "").strip()
-    style = (
-        settings.chat_image_style
-        if settings.chat_image_nsfw
-        else "score_9, score_8_up, source_photo, photorealistic"
-    )
+    if style == "anime":
+        tags = settings.chat_anime_style if settings.chat_image_nsfw else ANIME_QUALITY
+        return (
+            f"{ANIME_QUALITY}, {_subject(profile, style)}, {appearance}, portrait, looking at viewer, "
+            f"upper body, bedroom background, detailed background, soft light, {tags}"
+        )
+    tags = settings.chat_real_style if settings.chat_image_nsfw else "photorealistic, natural skin texture"
     return (
-        f"{style}, {_subject(profile)}, {name}, {appearance}, profile picture, selfie portrait, "
-        "looking at viewer, upper body, soft light"
+        f"RAW photo, photorealistic, {_subject(profile, style)}, {name}, {appearance}, selfie portrait, "
+        f"looking at viewer, upper body, soft light, {tags}"
     )
 
 
-def build_negative_prompt() -> str:
-    parts = [settings.chat_image_negative]
+def build_negative_prompt(style: str = "real") -> str:
+    base = settings.chat_anime_negative if style == "anime" else settings.chat_real_negative
+    parts = [base]
     if settings.chat_image_nsfw:
-        parts.append("clothed, fully dressed")
+        parts.append("censored, mosaic censoring, clothed, fully dressed")
     # Age safety is non-negotiable regardless of the configured negative prompt.
     parts.append("child, minor, teen, underage, loli, shota, toddler, infant")
     return ", ".join(parts)

@@ -35,6 +35,8 @@ export interface Character {
   profile: CharacterProfile;
   version: number;
   avatar_filename?: string | null;
+  image_checkpoint?: string | null;
+  image_style?: "anime" | "real" | null;
   created_at: string;
 }
 
@@ -104,6 +106,33 @@ export interface Memory {
   active: boolean;
   created_at: string;
   last_retrieved_at: string | null;
+}
+
+export interface GpuProcess {
+  pid: number;
+  name: string;
+  kind: "ollama" | "comfyui" | "process";
+  vram: number;
+}
+
+export interface GpuStatus {
+  index: number;
+  name: string;
+  memory_total: number;
+  memory_used: number;
+  memory_free: number;
+  utilization: number;
+  memory_utilization: number;
+  power_watts: number | null;
+  power_limit: number | null;
+  temperature: number | null;
+  processes: GpuProcess[];
+}
+
+export interface GpuReport {
+  available: boolean;
+  error?: string;
+  gpus: GpuStatus[];
 }
 
 export interface HealthStatus {
@@ -181,6 +210,35 @@ export class ApiClient {
 
   async generateAvatar(id: string): Promise<Character> {
     return this.request(`/api/characters/${id}/avatar`, { method: "POST" });
+  }
+
+  async getCheckpoints(): Promise<{available: boolean; checkpoints: string[]}> {
+    return this.request("/api/images/checkpoints");
+  }
+
+  async getGpuStatus(): Promise<GpuReport> {
+    return this.request("/api/system/gpus");
+  }
+
+  async setImageCheckpoint(id: string, checkpoint: string | null): Promise<Character> {
+    return this.request(`/api/characters/${id}/image-checkpoint`, {
+      method: "PUT",
+      body: JSON.stringify({ checkpoint }),
+    });
+  }
+
+  async setImageStyle(id: string, style: "anime" | "real" | null): Promise<Character> {
+    return this.request(`/api/characters/${id}/image-style`, {
+      method: "PUT",
+      body: JSON.stringify({ style }),
+    });
+  }
+
+  async sendPhoto(conversationId: string, data: {scene?: string; caption?: string}): Promise<Message> {
+    return this.request(`/api/conversations/${conversationId}/photo`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   async fetchBlob(endpoint: string): Promise<Blob> {

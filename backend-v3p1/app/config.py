@@ -23,16 +23,32 @@ class Settings(BaseSettings):
     worker_lease_seconds: int = 1200
     chat_image_enabled: bool = True
     chat_image_nsfw: bool = True
-    chat_image_style: str = (
-        "score_9, score_8_up, score_7_up, source_photo, rating_explicit, NSFW, explicit adult content, "
-        "seductive, highly detailed skin, photorealistic, sharp focus, 8k"
-    )
-    chat_image_negative: str = (
-        "score_4, score_5, score_6, source_anime, source_cartoon, rating_safe, worst quality, low quality, "
-        "bad anatomy, extra fingers, deformed hands, watermark, text, logo"
-    )
     chat_image_cooldown_seconds: int = 300
     chat_workflow_path: Path = Path("workflows/chat_default.json")
+    chat_reference_workflow_path: Path = Path("workflows/chat_reference.json")
+    chat_real_workflow_path: Path = Path("workflows/chat_real.json")
+    chat_real_reference_workflow_path: Path = Path("workflows/chat_real_reference.json")
+    chat_anime_workflow_path: Path = Path("workflows/chat_anime.json")
+    chat_anime_reference_workflow_path: Path = Path("workflows/chat_anime_reference.json")
+    chat_real_style: str = (
+        "nsfw, explicit adult content, seductive, realistic skin texture, detailed anatomy, "
+        "photorealistic, 8k uhd, dslr, soft lighting, film grain, sharp focus"
+    )
+    chat_real_negative: str = (
+        "child, minor, teen, underage, cartoon, anime, illustration, painting, cgi, 3d render, "
+        "plastic skin, bad anatomy, extra fingers, fused fingers, extra limbs, watermark, text, logo"
+    )
+    chat_anime_style: str = (
+        "nsfw, explicit, detailed anatomy, beautiful detailed eyes, detailed face, cinematic lighting, "
+        "depth of field, high contrast"
+    )
+    chat_anime_negative: str = (
+        "bad quality, worst quality, worst detail, sketch, censor, bad anatomy, bad hands, extra digits, "
+        "fewer digits, missing fingers, jpeg artifacts, signature, watermark, username, child, minor, "
+        "teen, underage, loli, shota"
+    )
+    # Uncensored enough to translate explicit scenes into English image tags.
+    image_prompt_model: str = "mistral-small3.2:latest"
 
 
 settings = Settings()

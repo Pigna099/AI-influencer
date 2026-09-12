@@ -37,6 +37,8 @@ class Influencer(Base):
     bible: Mapped[dict] = mapped_column(JSON)
     version: Mapped[int] = mapped_column(Integer, default=1)
     avatar_filename: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    image_checkpoint: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    image_style: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now)
 
 

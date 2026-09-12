@@ -161,6 +161,7 @@ with httpx.Client(base_url=base, headers={"X-API-Key": key}, timeout=240) as api
                 {
                     "check": "chat_photo",
                     "seconds": photo["ollama_metrics"].get("image_seconds"),
+                    "reference": photo["ollama_metrics"].get("image_reference"),
                     "prompt": photo["images"][0]["prompt"][:160],
                 }
             )

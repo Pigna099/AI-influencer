@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, Character, Conversation, Memory, Message, OllamaModel, CharacterProfile } from "../api";
+import { api, Character, Conversation, GpuReport, Memory, Message, OllamaModel, CharacterProfile } from "../api";
 import CharacterForm from "./CharacterForm";
 import ChatPanel from "./ChatPanel";
 import BenchmarkPanel from "./BenchmarkPanel";
+import Lightbox from "./Lightbox";
 
 type Fan = { id: string; name: string; notes: string };
 type ModelMetric = { model: string; samples: number; mean_seconds: number; median_seconds: number; mean_load_seconds: number };
 const failure = (error: unknown) => error instanceof Error ? error.message : "Operazione non riuscita";
+const gb = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)} GB`;
 
-function CharacterAvatar({ character, index }: { character: Character; index: number }) {
+function CharacterAvatar({ character, index, onView }: { character: Character; index: number; onView: (url: string, alt: string) => void }) {
   const [url, setUrl] = useState("");
+  const alt = `Foto profilo di ${character.name}`;
   useEffect(() => {
     let objectUrl = "";
     let alive = true;
@@ -28,7 +31,7 @@ function CharacterAvatar({ character, index }: { character: Character; index: nu
     };
   }, [character.id, character.avatar_filename]);
   if (!url) return <span className={`avatar color-${index % 4}`}>{character.name.slice(0, 2).toUpperCase()}</span>;
-  return <img className="avatar avatar-photo" src={url} alt={`Foto profilo di ${character.name}`} />;
+  return <img className="avatar avatar-photo" src={url} alt={alt} onClick={event => { event.stopPropagation(); onView(url, alt); }} />;
 }
 
 export default function Playground({ onLogout }: { onLogout: () => void }) {
@@ -51,6 +54,12 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
   const [fanName, setFanName] = useState("");
   const [fanNotes, setFanNotes] = useState("");
   const [tab, setTab] = useState<"chat" | "benchmark">("chat");
+  const [checkpoints, setCheckpoints] = useState<string[]>([]);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [photoScene, setPhotoScene] = useState("");
+  const [photoCaption, setPhotoCaption] = useState("");
+  const [viewer, setViewer] = useState<{ url: string; alt: string } | null>(null);
+  const [gpu, setGpu] = useState<GpuReport | null>(null);
   const [absence, setAbsence] = useState(48);
   const [autoNudge, setAutoNudge] = useState(false);
   const [lastActivity, setLastActivity] = useState(Date.now());
@@ -64,10 +73,10 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => {
     let live = true;
-    Promise.all([api.getCharacters(), api.request<Fan[]>("/api/fans"), api.getModels()])
-      .then(([chars, people, data]) => {
+    Promise.all([api.getCharacters(), api.request<Fan[]>("/api/fans"), api.getModels(), api.getCheckpoints()])
+      .then(([chars, people, data, imageModels]) => {
         if (!live) return;
-        setCharacters(chars); setFans(people); setModels(data.models);
+        setCharacters(chars); setFans(people); setModels(data.models); setCheckpoints(imageModels.checkpoints);
         setCharacterId(chars[0]?.id || "");
         setFanId(people.find(f => f.id !== "legacy")?.id || people[0]?.id || "");
         setModel(data.models.find(m => m.name === "llama3.1:8b")?.name || data.models.find(m => m.chat_capable !== false)?.name || "");
@@ -89,6 +98,14 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
       setConversations(chats); setMemories(facts); setMetrics(stats);
     }).catch(e => { if (generation.current === epoch) setError(failure(e)); });
   }, [characterId, fanId, scope]);
+
+  useEffect(() => {
+    let live = true;
+    const load = () => api.getGpuStatus().then(data => { if (live) setGpu(data); }).catch(() => undefined);
+    void load();
+    const timer = window.setInterval(() => void load(), 3000);
+    return () => { live = false; window.clearInterval(timer); };
+  }, []);
 
   useEffect(() => {
     if (!busy) { setElapsed(0); return; }
@@ -217,9 +234,17 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
       <aside className="character-rail">
         <div className="section-title"><h2>Personaggi <span>{characters.length}</span></h2><button aria-label="Crea personaggio" onClick={() => setEditing("new")} disabled={!!busy}>+</button></div>
         <div className="character-list">{characters.map((c, index) => <button key={c.id} disabled={!!busy} onClick={() => setCharacterId(c.id)} className={`character-row ${characterId === c.id ? "selected" : ""}`}>
-          <CharacterAvatar character={c} index={index} /><span><strong>{c.name}</strong><small>{c.profile.personality_traits || "Personalità da esplorare"}</small></span></button>)}
+          <CharacterAvatar character={c} index={index} onView={(url, alt) => setViewer({ url, alt })} /><span><strong>{c.name}</strong><small>{c.profile.personality_traits || "Personalità da esplorare"}</small></span></button>)}
           {!characters.length && <p className="muted">Crea il primo personaggio per iniziare.</p>}</div>
         {character && <div className="character-actions"><button onClick={() => setEditing(character)} disabled={!!busy}>Modifica personalità</button><button onClick={duplicateCharacter} disabled={!!busy} title="Crea una copia indipendente per confrontare le varianti">Duplica</button><button onClick={generateAvatar} disabled={!!busy} title="Genera e ricorda l'immagine profilo con ComfyUI">Foto profilo</button><button className="danger" onClick={removeCharacter} disabled={!!busy}>Elimina</button></div>}
+        {character && <label className="image-checkpoint">Stile foto<select value={character.image_style || "real"} disabled={!!busy} onChange={e => void perform("Cambio lo stile", async () => {
+          const updated = await api.setImageStyle(character.id, e.target.value as "anime" | "real");
+          setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));
+        })}><option value="real">Reale (fotorealistico)</option><option value="anime">Anime</option></select></label>}
+        {character && checkpoints.length > 0 && <label className="image-checkpoint">Checkpoint foto<select value={character.image_checkpoint || ""} disabled={!!busy} onChange={e => void perform("Cambio il checkpoint", async () => {
+          const updated = await api.setImageCheckpoint(character.id, e.target.value || null);
+          setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));
+        })}><option value="">Predefinito</option>{checkpoints.map(name => <option key={name} value={name}>{name}</option>)}</select></label>}
         <div className="rail-divider" />
         <div className="section-title"><h2>Interpreta un fan</h2><button aria-label="Crea account fittizio" onClick={() => openFan("new")} disabled={!!busy}>+</button></div>
         <label className="sr-only" htmlFor="fan-select">Account fittizio</label><select id="fan-select" value={fanId} onChange={e => setFanId(e.target.value)} disabled={!!busy}>
@@ -244,20 +269,36 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
             })}>Usa nella chat</button>}</div>
           {conversation && conversation.character_snapshot.version !== character?.version && <div className="info-banner">Questa chat usa la personalità v{conversation.character_snapshot.version}. Avvia una nuova chat per provare le modifiche.</div>}
           <ChatPanel conversation={conversation} messages={messages} onSendMessage={send} loading={!!busy} busyLabel={busy} elapsed={elapsed} fanName={fan?.name || "Tu"} />
-          {conversation && <div className="initiative-bar"><button disabled={!!busy} onClick={() => void initiate("opener")}>Scrivi per primo</button><button disabled={!!busy} onClick={() => void initiate("reengage")}>Simula ritorno</button>
-            <label>Assenza <input aria-label="Ore di assenza simulate" type="number" min="1" max="8760" value={absence} onChange={e => setAbsence(Math.max(1, Math.min(8760, Number(e.target.value))))} /> h</label>
-            <label className="auto-label"><input type="checkbox" checked={autoNudge} onChange={e => { setAutoNudge(e.target.checked); setLastActivity(Date.now()); }} disabled={!!busy} /> Un messaggio dopo 60 s di silenzio</label>
-            <label className="auto-label" title="Il personaggio può generare e inviare foto quando è appropriato"><input type="checkbox" checked={conversation.images_enabled !== false} disabled={!!busy} onChange={e => void perform("Aggiorno le foto in chat", async () => {
-              const updated = await api.updateConversation(conversation.id, { images_enabled: e.target.checked });
-              setConversation(updated);
-            })} /> Foto in chat</label>
-            <button className="danger" aria-label="Elimina conversazione" disabled={!!busy} onClick={() => {
-              if (!window.confirm("Eliminare questa chat? I ricordi del fan restano disponibili.")) return;
-              void perform("Elimina chat", async () => { await api.request(`/api/conversations/${conversation.id}`, { method: "DELETE" }); setConversations(prev => prev.filter(c => c.id !== conversation.id)); setConversation(null); setMessages([]); });
-            }}>Elimina chat</button></div>}
+          {conversation && <div className="initiative-bar">
+            <div className="quick-actions">
+              <button disabled={!!busy} onClick={() => void initiate("opener")} title="Il personaggio scrive per primo">Apri</button>
+              <button disabled={!!busy} onClick={() => void initiate("reengage")} title="Messaggio di riavvicinamento dopo un'assenza simulata">Ritorno</button>
+              <button disabled={!!busy} title="Genera e invia una foto manualmente" onClick={() => { setPhotoScene(""); setPhotoCaption(""); setPhotoOpen(true); }}>Invia foto</button>
+              <label className="toggle-pill" title="Il personaggio può decidere di inviare foto"><input type="checkbox" checked={conversation.images_enabled !== false} disabled={!!busy} onChange={e => void perform("Aggiorno le foto in chat", async () => {
+                const updated = await api.updateConversation(conversation.id, { images_enabled: e.target.checked });
+                setConversation(updated);
+              })} /> Auto foto</label>
+            </div>
+            <details className="tool-menu"><summary>Opzioni</summary><div className="tool-menu-body">
+              <label>Assenza <input aria-label="Ore di assenza simulate" type="number" min="1" max="8760" value={absence} onChange={e => setAbsence(Math.max(1, Math.min(8760, Number(e.target.value))))} /> h</label>
+              <label className="auto-label"><input type="checkbox" checked={autoNudge} onChange={e => { setAutoNudge(e.target.checked); setLastActivity(Date.now()); }} disabled={!!busy} /> Intervento dopo 60 s di silenzio</label>
+              <button className="danger" type="button" disabled={!!busy} onClick={() => {
+                if (!window.confirm("Eliminare questa chat? I ricordi del fan restano disponibili.")) return;
+                void perform("Elimina chat", async () => { await api.request(`/api/conversations/${conversation.id}`, { method: "DELETE" }); setConversations(prev => prev.filter(c => c.id !== conversation.id)); setConversation(null); setMessages([]); });
+              }}>Elimina chat</button>
+            </div></details>
+          </div>}
         </> : <BenchmarkPanel character={character} fanId={fanId} models={chatModels} onBusy={setBusy} />}
       </main>
       <aside className="inspector">
+        <div className="section-title"><h2>GPU in tempo reale</h2><span>{gpu?.gpus.length ?? 0}</span></div>
+        {gpu?.available ? <div className="gpu-list">{gpu.gpus.map(item => <article className="gpu-card" key={item.index}>
+          <header><strong>GPU {item.index} · {item.name.replace("NVIDIA GeForce ", "")}</strong><span>{item.temperature != null ? `${item.temperature}°C` : ""}</span></header>
+          <div className="gpu-bar" title={`${gb(item.memory_used)} / ${gb(item.memory_total)}`}><i style={{ width: `${Math.min(100, (item.memory_used / item.memory_total) * 100)}%` }} /></div>
+          <small>{gb(item.memory_used)} / {gb(item.memory_total)} · {item.utilization}% util{item.power_watts != null ? ` · ${item.power_watts} W` : ""}</small>
+          {!!item.processes.length && <ul>{item.processes.map(process => <li key={`${item.index}-${process.pid}-${process.name}`}><span title={process.name}>{process.name}</span><b>{gb(process.vram)}</b></li>)}</ul>}
+        </article>)}</div> : <p className="muted">{gpu === null ? "Lettura GPU…" : "GPU non disponibili in questo ambiente."}</p>}
+        <div className="rail-divider" />
         <div className="section-title"><h2>Memoria del fan</h2><span>{memories.length}</span></div>
         <p className="scope-label">{character?.name || "Personaggio"} × {fan?.name || "Fan"}</p>
         {conversation?.memory_status === "pending" && <p className="memory-status" role="status"><span className="spinner" /> Sta estraendo i ricordi…</p>}
@@ -279,6 +320,10 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
       </aside>
     </div>
     {editing && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label="Personalità del personaggio"><CharacterForm character={editing === "new" ? undefined : editing} models={chatModels} onSave={saveCharacter} onCancel={() => setEditing(null)} /></div></div>}
+    {photoOpen && conversation && <div className="modal-backdrop"><form className="modal fan-editor photo-editor" role="dialog" aria-modal="true" aria-label="Invia una foto" onSubmit={e => { e.preventDefault(); const scene = photoScene.trim() || undefined; const caption = photoCaption.trim() || undefined; setPhotoOpen(false); void perform("Genero e invio la foto", async () => {
+      await api.sendPhoto(conversation.id, { scene, caption });
+      await refresh(conversation.id);
+    }); }}><h2>Invia una foto</h2><p className="muted">Genera con ComfyUI usando il checkpoint del personaggio{character?.avatar_filename ? " e l’immagine profilo come riferimento" : ""}. Se lasci vuota la scena, viene usato un autoscatto sensuale.</p><label>Descrizione della scena (opzionale)<textarea autoFocus rows={3} value={photoScene} onChange={e => setPhotoScene(e.target.value)} maxLength={1500} placeholder="Es. selfie nuda sul letto, luce calda" /></label><label>Didascalia (opzionale)<input value={photoCaption} onChange={e => setPhotoCaption(e.target.value)} maxLength={1000} placeholder="Es. Ecco qua 😏" /></label><div className="modal-actions"><button type="button" onClick={() => setPhotoOpen(false)} disabled={!!busy}>Annulla</button><button className="primary" disabled={!!busy}>Genera e invia</button></div></form></div>}
     {fanEditor && <div className="modal-backdrop"><form className="modal fan-editor" role="dialog" aria-modal="true" aria-label="Account fittizio" onSubmit={e => { e.preventDefault(); void perform("Salva account", async () => {
       const saved = await api.request<Fan>(fanEditor === "new" ? "/api/fans" : `/api/fans/${fanEditor.id}`, { method: fanEditor === "new" ? "POST" : "PUT", body: JSON.stringify({ name: fanName, notes: fanNotes }) });
       setFans(prev => [...prev.filter(f => f.id !== saved.id), saved]); setFanId(saved.id); setFanEditor(null);
@@ -286,5 +331,6 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
       if (!window.confirm("Eliminare questo fan, tutte le sue chat e i suoi ricordi?")) return;
       void perform("Elimina account", async () => { await api.request(`/api/fans/${fanEditor.id}`, { method: "DELETE" }); setFans(prev => prev.filter(f => f.id !== fanEditor.id)); setFanId(""); setFanEditor(null); });
     }}>Elimina account e dati</button>}</form></div>}
+    {viewer && <Lightbox src={viewer.url} alt={viewer.alt} onClose={() => setViewer(null)} />}
   </div>;
 }

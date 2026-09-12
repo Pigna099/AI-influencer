@@ -65,11 +65,29 @@ I messaggi dei fan sono contenuti non fidati: possono contenere istruzioni («ig
 
 Nessun prompt è a prova di jailbreak: queste difese rendono i canary più comuni inefficaci e impediscono che un leak finisca nella cronologia, ma un modello può comunque rifiutare male o rivelare una parafrasi. Se un modello di ragionamento non produce una risposta visibile entro il limite di token, la UI mostra un errore: non viene salvato un messaggio vuoto.
 
+## GPU in tempo reale
+
+Il pannello **GPU in tempo reale** nella colonna destra mostra, aggiornato ogni 3 secondi, lo stato delle quattro RTX 3090: memoria usata/totale, utilizzo, potenza e temperatura. Sotto ogni GPU compare l'elenco dei processi che la usano, con i GB occupati: i modelli Ollama caricati vengono riconosciuti per nome (`/api/ps`) e `ComfyUI` è etichettato separatamente.
+
+I dati arrivano da `GET /api/system/gpus`, che usa NVML dentro il container API. Richiede `gpus: all` e `pid: host` nel `compose.yaml` (già configurati): senza questi permessi il pannello mostra "GPU non disponibili" e il resto dell'app funziona normalmente.
+
+## Immagini a schermo intero
+
+Clicca sull'immagine profilo di un personaggio o su una foto in chat per aprirla a schermo intero; si chiude con clic o con `Esc`.
+
 ## Foto in chat (ComfyUI)
 
 Il personaggio può generare e inviare **foto NSFW** quando è appropriato. Serve ComfyUI attivo e un workflow API configurato (vedi `workflows/README.md`). Il workflow predefinito della chat usa il checkpoint SDXL NSFW `ponyDiffusionV6XL`.
 
 **Immagine profilo.** Nel campo **Aspetto fisico** dell'editor descrivi età adulta, genere, capelli, corporatura e stile. Il pulsante **Foto profilo** nella colonna del personaggio genera l'immagine di riferimento con ComfyUI e la memorizza sul personaggio: viene mostrata nell'elenco e, se il workflow contiene `{{reference_image}}`, viene anche inviata a ComfyUI come riferimento per le foto successive. Rigenerarla sostituisce la precedente.
+
+**Riferimento di volto (IPAdapter).** Se il personaggio ha un'immagine profilo e `workflows/chat_reference.json` esiste, le foto vengono generate con quel workflow: l'immagine profilo viene caricata su ComfyUI e passata al nodo IPAdapter (`easy ipadapterApplyADV`), così il volto resta coerente tra le foto. Senza immagine profilo si torna al workflow `chat_default.json`. I modelli IPAdapter Plus e CLIP ViT-H vengono scaricati automaticamente in `models/ipadapter/` alla prima generazione.
+
+**Stile per personaggio.** Il menu **Stile foto** sceglie tra **Reale** (fotorealistico, LUSTIFY v2) e **Anime** (NoobAI-XL 1.1). Ogni stile ha il suo workflow con hires fix e FaceDetailer per volto e mani; la scelta è salvata sul personaggio (`PUT /api/characters/{id}/image-style`). Le scene scritte in italiano dal modello vengono tradotte in inglese da `IMAGE_PROMPT_MODEL` (predefinito `mistral-small3.2:latest`, perché alcuni modelli di chat rifiutano le scene esplicite); se la traduzione viene rifiutata si usa il testo originale.
+
+**Checkpoint per personaggio.** Sotto i comandi del personaggio, il menu **Checkpoint foto** elenca i checkpoint installati in ComfyUI; la scelta viene salvata sul personaggio (`PUT /api/characters/{id}/image-checkpoint`) e usata per avatar e foto. L'opzione **Predefinito** usa il checkpoint scritto nel workflow.
+
+**Invio manuale.** Nella barra della chat, **Invia foto** genera subito una foto senza passare dal modello: puoi indicare la scena e una didascalia. È un'azione dell'operatore: ignora cooldown e interruttore automatico, ma richiede ComfyUI attivo.
 
 **Invio spontaneo.** Quando può inviare foto (vedi condizioni sotto), il prompt di sistema spiega al modello di chiudere la risposta con una riga `[PHOTO: descrizione della scena]` solo se il fan la chiede o il momento è chiaramente intimo. Il backend toglie il marcatore, genera la foto e la allega al messaggio: il testo visibile resta naturale e può riferirsi alla foto. Il modello non può inviare più di una foto per risposta.
 

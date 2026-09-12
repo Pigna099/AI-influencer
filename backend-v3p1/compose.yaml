@@ -6,6 +6,9 @@ x-app: &app
   environment:
     DATABASE_URL: postgresql+psycopg://influencer:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@127.0.0.1:55432/influencer
     MEDIA_DIR: /app/data/media
+    NVIDIA_DRIVER_CAPABILITIES: compute,utility
+  gpus: all
+  pid: host
   network_mode: host
   volumes:
     - ./data/media:/app/data/media

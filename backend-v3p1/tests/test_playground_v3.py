@@ -1,4 +1,6 @@
+import json
 from datetime import timedelta
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -380,6 +382,118 @@ def test_avatar_generation_serving_and_cleanup():
     assert not (settings.media_dir / filename).exists()
     assert client.delete(f"/api/characters/{char['id']}").status_code == 200
     assert not path.exists()
+
+
+def test_image_checkpoints_and_character_override():
+    listing = client.get("/api/images/checkpoints").json()
+    assert listing["available"] is True
+    assert listing["checkpoints"] == ["mock-sdxl.safetensors"]
+    char, _, _ = setup_pair()
+    updated = client.put(
+        f"/api/characters/{char['id']}/image-checkpoint", json={"checkpoint": "mock-sdxl.safetensors"}
+    )
+    assert updated.status_code == 200 and updated.json()["image_checkpoint"] == "mock-sdxl.safetensors"
+    assert (
+        client.put(
+            f"/api/characters/{char['id']}/image-checkpoint",
+            json={"checkpoint": "not-installed.safetensors"},
+        ).status_code
+        == 400
+    )
+    cleared = client.put(f"/api/characters/{char['id']}/image-checkpoint", json={"checkpoint": None})
+    assert cleared.json()["image_checkpoint"] is None
+
+
+def test_manual_photo_endpoint():
+    char, a, _ = setup_pair()
+    conv = conversation(char, a)
+    response = client.post(
+        f"/api/conversations/{conv['id']}/photo",
+        json={"scene": "nude selfie in front of a mirror", "caption": "Ecco qua 😏"},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["content"] == "Ecco qua 😏"
+    assert body["ollama_metrics"]["kind"] == "photo"
+    assert body["ollama_metrics"]["manual"] is True
+    assert len(body["images"]) == 1
+    assert client.get(f"/api/chat-images/{body['images'][0]['id']}/file").content.startswith(b"\x89PNG")
+    messages = client.get(f"/api/conversations/{conv['id']}/messages").json()
+    assert messages[-1]["role"] == "assistant" and messages[-1]["images"]
+    assert "nude selfie" in body["images"][0]["prompt"]
+
+
+def test_checkpoint_override_and_reference_workflow():
+    from app.integrations.comfyui import ComfyUIError, apply_checkpoint
+
+    workflow = {"4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "old.safetensors"}}}
+    patched = apply_checkpoint(workflow, "new.safetensors")
+    assert patched["4"]["inputs"]["ckpt_name"] == "new.safetensors"
+    assert workflow["4"]["inputs"]["ckpt_name"] == "old.safetensors"
+    assert apply_checkpoint(workflow, None) is workflow
+    from pytest import raises
+
+    with raises(ComfyUIError):
+        apply_checkpoint({"3": {"class_type": "KSampler", "inputs": {}}}, "new.safetensors")
+    reference = json.loads(Path("workflows/chat_reference.json").read_text())
+    assert any(node.get("class_type") == "easy ipadapterApplyADV" for node in reference.values())
+
+    def node_for(class_type):
+        return next(node for node in reference.values() if node.get("class_type") == class_type)
+
+    assert "{{reference_image}}" in json.dumps(node_for("LoadImage"))
+    assert node_for("KSampler")["inputs"]["model"] == ["11", 0]
+
+
+def test_image_style_endpoint():
+    char, _, _ = setup_pair()
+    updated = client.put(f"/api/characters/{char['id']}/image-style", json={"style": "anime"})
+    assert updated.status_code == 200 and updated.json()["image_style"] == "anime"
+    assert client.put(f"/api/characters/{char['id']}/image-style", json={"style": "nope"}).status_code == 422
+    cleared = client.put(f"/api/characters/{char['id']}/image-style", json={"style": None})
+    assert cleared.json()["image_style"] is None
+
+
+def test_translate_scene_skips_english_and_mock():
+    from app.chat_service import translate_scene
+
+    assert translate_scene("nude on bed, dim light", "real") == "nude on bed, dim light"
+    assert translate_scene("nuda sul letto", "real") == "nuda sul letto"
+
+
+def test_style_workflows_are_valid():
+    for name in (
+        "chat_real.json",
+        "chat_real_reference.json",
+        "chat_anime.json",
+        "chat_anime_reference.json",
+    ):
+        workflow = json.loads(Path(f"workflows/{name}").read_text())
+        classes = [node.get("class_type") for node in workflow.values()]
+        assert "FaceDetailer" in classes, name
+        assert "LatentUpscale" in classes, name
+        assert "{{positive_prompt}}" in json.dumps(workflow), name
+        assert ("{{reference_image}}" in json.dumps(workflow)) is ("reference" in name), name
+
+
+def test_gpu_loaded_model_name_assignment(monkeypatch):
+    from app.integrations import gpu as gpu_module
+
+    gigabyte = 1024**3
+    monkeypatch.setattr(gpu_module, "_ollama_loaded", lambda: [("qwen3:30b", 60 * gigabyte)])
+    gpus = [
+        {"processes": [{"pid": 1, "name": "ollama:abc", "kind": "ollama", "vram": 30 * gigabyte}]},
+        {
+            "processes": [
+                {"pid": 1, "name": "ollama:abc", "kind": "ollama", "vram": 27 * gigabyte},
+                {"pid": 2, "name": "ComfyUI", "kind": "comfyui", "vram": 10 * gigabyte},
+            ]
+        },
+    ]
+    gpu_module._assign_loaded_names(gpus)
+    assert gpus[0]["processes"][0]["name"] == "qwen3:30b"
+    assert gpus[1]["processes"][0]["name"] == "qwen3:30b"
+    assert gpus[1]["processes"][1]["name"] == "ComfyUI"
 
 
 def test_enhance_draft_does_not_save_and_auth():
