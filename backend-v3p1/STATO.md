@@ -31,6 +31,8 @@ Configurazione effettiva nel `.env` riservato sul server:
 
 ## Monitoraggio GPU e interfaccia (12 settembre 2026)
 
+- Interfaccia bilingue italiano/inglese con selettore **IT · EN** (barra in alto e login); la scelta è salvata nel browser e gli errori API vengono tradotti tramite l'header `X-Language` (`app/i18n.py`). Lingua dei personaggi indipendente da quella dell'interfaccia.
+
 - `GET /api/system/gpus` (NVML dentro il container, `gpus: all` + `pid: host` nel compose) con memoria, utilizzo, potenza e temperatura delle 4× RTX 3090, più processi per GPU. I runner Ollama vengono associati ai modelli caricati tramite `/api/ps` e mostrati con il nome e i GB per GPU; ComfyUI è etichettato a parte.
 - La webUI aggiorna il pannello GPU ogni 3 secondi.
 - Clic su immagine profilo o su una foto in chat: apertura a schermo intero (chiusura con clic o Esc).

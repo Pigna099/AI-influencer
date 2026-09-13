@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, text, update
 
@@ -10,12 +10,23 @@ from .auth import authorize
 from .characters import router as characters_router
 from .config import settings
 from .db import Asset, BibleVersion, Influencer, Job, Review, Session
+from .i18n import translate_detail
 from .schemas import Bible, InfluencerInput, JobInput, ReviewInput
 
 app = FastAPI(
     title="AI influencer playground v3.2",
     version="0.3.2",
 )
+
+
+@app.exception_handler(HTTPException)
+async def localized_http_exception(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": translate_detail(exc.detail, request.headers.get("X-Language"))},
+        headers=exc.headers,
+    )
+
 
 origins = [origin.strip() for origin in settings.cors_origins.split(",")]
 app.add_middleware(

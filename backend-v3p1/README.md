@@ -65,6 +65,10 @@ I messaggi dei fan sono contenuti non fidati: possono contenere istruzioni («ig
 
 Nessun prompt è a prova di jailbreak: queste difese rendono i canary più comuni inefficaci e impediscono che un leak finisca nella cronologia, ma un modello può comunque rifiutare male o rivelare una parafrasi. Se un modello di ragionamento non produce una risposta visibile entro il limite di token, la UI mostra un errore: non viene salvato un messaggio vuoto.
 
+## Lingua dell'interfaccia
+
+L'interfaccia è bilingue **italiano/inglese**: il selettore **IT · EN** è nella barra in alto e nella schermata di accesso. La scelta viene salvata nel browser e viene inviata all'API con l'header `X-Language`, così anche i messaggi di errore seguono la lingua scelta (le stringhe sconosciute restano invariate). La lingua dei personaggi (`language` nel profilo) è indipendente dalla lingua dell'interfaccia.
+
 ## GPU in tempo reale
 
 Il pannello **GPU in tempo reale** nella colonna destra mostra, aggiornato ogni 3 secondi, lo stato delle quattro RTX 3090: memoria usata/totale, utilizzo, potenza e temperatura. Sotto ogni GPU compare l'elenco dei processi che la usano, con i GB occupati: i modelli Ollama caricati vengono riconosciuti per nome (`/api/ps`) e `ComfyUI` è etichettato separatamente.

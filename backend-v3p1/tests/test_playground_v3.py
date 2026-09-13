@@ -476,6 +476,17 @@ def test_style_workflows_are_valid():
         assert ("{{reference_image}}" in json.dumps(workflow)) is ("reference" in name), name
 
 
+def test_english_error_translation():
+    english = TestClient(app, headers={"X-API-Key": "test-key", "X-Language": "en"})
+    missing = english.get("/api/characters/does-not-exist")
+    assert missing.status_code == 404 and missing.json()["detail"] == "Item not found"
+    italian = client.get("/api/characters/does-not-exist")
+    assert italian.json()["detail"] == "Elemento non trovato"
+    assert english.post("/api/fans", json={"name": "x"}).status_code == 201
+    auth = TestClient(app, headers={"X-Language": "en"}).post("/api/fans", json={"name": "x"})
+    assert auth.status_code == 401 and auth.json()["detail"] == "Invalid access key"
+
+
 def test_gpu_loaded_model_name_assignment(monkeypatch):
     from app.integrations import gpu as gpu_module
 

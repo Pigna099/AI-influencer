@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Character, Conversation, GpuReport, Memory, Message, OllamaModel, CharacterProfile } from "../api";
+import { useI18n, LanguageSwitch } from "../i18n";
 import CharacterForm from "./CharacterForm";
 import ChatPanel from "./ChatPanel";
 import BenchmarkPanel from "./BenchmarkPanel";
@@ -7,12 +8,11 @@ import Lightbox from "./Lightbox";
 
 type Fan = { id: string; name: string; notes: string };
 type ModelMetric = { model: string; samples: number; mean_seconds: number; median_seconds: number; mean_load_seconds: number };
-const failure = (error: unknown) => error instanceof Error ? error.message : "Operazione non riuscita";
 const gb = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)} GB`;
 
-function CharacterAvatar({ character, index, onView }: { character: Character; index: number; onView: (url: string, alt: string) => void }) {
+function CharacterAvatar({ character, index, onView, altTemplate }: { character: Character; index: number; onView: (url: string, alt: string) => void; altTemplate: string }) {
   const [url, setUrl] = useState("");
-  const alt = `Foto profilo di ${character.name}`;
+  const alt = altTemplate.replace("{name}", character.name);
   useEffect(() => {
     let objectUrl = "";
     let alive = true;
@@ -35,6 +35,8 @@ function CharacterAvatar({ character, index, onView }: { character: Character; i
 }
 
 export default function Playground({ onLogout }: { onLogout: () => void }) {
+  const { t, lang } = useI18n();
+  const failure = (err: unknown) => (err instanceof Error ? err.message : t("common.failed"));
   const [characters, setCharacters] = useState<Character[]>([]);
   const [fans, setFans] = useState<Fan[]>([]);
   const [models, setModels] = useState<OllamaModel[]>([]);
@@ -153,12 +155,12 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
     try { await work(); } catch (e) { setError(failure(e)); } finally { setBusy(""); }
   };
 
-  const startChat = () => perform("Prepara il primo messaggio", async () => {
+  const startChat = () => perform(t("pg.busy.prepareFirst"), async () => {
     const chat = await api.request<Conversation>(`/api/characters/${characterId}/conversations`, {
       method: "POST", body: JSON.stringify({ model, fan_id: fanId, auto_greet: true }) });
     setConversation(chat); setHistoryPage(1); setLastActivity(Date.now());
     await refresh(chat.id);
-    if (chat.greeting_error) setError(`Chat creata, ma il saluto non è riuscito: ${chat.greeting_error}. Puoi riprovare con “Scrivi per primo”.`);
+    if (chat.greeting_error) setError(t("pg.greetingError", { error: chat.greeting_error }));
   });
 
   const send = async (content: string) => {
@@ -166,7 +168,7 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
     const id = conversation.id;
     setMessages(prev => [...prev, { id: "pending", conversation_id: id, role: "user", content,
       model: null, ollama_metrics: null, created_at: new Date().toISOString() }]);
-    setBusy("Sta scrivendo"); setError(""); setLastActivity(Date.now());
+    setBusy(t("pg.busy.writing")); setError(""); setLastActivity(Date.now());
     try {
       await api.sendMessage(id, content);
       await refresh(id); return true;
@@ -177,7 +179,7 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
 
   const initiate = useCallback(async (kind: "opener" | "reengage") => {
     if (!conversation || busy) return;
-    setBusy(kind === "opener" ? "Prepara il primo messaggio" : "Prepara un messaggio di ritorno"); setError("");
+    setBusy(kind === "opener" ? t("pg.busy.prepareFirst") : t("pg.busy.checkin")); setError("");
     setLastActivity(Date.now());
     try {
       await api.request(`/api/conversations/${conversation.id}/initiate`, {
@@ -200,23 +202,23 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
   };
 
   const removeCharacter = () => {
-    if (!character || !window.confirm(`Eliminare ${character.name}? Verranno eliminate chat, ricordi, prove e contenuti associati.`)) return;
-    void perform("Elimina il personaggio", async () => {
+    if (!character || !window.confirm(t("pg.deleteCharacterConfirm", { name: character.name }))) return;
+    void perform(t("pg.busy.deleteCharacter"), async () => {
       await api.deleteCharacter(character.id); setCharacters(prev => prev.filter(c => c.id !== character.id)); setCharacterId("");
     });
   };
 
   const duplicateCharacter = () => {
     if (!character) return;
-    void perform("Duplica il personaggio", async () => {
-      const copy = await api.cloneCharacter(character.id, `${character.name} (copia)`);
+    void perform(t("pg.busy.duplicate"), async () => {
+      const copy = await api.cloneCharacter(character.id, `${character.name} ${t("pg.copySuffix")}`);
       setCharacters(prev => [...prev, copy]); setCharacterId(copy.id);
     });
   };
 
   const generateAvatar = () => {
     if (!character) return;
-    void perform("Genero l'immagine profilo", async () => {
+    void perform(t("pg.busy.avatar"), async () => {
       const updated = await api.generateAvatar(character.id);
       setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));
     });
@@ -228,109 +230,109 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
 
   return <div className="playground">
     <header className="topbar"><div className="brand"><span className="brand-mark">ai</span><h1>AI influencer playground <b>v3.2</b></h1></div>
-      <div className="top-actions"><span className="sandbox-label">Laboratorio · account fittizi</span><button onClick={onLogout} disabled={!!busy}>Esci</button></div></header>
-    {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label="Chiudi errore">×</button></div>}
+      <div className="top-actions"><span className="sandbox-label">{t("pg.sandbox")}</span><LanguageSwitch /><button onClick={onLogout} disabled={!!busy}>{t("pg.logout")}</button></div></header>
+    {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
     <div className="workspace">
       <aside className="character-rail">
-        <div className="section-title"><h2>Personaggi <span>{characters.length}</span></h2><button aria-label="Crea personaggio" onClick={() => setEditing("new")} disabled={!!busy}>+</button></div>
+        <div className="section-title"><h2>{t("pg.characters")} <span>{characters.length}</span></h2><button aria-label={t("pg.createCharacter")} onClick={() => setEditing("new")} disabled={!!busy}>+</button></div>
         <div className="character-list">{characters.map((c, index) => <button key={c.id} disabled={!!busy} onClick={() => setCharacterId(c.id)} className={`character-row ${characterId === c.id ? "selected" : ""}`}>
-          <CharacterAvatar character={c} index={index} onView={(url, alt) => setViewer({ url, alt })} /><span><strong>{c.name}</strong><small>{c.profile.personality_traits || "Personalità da esplorare"}</small></span></button>)}
-          {!characters.length && <p className="muted">Crea il primo personaggio per iniziare.</p>}</div>
-        {character && <div className="character-actions"><button onClick={() => setEditing(character)} disabled={!!busy}>Modifica personalità</button><button onClick={duplicateCharacter} disabled={!!busy} title="Crea una copia indipendente per confrontare le varianti">Duplica</button><button onClick={generateAvatar} disabled={!!busy} title="Genera e ricorda l'immagine profilo con ComfyUI">Foto profilo</button><button className="danger" onClick={removeCharacter} disabled={!!busy}>Elimina</button></div>}
-        {character && <label className="image-checkpoint">Stile foto<select value={character.image_style || "real"} disabled={!!busy} onChange={e => void perform("Cambio lo stile", async () => {
+          <CharacterAvatar character={c} index={index} onView={(url, alt) => setViewer({ url, alt })} altTemplate={t("pg.avatarAlt")} /><span><strong>{c.name}</strong><small>{c.profile.personality_traits || t("pg.noTraits")}</small></span></button>)}
+          {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}</div>
+        {character && <div className="character-actions"><button onClick={() => setEditing(character)} disabled={!!busy}>{t("pg.editPersonality")}</button><button onClick={duplicateCharacter} disabled={!!busy} title={t("pg.duplicateTitle")}>{t("pg.duplicate")}</button><button onClick={generateAvatar} disabled={!!busy} title={t("pg.avatarTitle")}>{t("pg.avatar")}</button><button className="danger" onClick={removeCharacter} disabled={!!busy}>{t("common.delete")}</button></div>}
+        {character && <label className="image-checkpoint">{t("pg.imageStyle")}<select value={character.image_style || "real"} disabled={!!busy} onChange={e => void perform(t("pg.busy.style"), async () => {
           const updated = await api.setImageStyle(character.id, e.target.value as "anime" | "real");
           setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));
-        })}><option value="real">Reale (fotorealistico)</option><option value="anime">Anime</option></select></label>}
-        {character && checkpoints.length > 0 && <label className="image-checkpoint">Checkpoint foto<select value={character.image_checkpoint || ""} disabled={!!busy} onChange={e => void perform("Cambio il checkpoint", async () => {
+        })}><option value="real">{t("pg.style.real")}</option><option value="anime">{t("pg.style.anime")}</option></select></label>}
+        {character && checkpoints.length > 0 && <label className="image-checkpoint">{t("pg.checkpoint")}<select value={character.image_checkpoint || ""} disabled={!!busy} onChange={e => void perform(t("pg.busy.checkpoint"), async () => {
           const updated = await api.setImageCheckpoint(character.id, e.target.value || null);
           setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));
-        })}><option value="">Predefinito</option>{checkpoints.map(name => <option key={name} value={name}>{name}</option>)}</select></label>}
+        })}><option value="">{t("pg.checkpointDefault")}</option>{checkpoints.map(name => <option key={name} value={name}>{name}</option>)}</select></label>}
         <div className="rail-divider" />
-        <div className="section-title"><h2>Interpreta un fan</h2><button aria-label="Crea account fittizio" onClick={() => openFan("new")} disabled={!!busy}>+</button></div>
-        <label className="sr-only" htmlFor="fan-select">Account fittizio</label><select id="fan-select" value={fanId} onChange={e => setFanId(e.target.value)} disabled={!!busy}>
-          <option value="" disabled>Scegli un account</option>{fans.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
-        {fan && <div className="fan-note"><div><span>Note per il test</span><button onClick={() => openFan(fan)} disabled={!!busy}>Modifica</button></div><p>{fan.notes || "Nessuna nota."}</p><small>Queste note non vengono inviate al modello.</small></div>}
-        <div className="section-title history-title"><h2>Conversazioni</h2><span>{conversations.length}</span></div>
+        <div className="section-title"><h2>{t("pg.playFan")}</h2><button aria-label={t("pg.createFan")} onClick={() => openFan("new")} disabled={!!busy}>+</button></div>
+        <label className="sr-only" htmlFor="fan-select">{t("pg.fanAccount")}</label><select id="fan-select" value={fanId} onChange={e => setFanId(e.target.value)} disabled={!!busy}>
+          <option value="" disabled>{t("pg.chooseFan")}</option>{fans.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
+        {fan && <div className="fan-note"><div><span>{t("pg.fanNotes")}</span><button onClick={() => openFan(fan)} disabled={!!busy}>{t("common.edit")}</button></div><p>{fan.notes || t("pg.noNotes")}</p><small>{t("pg.notesHint")}</small></div>}
+        <div className="section-title history-title"><h2>{t("pg.conversations")}</h2><span>{conversations.length}</span></div>
         <div className="history-list">{conversations.slice(0, historyPage * 10).map(c => <button className={conversation?.id === c.id ? "selected" : ""} key={c.id} disabled={!!busy}
-          onClick={() => void perform("Carica la chat", async () => { generation.current += 1; setMessages([]); setAutoNudge(false); setConversation(c); setModel(c.model); await refresh(c.id); })}>
-          <strong>{c.model}</strong><small>{new Date(c.created_at).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · v{c.character_snapshot.version}</small></button>)}
-          {conversations.length > historyPage * 10 && <button onClick={() => setHistoryPage(p => p + 1)}>Mostra altre</button>}
-          {!conversations.length && <p className="muted">Le chat di questo fan appariranno qui.</p>}</div>
+          onClick={() => void perform(t("pg.busy.loadChat"), async () => { generation.current += 1; setMessages([]); setAutoNudge(false); setConversation(c); setModel(c.model); await refresh(c.id); })}>
+          <strong>{c.model}</strong><small>{new Date(c.created_at).toLocaleString(lang === "it" ? "it-IT" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · v{c.character_snapshot.version}</small></button>)}
+          {conversations.length > historyPage * 10 && <button onClick={() => setHistoryPage(p => p + 1)}>{t("pg.showMore")}</button>}
+          {!conversations.length && <p className="muted">{t("pg.noChats")}</p>}</div>
       </aside>
       <main className="main-panel">
-        <div className="chat-heading"><div><span className="eyebrow">{character ? `PERSONALITÀ v${character.version}` : "IL TUO LABORATORIO"}</span><h2>{character?.name || "Scegli un personaggio"}</h2><p>{fan ? `In conversazione con ${fan.name}` : "Crea un account fittizio per provare la memoria"}</p></div>
-          <div className="view-tabs" role="tablist"><button role="tab" aria-selected={tab === "chat"} onClick={() => setTab("chat")} disabled={!!busy}>Chat</button><button role="tab" aria-selected={tab === "benchmark"} onClick={() => setTab("benchmark")} disabled={!!busy}>Confronta modelli</button></div></div>
+        <div className="chat-heading"><div><span className="eyebrow">{character ? t("pg.personalityVersion", { version: character.version }) : t("pg.lab")}</span><h2>{character?.name || t("pg.chooseCharacter")}</h2><p>{fan ? t("pg.withFan", { name: fan.name }) : t("pg.createFanHint")}</p></div>
+          <div className="view-tabs" role="tablist"><button role="tab" aria-selected={tab === "chat"} onClick={() => setTab("chat")} disabled={!!busy}>{t("pg.tab.chat")}</button><button role="tab" aria-selected={tab === "benchmark"} onClick={() => setTab("benchmark")} disabled={!!busy}>{t("pg.tab.benchmark")}</button></div></div>
         {tab === "chat" ? <>
-          <div className="model-toolbar"><label htmlFor="model-select">Modello</label><select id="model-select" value={model} disabled={!!busy} onChange={e => setModel(e.target.value)}>
-            <option value="" disabled>Scegli un modello</option>{chatModels.map(m => <option key={m.name} value={m.name}>{m.name} · {m.parameter_size}</option>)}</select>
-            <button className="primary" onClick={startChat} disabled={!character || !fan || !model || !!busy}>+ Nuova chat</button>
-            {conversation && model !== conversation.model && <button disabled={!!busy} onClick={() => void perform("Cambia modello", async () => {
+          <div className="model-toolbar"><label htmlFor="model-select">{t("pg.model")}</label><select id="model-select" value={model} disabled={!!busy} onChange={e => setModel(e.target.value)}>
+            <option value="" disabled>{t("pg.chooseModel")}</option>{chatModels.map(m => <option key={m.name} value={m.name}>{m.name} · {m.parameter_size}</option>)}</select>
+            <button className="primary" onClick={startChat} disabled={!character || !fan || !model || !!busy}>{t("pg.newChat")}</button>
+            {conversation && model !== conversation.model && <button disabled={!!busy} onClick={() => void perform(t("pg.busy.changeModel"), async () => {
               const updated = await api.request<Conversation>(`/api/conversations/${conversation.id}`, { method: "PATCH", body: JSON.stringify({ model }) }); setConversation(updated);
-            })}>Usa nella chat</button>}</div>
-          {conversation && conversation.character_snapshot.version !== character?.version && <div className="info-banner">Questa chat usa la personalità v{conversation.character_snapshot.version}. Avvia una nuova chat per provare le modifiche.</div>}
-          <ChatPanel conversation={conversation} messages={messages} onSendMessage={send} loading={!!busy} busyLabel={busy} elapsed={elapsed} fanName={fan?.name || "Tu"} />
+            })}>{t("pg.useInChat")}</button>}</div>
+          {conversation && conversation.character_snapshot.version !== character?.version && <div className="info-banner">{t("pg.snapshotWarning", { version: conversation.character_snapshot.version })}</div>}
+          <ChatPanel conversation={conversation} messages={messages} onSendMessage={send} loading={!!busy} busyLabel={busy} elapsed={elapsed} fanName={fan?.name || t("pg.fanFallback")} />
           {conversation && <div className="initiative-bar">
             <div className="quick-actions">
-              <button disabled={!!busy} onClick={() => void initiate("opener")} title="Il personaggio scrive per primo">Apri</button>
-              <button disabled={!!busy} onClick={() => void initiate("reengage")} title="Messaggio di riavvicinamento dopo un'assenza simulata">Ritorno</button>
-              <button disabled={!!busy} title="Genera e invia una foto manualmente" onClick={() => { setPhotoScene(""); setPhotoCaption(""); setPhotoOpen(true); }}>Invia foto</button>
-              <label className="toggle-pill" title="Il personaggio può decidere di inviare foto"><input type="checkbox" checked={conversation.images_enabled !== false} disabled={!!busy} onChange={e => void perform("Aggiorno le foto in chat", async () => {
+              <button disabled={!!busy} onClick={() => void initiate("opener")} title={t("pg.quick.openTitle")}>{t("pg.quick.open")}</button>
+              <button disabled={!!busy} onClick={() => void initiate("reengage")} title={t("pg.quick.checkinTitle")}>{t("pg.quick.checkin")}</button>
+              <button disabled={!!busy} title={t("pg.manualPhotoTitle")} onClick={() => { setPhotoScene(""); setPhotoCaption(""); setPhotoOpen(true); }}>{t("pg.manualPhoto")}</button>
+              <label className="toggle-pill" title={t("pg.autoPhotoTitle")}><input type="checkbox" checked={conversation.images_enabled !== false} disabled={!!busy} onChange={e => void perform(t("pg.busy.images"), async () => {
                 const updated = await api.updateConversation(conversation.id, { images_enabled: e.target.checked });
                 setConversation(updated);
-              })} /> Auto foto</label>
+              })} /> {t("pg.autoPhoto")}</label>
             </div>
-            <details className="tool-menu"><summary>Opzioni</summary><div className="tool-menu-body">
-              <label>Assenza <input aria-label="Ore di assenza simulate" type="number" min="1" max="8760" value={absence} onChange={e => setAbsence(Math.max(1, Math.min(8760, Number(e.target.value))))} /> h</label>
-              <label className="auto-label"><input type="checkbox" checked={autoNudge} onChange={e => { setAutoNudge(e.target.checked); setLastActivity(Date.now()); }} disabled={!!busy} /> Intervento dopo 60 s di silenzio</label>
+            <details className="tool-menu"><summary>{t("pg.options")}</summary><div className="tool-menu-body">
+              <label>{t("pg.absence")} <input aria-label={t("pg.absenceAria")} type="number" min="1" max="8760" value={absence} onChange={e => setAbsence(Math.max(1, Math.min(8760, Number(e.target.value))))} /> h</label>
+              <label className="auto-label"><input type="checkbox" checked={autoNudge} onChange={e => { setAutoNudge(e.target.checked); setLastActivity(Date.now()); }} disabled={!!busy} /> {t("pg.nudge")}</label>
               <button className="danger" type="button" disabled={!!busy} onClick={() => {
-                if (!window.confirm("Eliminare questa chat? I ricordi del fan restano disponibili.")) return;
-                void perform("Elimina chat", async () => { await api.request(`/api/conversations/${conversation.id}`, { method: "DELETE" }); setConversations(prev => prev.filter(c => c.id !== conversation.id)); setConversation(null); setMessages([]); });
-              }}>Elimina chat</button>
+                if (!window.confirm(t("pg.deleteChatConfirm"))) return;
+                void perform(t("pg.busy.deleteChat"), async () => { await api.request(`/api/conversations/${conversation.id}`, { method: "DELETE" }); setConversations(prev => prev.filter(c => c.id !== conversation.id)); setConversation(null); setMessages([]); });
+              }}>{t("pg.deleteChat")}</button>
             </div></details>
           </div>}
         </> : <BenchmarkPanel character={character} fanId={fanId} models={chatModels} onBusy={setBusy} />}
       </main>
       <aside className="inspector">
-        <div className="section-title"><h2>GPU in tempo reale</h2><span>{gpu?.gpus.length ?? 0}</span></div>
+        <div className="section-title"><h2>{t("pg.gpu.title")}</h2><span>{gpu?.gpus.length ?? 0}</span></div>
         {gpu?.available ? <div className="gpu-list">{gpu.gpus.map(item => <article className="gpu-card" key={item.index}>
           <header><strong>GPU {item.index} · {item.name.replace("NVIDIA GeForce ", "")}</strong><span>{item.temperature != null ? `${item.temperature}°C` : ""}</span></header>
           <div className="gpu-bar" title={`${gb(item.memory_used)} / ${gb(item.memory_total)}`}><i style={{ width: `${Math.min(100, (item.memory_used / item.memory_total) * 100)}%` }} /></div>
           <small>{gb(item.memory_used)} / {gb(item.memory_total)} · {item.utilization}% util{item.power_watts != null ? ` · ${item.power_watts} W` : ""}</small>
           {!!item.processes.length && <ul>{item.processes.map(process => <li key={`${item.index}-${process.pid}-${process.name}`}><span title={process.name}>{process.name}</span><b>{gb(process.vram)}</b></li>)}</ul>}
-        </article>)}</div> : <p className="muted">{gpu === null ? "Lettura GPU…" : "GPU non disponibili in questo ambiente."}</p>}
+        </article>)}</div> : <p className="muted">{gpu === null ? t("pg.gpu.loading") : t("pg.gpu.unavailable")}</p>}
         <div className="rail-divider" />
-        <div className="section-title"><h2>Memoria del fan</h2><span>{memories.length}</span></div>
-        <p className="scope-label">{character?.name || "Personaggio"} × {fan?.name || "Fan"}</p>
-        {conversation?.memory_status === "pending" && <p className="memory-status" role="status"><span className="spinner" /> Sta estraendo i ricordi…</p>}
-        {conversation?.memory_status === "failed" && <p className="memory-status warning">Estrazione non riuscita. Puoi aggiungere un ricordo manualmente.</p>}
-        <div className="memory-list">{memories.map(m => <article key={m.id}><div><span>{m.embedding_model === "manual" ? "Manuale" : "Dalla chat"} · {m.importance}/5</span><button aria-label={`Elimina ricordo: ${m.content}`} disabled={!!busy} onClick={() => void perform("Elimina ricordo", async () => { await api.deleteMemory(m.id); setMemories(prev => prev.filter(x => x.id !== m.id)); })}>×</button></div><p>{m.content}</p></article>)}
-          {!memories.length && <div className="empty-memory"><span>◎</span><p>Nessun ricordo, per ora.</p><small>Racconta un dettaglio, attendi l’estrazione e apri una nuova chat con lo stesso fan per verificarlo.</small></div>}</div>
-        {character && fan && <><form className="memory-form" onSubmit={e => { e.preventDefault(); void perform("Salva ricordo", async () => {
+        <div className="section-title"><h2>{t("pg.memory.title")}</h2><span>{memories.length}</span></div>
+        <p className="scope-label">{character?.name || t("pg.characterFallback")} × {fan?.name || "Fan"}</p>
+        {conversation?.memory_status === "pending" && <p className="memory-status" role="status"><span className="spinner" /> {t("pg.memory.extracting")}</p>}
+        {conversation?.memory_status === "failed" && <p className="memory-status warning">{t("pg.memory.failed")}</p>}
+        <div className="memory-list">{memories.map(m => <article key={m.id}><div><span>{m.embedding_model === "manual" ? t("pg.memory.manual") : t("pg.memory.fromChat")} · {m.importance}/5</span><button aria-label={`${t("pg.busy.deleteMemory")}: ${m.content}`} disabled={!!busy} onClick={() => void perform(t("pg.busy.deleteMemory"), async () => { await api.deleteMemory(m.id); setMemories(prev => prev.filter(x => x.id !== m.id)); })}>×</button></div><p>{m.content}</p></article>)}
+          {!memories.length && <div className="empty-memory"><span>◎</span><p>{t("pg.memory.empty")}</p><small>{t("pg.memory.emptyHint")}</small></div>}</div>
+        {character && fan && <><form className="memory-form" onSubmit={e => { e.preventDefault(); void perform(t("pg.busy.saveMemory"), async () => {
           const saved = await api.request<Memory>(`/api/characters/${characterId}/memories?${scope}`, { method: "POST", body: JSON.stringify({ content: newMemory, category: "personal_fact", importance: 3 }) });
           setMemories(prev => [...prev.filter(m => m.id !== saved.id), saved]); setNewMemory("");
-        }); }}><label htmlFor="memory-input">Aggiungi un fatto di prova</label><textarea id="memory-input" rows={2} value={newMemory} onChange={e => setNewMemory(e.target.value)} placeholder="Es. A Luca piace il jazz" maxLength={5000} /><button disabled={!!busy || !newMemory.trim()}>Salva ricordo</button></form>
+        }); }}><label htmlFor="memory-input">{t("pg.memory.add")}</label><textarea id="memory-input" rows={2} value={newMemory} onChange={e => setNewMemory(e.target.value)} placeholder={t("pg.memory.placeholder")} maxLength={5000} /><button disabled={!!busy || !newMemory.trim()}>{t("pg.memory.save")}</button></form>
           {!!memories.length && <button className="text-button danger" disabled={!!busy} onClick={() => {
-            if (!window.confirm(`Cancellare i ricordi di ${fan.name} con ${character.name}?`)) return;
-            void perform("Azzera memoria", async () => { await api.request(`/api/characters/${characterId}/memories?${scope}`, { method: "DELETE" }); setMemories([]); });
-          }}>Azzera questa memoria</button>}</>}
-        <div className="rail-divider" /><div className="section-title"><h2>Tempi in chat</h2></div>
-        <p className="muted">Risposte, saluti e ritorni di questa coppia. Tempo totale, incluso il caricamento.</p>
-        <div className="metric-list">{metrics.map(m => <article key={m.model}><strong>{m.model}</strong><div><b>{m.mean_seconds.toFixed(2)} s</b><span>media · {m.samples} risposte</span></div><small>Mediana {m.median_seconds.toFixed(2)} s · carico medio {m.mean_load_seconds.toFixed(2)} s</small></article>)}
-          {!metrics.length && <p className="muted">Invia un messaggio per vedere le prime misure.</p>}</div>
+            if (!window.confirm(t("pg.memory.clearConfirm", { fan: fan.name, character: character.name }))) return;
+            void perform(t("pg.busy.clearMemory"), async () => { await api.request(`/api/characters/${characterId}/memories?${scope}`, { method: "DELETE" }); setMemories([]); });
+          }}>{t("pg.memory.clear")}</button>}</>}
+        <div className="rail-divider" /><div className="section-title"><h2>{t("pg.times.title")}</h2></div>
+        <p className="muted">{t("pg.times.note")}</p>
+        <div className="metric-list">{metrics.map(m => <article key={m.model}><strong>{m.model}</strong><div><b>{m.mean_seconds.toFixed(2)} s</b><span>{t("pg.times.mean", { count: m.samples })}</span></div><small>{t("pg.times.detail", { median: m.median_seconds.toFixed(2), load: m.mean_load_seconds.toFixed(2) })}</small></article>)}
+          {!metrics.length && <p className="muted">{t("pg.times.empty")}</p>}</div>
       </aside>
     </div>
-    {editing && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label="Personalità del personaggio"><CharacterForm character={editing === "new" ? undefined : editing} models={chatModels} onSave={saveCharacter} onCancel={() => setEditing(null)} /></div></div>}
-    {photoOpen && conversation && <div className="modal-backdrop"><form className="modal fan-editor photo-editor" role="dialog" aria-modal="true" aria-label="Invia una foto" onSubmit={e => { e.preventDefault(); const scene = photoScene.trim() || undefined; const caption = photoCaption.trim() || undefined; setPhotoOpen(false); void perform("Genero e invio la foto", async () => {
+    {editing && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={t("form.aria")}><CharacterForm character={editing === "new" ? undefined : editing} models={chatModels} onSave={saveCharacter} onCancel={() => setEditing(null)} /></div></div>}
+    {photoOpen && conversation && <div className="modal-backdrop"><form className="modal fan-editor photo-editor" role="dialog" aria-modal="true" aria-label={t("pg.photo.title")} onSubmit={e => { e.preventDefault(); const scene = photoScene.trim() || undefined; const caption = photoCaption.trim() || undefined; setPhotoOpen(false); void perform(t("pg.busy.photo"), async () => {
       await api.sendPhoto(conversation.id, { scene, caption });
       await refresh(conversation.id);
-    }); }}><h2>Invia una foto</h2><p className="muted">Genera con ComfyUI usando il checkpoint del personaggio{character?.avatar_filename ? " e l’immagine profilo come riferimento" : ""}. Se lasci vuota la scena, viene usato un autoscatto sensuale.</p><label>Descrizione della scena (opzionale)<textarea autoFocus rows={3} value={photoScene} onChange={e => setPhotoScene(e.target.value)} maxLength={1500} placeholder="Es. selfie nuda sul letto, luce calda" /></label><label>Didascalia (opzionale)<input value={photoCaption} onChange={e => setPhotoCaption(e.target.value)} maxLength={1000} placeholder="Es. Ecco qua 😏" /></label><div className="modal-actions"><button type="button" onClick={() => setPhotoOpen(false)} disabled={!!busy}>Annulla</button><button className="primary" disabled={!!busy}>Genera e invia</button></div></form></div>}
-    {fanEditor && <div className="modal-backdrop"><form className="modal fan-editor" role="dialog" aria-modal="true" aria-label="Account fittizio" onSubmit={e => { e.preventDefault(); void perform("Salva account", async () => {
+    }); }}><h2>{t("pg.photo.title")}</h2><p className="muted">{t("pg.photo.note", { reference: character?.avatar_filename ? t("pg.photo.reference") : "" })}</p><label>{t("pg.photo.scene")}<textarea autoFocus rows={3} value={photoScene} onChange={e => setPhotoScene(e.target.value)} maxLength={1500} placeholder={t("pg.photo.scenePlaceholder")} /></label><label>{t("pg.photo.caption")}<input value={photoCaption} onChange={e => setPhotoCaption(e.target.value)} maxLength={1000} placeholder={t("pg.photo.captionPlaceholder")} /></label><div className="modal-actions"><button type="button" onClick={() => setPhotoOpen(false)} disabled={!!busy}>{t("common.cancel")}</button><button className="primary" disabled={!!busy}>{t("pg.photo.generate")}</button></div></form></div>}
+    {fanEditor && <div className="modal-backdrop"><form className="modal fan-editor" role="dialog" aria-modal="true" aria-label={t("pg.fanAccount")} onSubmit={e => { e.preventDefault(); void perform(t("pg.busy.saveFan"), async () => {
       const saved = await api.request<Fan>(fanEditor === "new" ? "/api/fans" : `/api/fans/${fanEditor.id}`, { method: fanEditor === "new" ? "POST" : "PUT", body: JSON.stringify({ name: fanName, notes: fanNotes }) });
       setFans(prev => [...prev.filter(f => f.id !== saved.id), saved]); setFanId(saved.id); setFanEditor(null);
-    }); }}><h2>{fanEditor === "new" ? "Nuovo account fittizio" : "Modifica account"}</h2><label>Nome<input autoFocus value={fanName} onChange={e => setFanName(e.target.value)} required maxLength={120} /></label><label>Note per le prove<textarea rows={5} value={fanNotes} onChange={e => setFanNotes(e.target.value)} maxLength={3000} /></label><p className="muted">Solo per te: il chatbot impara i dettagli dai messaggi, non da queste note.</p><div className="modal-actions"><button type="button" onClick={() => setFanEditor(null)} disabled={!!busy}>Annulla</button><button className="primary" disabled={!!busy}>{busy || "Salva account"}</button></div>{fanEditor !== "new" && <button className="danger text-button" type="button" disabled={!!busy} onClick={() => {
-      if (!window.confirm("Eliminare questo fan, tutte le sue chat e i suoi ricordi?")) return;
-      void perform("Elimina account", async () => { await api.request(`/api/fans/${fanEditor.id}`, { method: "DELETE" }); setFans(prev => prev.filter(f => f.id !== fanEditor.id)); setFanId(""); setFanEditor(null); });
-    }}>Elimina account e dati</button>}</form></div>}
+    }); }}><h2>{fanEditor === "new" ? t("pg.fan.new") : t("pg.fan.edit")}</h2><label>{t("pg.fan.name")}<input autoFocus value={fanName} onChange={e => setFanName(e.target.value)} required maxLength={120} /></label><label>{t("pg.fan.notes")}<textarea rows={5} value={fanNotes} onChange={e => setFanNotes(e.target.value)} maxLength={3000} /></label><p className="muted">{t("pg.fan.hint")}</p><div className="modal-actions"><button type="button" onClick={() => setFanEditor(null)} disabled={!!busy}>{t("common.cancel")}</button><button className="primary" disabled={!!busy}>{busy || t("pg.fan.save")}</button></div>{fanEditor !== "new" && <button className="danger text-button" type="button" disabled={!!busy} onClick={() => {
+      if (!window.confirm(t("pg.fan.deleteConfirm"))) return;
+      void perform(t("pg.busy.deleteFan"), async () => { await api.request(`/api/fans/${fanEditor.id}`, { method: "DELETE" }); setFans(prev => prev.filter(f => f.id !== fanEditor.id)); setFanId(""); setFanEditor(null); });
+    }}>{t("pg.fan.delete")}</button>}</form></div>}
     {viewer && <Lightbox src={viewer.url} alt={viewer.alt} onClose={() => setViewer(null)} />}
   </div>;
 }

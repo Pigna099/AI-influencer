@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useI18n, LanguageSwitch } from "../i18n";
 
 interface LoginProps {
   onLogin: (key: string) => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
+  const { t } = useI18n();
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -15,20 +17,27 @@ export default function Login({ onLogin }: LoginProps) {
     setError("");
 
     if (!key.trim()) {
-      setError("Inserisci la chiave di accesso");
+      setError(t("login.required"));
       return;
     }
 
     try {
-      const response = await fetch("/api/characters?limit=1", { headers: {"X-API-Key": key.trim()} });
+      const response = await fetch("/api/characters?limit=1", {
+        headers: {
+          "X-API-Key": key.trim(),
+          "X-Language": localStorage.getItem("ui_lang") === "en" ? "en" : "it",
+        },
+      });
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { detail?: unknown } | null;
-        throw new Error(typeof payload?.detail === "string" ? payload.detail : `Errore HTTP ${response.status}`);
+        throw new Error(
+          typeof payload?.detail === "string" ? payload.detail : `HTTP ${response.status}`
+        );
       }
       onLogin(key.trim());
       navigate("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Autenticazione non riuscita. Controlla la chiave API.");
+      setError(err instanceof Error ? err.message : t("login.failed"));
       console.error(err);
     }
   };
@@ -39,13 +48,14 @@ export default function Login({ onLogin }: LoginProps) {
         <div className="bg-gray-900 rounded-xl p-8 shadow-2xl border border-gray-800">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-blue-400 mb-2">AI influencer playground v3.2</h1>
-            <p className="text-gray-400">Chat, personalità e memoria. Il tuo laboratorio privato.</p>
+            <p className="text-gray-400">{t("login.subtitle")}</p>
+            <div className="mt-4 flex justify-center"><LanguageSwitch /></div>
           </div>
-          
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="api-key" className="block text-sm font-medium text-gray-300 mb-2">
-                API Key
+                {t("login.apiKey")}
               </label>
               <input
                 id="api-key"
@@ -53,7 +63,7 @@ export default function Login({ onLogin }: LoginProps) {
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
                 className="w-full px-4 py-3 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-white"
-                placeholder="Inserisci la chiave API"
+                placeholder={t("login.placeholder")}
                 required
               />
             </div>
@@ -68,12 +78,12 @@ export default function Login({ onLogin }: LoginProps) {
               type="submit"
               className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
             >
-              Entra nel playground
+              {t("login.enter")}
             </button>
           </form>
 
           <div className="mt-6 text-center text-sm text-gray-500">
-            <p>La chiave resta nella sessione di questo browser fino al logout.</p>
+            <p>{t("login.footer")}</p>
           </div>
         </div>
       </div>

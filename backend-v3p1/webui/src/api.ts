@@ -153,9 +153,11 @@ export class ApiClient {
   async request<T = unknown>(endpoint: string, options?: RequestInit): Promise<T> {
     const apiKey = sessionStorage.getItem("api_key");
     const baseUrl = getApiBaseUrl();
+    const lang = localStorage.getItem("ui_lang") === "en" ? "en" : "it";
     
     const headers: HeadersInit = {
       "Content-Type": "application/json",
+      "X-Language": lang,
       ...((options?.headers as Record<string, string>) || {}),
     };
     
@@ -169,9 +171,10 @@ export class ApiClient {
     });
     
     if (!response.ok) {
-      const error = await response.json().catch(() => ({detail: `Errore HTTP ${response.status}`}));
+      const fallbackMessage = lang === "en" ? `HTTP error ${response.status}` : `Errore HTTP ${response.status}`;
+      const error = await response.json().catch(() => ({detail: fallbackMessage}));
       const message = typeof error.detail === "string" ? error.detail : JSON.stringify(error.detail);
-      throw new Error(message || `Errore HTTP ${response.status}`);
+      throw new Error(message || fallbackMessage);
     }
 
     return (await response.json()) as T;
@@ -243,9 +246,9 @@ export class ApiClient {
 
   async fetchBlob(endpoint: string): Promise<Blob> {
     const apiKey = sessionStorage.getItem("api_key");
-    const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
-      headers: apiKey ? { "X-API-Key": apiKey } : {},
-    });
+    const headers: Record<string, string> = { "X-Language": localStorage.getItem("ui_lang") === "en" ? "en" : "it" };
+    if (apiKey) headers["X-API-Key"] = apiKey;
+    const response = await fetch(`${getApiBaseUrl()}${endpoint}`, { headers });
     if (!response.ok) throw new Error(`Errore HTTP ${response.status}`);
     return response.blob();
   }
