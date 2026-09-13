@@ -1,6 +1,6 @@
 # PLAN — Da playground a influencer autonoma
 
-Piano di lavoro per trasformare il playground (`backend-v3p1`) in una piattaforma che genera contenuti, pubblica su Instagram e gestisce i fan su Fanvue con vendita di foto/video.
+Piano di lavoro per trasformare il playground (`backend-v3p3`) in una piattaforma che genera contenuti, pubblica su Instagram e gestisce i fan su Fanvue con vendita di foto/video.
 
 Documento vivo: aggiornare quando una decisione cambia.
 
@@ -29,7 +29,7 @@ Vincolo di identità: **personaggi completamente sintetici**, nessuna likeness d
 
 ## 3. Cosa è riusabile oggi
 
-| Componente | File (backend-v3p1) | Riuso |
+| Componente | File (backend-v3p3) | Riuso |
 |---|---|---|
 | Client ComfyUI (parameterize, checkpoint, upload reference/IPAdapter) | `app/integrations/comfyui.py` | Alto — base del workflow selector |
 | Client Ollama (chat, embed, metrics) | `app/integrations/ollama.py` | Alto |
@@ -177,7 +177,57 @@ Il `chat_service` esistente genera le bozze; `fanvue.py` diventa l'adapter OAuth
 | Costi cloud fuori controllo | Budget e limiti nel router local/cloud |
 | Contesa GPU | Assegnazione GPU per ruolo, code separate |
 
-## 14. Domande aperte
+## 14. Backlog prodotto richiesto (NON in esecuzione)
+
+Queste voci sono richieste esplicite, da pianificare e implementare in passi successivi. Non sono ancora state realizzate.
+
+### 14.1 Pagamenti simulati e PPV — FATTO (13 settembre 2026)
+
+- Metodo di pagamento fittizio per simulare transazioni dentro la chat (nessun processore reale).
+- Il personaggio può inviare immagini **bloccate/sfocate**; il fan "paga" per sbloccarle.
+- Modello dati: `Payment`/`Unlock` (importo, stato simulato, riferimento immagine/messaggio, timestamp) + prezzo per immagine nella libreria.
+- UI: badge "locked" sull'immagine, pulsante "Sblocca (simulato)" con conferma, effetto blur lato client, traccia nella chat e nelle metriche.
+- Vincoli: nessun dato di pagamento reale, nessuna integrazione con circuiti; solo simulazione per testare tono, prezzo e flusso.
+- Implementato: colonne PPV su personaggio e chat, marcatore `[PPV:]` nel prompt, anteprima sfocata servita dal backend, sblocco con pagamento simulato registrato in `simulated_payments`, toggle+prezzo per personaggio e invio manuale bloccato.
+
+### 14.2 Notifiche e realismo temporale
+
+- Risposte non immediate: ritardo casuale configurabile per personaggio/fan (min-max, distribuzione realistica, "sta scrivendo…").
+- Orari di attività del personaggio (fasce orarie, giorni), con coda dei messaggi generati da consegnare al momento giusto.
+- Notifiche interne al playground (badge conversazione non letta, suono opzionale); niente notifiche esterne.
+- Backend: job programmati (stesso pattern della coda `jobs`) con `deliver_at`, stato `scheduled/sent`.
+
+### 14.3 Playground video
+
+- Terza/quarta scheda per generazione video con i modelli già installati (LTX-Video, Wan 2.x).
+- Flusso i2v da immagine approvata della libreria, più text-to-video per test.
+- Cura dei risultati (approva/scarta/elimina), libreria video per personaggio, stesso pattern della libreria immagini.
+- Prerequisito già pronto: il dataset Telegram scarica anche i video e li marca `kind=video` con anteprima, da usare per le pose.
+- Metriche GPU e tempi dedicati (i video sono molto più pesanti).
+
+### 14.4 Filtro modelli nelle UI — FATTO (13 settembre 2026)
+
+- Chat: mostrare solo LLM conversazionali; escludere modelli di coding, embedding e generazione video.
+- Immagini: mostrare solo checkpoint SDXL/SD1.5 fotografici o anime; escludere modelli video (LTX/Wan) e pipeline non compatibili.
+- Implementato: `kind` (chat/coding/embedding) per i modelli Ollama; metadati `{name, family, usable}` per i checkpoint ComfyUI (Pony/Anime/Reale/Video), con i modelli video esclusi dal selettore.
+
+### 14.5 Temi colore per playground — FATTO (13 settembre 2026)
+
+- Palette distinta per Chat, Immagini, Dataset (e futuro Video) per orientarsi a colpo d'occhio.
+- Implementato: accenti diversi per Chat (teal), Immagini (viola) e Dataset (verde) tramite variabili CSS `--accent`.
+
+### 14.6 Flusso Image Playground: personaggio -> dataset -> LoRA
+
+Idea dell'utente, da progettare:
+
+1. **Crea personaggio**: da un prompt aumentato genera 5 immagini; scegline una come riferimento identitario.
+2. **Dataset per LoRA**: con l'immagine scelta, genera batch di 5 immagini guidate da una **pose-database** (pose estratte da Telegram/Instagram come reference di stile/posa, non di volto). Seleziona le più simili all'originale. Ripeti finché il dataset ha almeno ~20 immagini approvate.
+3. **Training LoRA**: addestrare la LoRA del personaggio con il dataset (kohya_ss / diffusion-pipe), trigger word dedicata, QC volto (ArcFace) come gate.
+4. **Uso**: il personaggio diventa selezionabile nel playground immagini per prompt liberi o per generare in blocco le "pose standard".
+
+Questioni aperte da decidere prima di implementare: dove gira il training (stessa GPU di ComfyUI?), formato export (kohya), soglia di similarità/QC, gestione versioni LoRA per checkpoint base.
+
+## 15. Domande aperte
 
 1. Numero di personaggi contemporanei e modello multi-account (agenzia?).
 2. Provider di object storage preferito (MinIO locale vs cloud).

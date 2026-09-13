@@ -2,9 +2,9 @@
 
 ## Active codebase (September 2026)
 
-The active backend is **`backend-v3p1/`** (AI influencer playground v3.1): Ollama chat playground with characters, simulated fans, per-fan memory, model benchmarking and personality A/B testing. It is deployed via Docker Compose from that folder (same `ai-influencer` project and PostgreSQL volume as before). Use `backend-v3p1/README.md` and `backend-v3p1/STATO.md` for the current architecture and operations.
+The active backend is **`backend-v3p3/`** (AI influencer playground v3p3): Ollama chat playground with characters, simulated fans, per-fan memory, model benchmarking and personality A/B testing, plus an image playground and per-character image library (ComfyUI NSFW generation with checkpoints/style/LoRAs, AI tagging, curation, and chat reuse of approved images). It is deployed via Docker Compose from that folder (same `ai-influencer` project and PostgreSQL volume as before). Use `backend-v3p3/README.md` and `backend-v3p3/STATO.md` for the current architecture and operations.
 
-The older `backend/` described below is the legacy v1 content-generation backend and is no longer the deployed service. `backend-v3-stage/` is the previous staging copy that `backend-v3p1` continues from.
+The older `backend/` described below is the legacy v1 content-generation backend and is no longer the deployed service. `backend-v3-stage/` is the previous staging copy; `backend-v3p1` was the previous name of the active folder before the v3p3 rename.
 
 ---
 
