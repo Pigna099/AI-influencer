@@ -1,6 +1,6 @@
 # PLAN — Da playground a influencer autonoma
 
-Piano di lavoro per trasformare il playground (`backend-v4p1`) in una piattaforma che genera contenuti, pubblica su Instagram e gestisce i fan su Fanvue con vendita di foto/video.
+Piano di lavoro per trasformare il playground (`backend-v5p0`) in una piattaforma che genera contenuti, pubblica su Instagram e gestisce i fan su Fanvue con vendita di foto/video.
 
 Documento vivo: aggiornare quando una decisione cambia.
 
@@ -29,7 +29,7 @@ Vincolo di identità: **personaggi completamente sintetici**, nessuna likeness d
 
 ## 3. Cosa è riusabile oggi
 
-| Componente | File (backend-v4p1) | Riuso |
+| Componente | File (backend-v5p0) | Riuso |
 |---|---|---|
 | Client ComfyUI (parameterize, checkpoint, upload reference/IPAdapter) | `app/integrations/comfyui.py` | Alto — base del workflow selector |
 | Client Ollama (chat, embed, metrics) | `app/integrations/ollama.py` | Alto |
@@ -225,39 +225,110 @@ Idea dell'utente. Decisioni prese (13 settembre 2026): famiglia primaria **real*
 1. Migrazione `0012_lora_pipeline`: `character_loras`, `lora_datasets`, `lora_dataset_items`, `pose_references`, `training_jobs`.
 2. API `/api/characters/{id}/loras`, `/api/loras/*`, `/api/training-jobs` (claim/progress/complete/cancel) + scheda **LoRA** (ambra) con stato e avanzamento live.
 3. Trainer host: `scripts/trainer/setup.sh` (venv 3.12 + torch cu124 + kohya) e `scripts/trainer/train_worker.py` (poll coda, GPU libera, log, copia artefatti, recovery job stale); unit systemd pronta in `scripts/trainer/ai-influencer-trainer.service`.
-4. Verifica end-to-end: dataset di 20 immagini reali generato per Nikita con anchor IPAdapter (PornMaster, rank 16); primo run di training eseguito dal worker (scelta GPU libera, log e avanzamento riportati all'API) ma interrotto per fine sessione — da completare e validare con una generazione con LoRA.
+4. Verifica end-to-end completata (15 settembre 2026): LoRA "Nikita real v1" (20 immagini, rank 16, 1000 step, loss finale 0.0738, ~41 min su GPU 1) addestrata dal worker, copiata in ComfyUI e in `data/loras/`, attivata; generazione di validazione con LoRA (peso 0.85) che conferma il trasferimento dell'identità in una scena nuova. Il worker ora sopravvive ai riavvii dell'API (errori di rete gestiti).
 
 **Fase B — dataset builder**: pose extraction (OpenPose → `pose_references`), batch di candidati con anchor IPAdapter + ControlNet, ranking ArcFace, selezione, caption editabili, gate ≥20.
 
-**Fase C — wizard 14.6**: creazione personaggio → 5 candidati → anchor → loop pose → dataset → training → validazione → attivazione.
+**Fase C — wizard 14.6**: creazione personaggio → 5 candidati → anchor → loop pose → dataset → training → validazione → attivazione. Il flusso richiesto è dettagliato in **§14.16**, che diventa il riferimento operativo per le Fasi B e C.
 
 **Fase D — uso**: `resolve(character, checkpoint)` in playground immagini/chat/avatar, peso LoRA e versioni.
 
 I punti 1-4 originali restano validi; le questioni aperte (GPU, export, soglia QC, versioni) sono risolte dalle decisioni sopra.
 
-### 14.7 Fix classificazione dataset (richiesto 13 settembre 2026)
+### 14.7 Fix classificazione dataset — FATTO (15 settembre 2026)
 
-Premendo **Classifica in attesa**, la classificazione deve ripartire per tutte le foto non ancora classificate (non solo le `pending`: includere/riprovare anche `failed` e quelle senza descrizione), non fermarsi alle già pronte.
+Premendo **Classifica non classificate** la classificazione riparte per tutte le foto senza descrizione (`pending` + `failed`); le già pronte non vengono toccate e un run interrotto riparte dopo 10 minuti.
 
-### 14.8 Checkbox dopo il testo, non sopra (richiesto 13 settembre 2026)
+### 14.8 Checkbox dopo il testo — FATTO (15 settembre 2026)
 
-Spostare la casella a destra/dopo l'etichetta (non sopra o a sinistra) per: "Classify with AI after import" (Dataset), "PPV photos" (personaggio), "Activity hours" (realismo). Verificare tutte le checkbox delle UI per coerenza.
+Casella a destra del testo (inline) per "Classify with AI after import", "PPV photos", "Activity hours" e tutte le checkbox `.auto-label` (regola CSS globale: checkbox larghezza automatica).
 
-### 14.9 Eliminare le conversazioni (richiesto 13 settembre 2026)
+### 14.9 Eliminare le conversazioni — FATTO (15 settembre 2026)
 
-Aggiungere un pulsante per eliminare una conversazione dalla lista chat (con conferma), con pulizia di messaggi, foto e stato correlati.
+Pulsante × su ogni riga della lista conversazioni (con conferma); elimina messaggi, foto e risposte in coda. L'endpoint `DELETE /api/conversations/{id}` esisteva già (era nascosto nelle Opzioni della chat aperta).
 
-### 14.10 Liberare la VRAM delle GPU (richiesto 13 settembre 2026)
+### 14.10 Liberare la VRAM delle GPU — FATTO (15 settembre 2026)
 
-Pulsante (nel pannello GPU in tempo reale) per scaricare i modelli residenti e liberare la VRAM: unload dei modelli Ollama e reset della cache di ComfyUI, con stato dell'operazione.
+Pulsante **Libera VRAM** sotto il pannello GPU: `POST /api/system/free-vram` scarica i modelli Ollama (`keep_alive=0`) e chiama `/free` su ComfyUI (`unload_models` + `free_memory`).
 
-### 14.11 Human mode nella chat (richiesto 13 settembre 2026)
+### 14.11 Human mode nella chat — FATTO (15 settembre 2026)
 
-Modalità "Human mode" (checkbox a sinistra) per rendere la chat più umana:
+Checkbox **Human mode** nella barra chat (a sinistra del testo, per conversazione):
 
-- risposte multiple in sequenza (più messaggi brevi invece di un unico blocco), con refusi/correzioni occasionali (`*correzione`) e pause tra i messaggi;
-- in questa modalità il personaggio può inviare spontaneamente un nuovo messaggio per riprendere la conversazione (messaggi proattivi casuali, coerenti con memoria e orari di attività);
-- toggle per conversazione e default per personaggio.
+- risposte multiple in sequenza (2-3 messaggi brevi) con refusi occasionali e correzione (`*parola`);
+- messaggi spontanei: dopo una risposta viene programmato un follow-up casuale (15-60 min, dentro gli orari di attività), uno solo finché il fan non risponde;
+- la UI aggiorna la chat ogni 15 s quando Human mode è attivo, per mostrare i messaggi spontanei in arrivo.
+
+### 14.12 Fix pulsante "Classifica" per dataset incompleti — FATTO (15 settembre 2026)
+
+Il pulsante ora **forza il riavvio**: le immagini senza descrizione (`pending`+`failed`) vengono riprocessate anche se la fonte è bloccata in `classifying` (nessuna attesa di 10 minuti); una guardia in-process evita doppi lavori e la UI avvisa "Classificazione già in corso" se si preme durante un run attivo. Verificato sul dataset `EvaElfie` bloccato (173/297): ripartito e ripreso in background.
+
+### 14.13 Spostare "Foto profilo" nella scheda LoRA — FATTO (15 settembre 2026)
+
+La generazione della foto profilo è ora nella scheda **LoRA** (anteprima del personaggio, pulsante Genera/Rigenera, visore a schermo intero); nel pannello chat resta solo la visualizzazione.
+
+### 14.14 Supporto checkpoint e LoRA FLUX.2 e Qwen Image (richiesto 15 settembre 2026)
+
+- Usare nelle UI anche checkpoint e LoRA di **FLUX.2** e **Qwen Image**, oltre a SDXL.
+- Workflow dedicati per famiglia (prompt/negativi, guidance, steps, eventuali text encoder dedicati), metadati `family` estesi (`flux2`, `qwen-image`) e modelli non più esclusi dal filtro.
+- Registry LoRA per famiglia: una LoRA è valida solo per la sua famiglia; selettori immagini/chat mostrano solo le combinazioni compatibili.
+- Verificare VRAM richiesta (Flux fp8/GGUF, Qwen) e scaricare i checkpoint mancanti.
+
+### 14.15 Scheda "Home" — FATTO (15 settembre 2026)
+
+Al posto della scheda "Models" c'è una scheda **Home** (pagina iniziale su `/`; la chat si sposta su `/chat`) con:
+
+- **flag di stato** verde/giallo/rosso per i punti che possono rompersi: API+database, ComfyUI, Ollama, telemetria GPU, worker di training (heartbeat) — per il debug rapido;
+- **GPU in tempo reale** (memoria, utilizzo, potenza, temperatura, processi; aggiornate ogni 5 s);
+- **personaggi** con foto profilo, stile e numero di LoRA, link diretto alla chat;
+- **modelli disponibili**: checkpoint ComfyUI (famiglia, compatibilità), LoRA ComfyUI, modelli Ollama (tipo, dimensione);
+- aggiornamento manuale + timestamp.
+
+Nota: la "mappa combinazioni checkpoint ↔ LoRA" prevista in origine resta da fare e si aggiungerà alla Home o alla scheda LoRA (vedi 14.14 compatibilità).
+
+### 14.16 Pipeline LoRA completa nella scheda LoRA (spec integrata, 15 settembre 2026)
+
+Estende/sostituisce Fase B e C di 14.6. Regola: **estendere l'esistente, niente riscritture**; solo personaggi adulti sintetici, nessuna likeness reale.
+
+**Principio di separazione**: Identità, Posa, Stile, Outfit, Scena, Camera e Luce sono concetti indipendenti; la generazione è `identità + posa (ControlNet) + stile + outfit + scena/camera/luce`. La posa non si controlla con img2img né con pose-LoRA come sistema primario.
+
+**Stato (prima slice, 15 settembre 2026)**: estrazione posa con **DWPose** e **Pose Library** implementate — API `/api/poses` (extract/list/patch/delete/skeleton/source), pulsante **Estrai posa** nel dettaglio immagine della scheda Dataset, griglia **Pose Library** nella scheda LoRA (rinomina/attiva/elimina), guardia "nessuna persona rilevata". Modelli di posa installati (ControlNet OpenPose SDXL + DWPose); checkpoint immagine ridotti al solo PornMaster (110 GB liberati).
+
+**Stato (seconda slice, 15 settembre 2026)**: generazione dataset guidata dalla posa — workflow `chat_real_pose.json` / `chat_real_pose_reference.json` (ControlNet OpenPose + IPAdapter), API `/api/datasets` (create/list/detail/generate/patch/delete item), training **da dataset** (`dataset_id` → materializzazione automatica in `data/lora_datasets/<stem>` con caption+trigger), UI **Dataset** nella scheda LoRA (crea dataset, genera candidati con pose, cura con selezione/caption/eliminazione, scelta dataset nel form di training). Verificato con una generazione reale identità+posa.
+
+**Stato (terza slice, 15 settembre 2026)**: riorganizzazione secondo il modello di lavoro dell'utente — **la posa è conditioning di generazione (ControlNet), non un dato di training**: la **Pose Library** e la selezione posa sono nella scheda **Immagini** (la generazione libreria accetta `pose_ids`/`pose_strength` e cicla le pose scelte), mentre la scheda **LoRA** resta creazione personaggio + dataset + training. Flusso obiettivo LoRA: reference (`Qwen`/`Z-Image`/`SDXL`) → variazioni con **Qwen-Image-Edit** ("same person, …") → filtro manuale → **LoRA SDXL**. Download avviati in background: **LUSTIFY** (SDXL realistic), **Qwen-Image** base, **FLUX.2** (diffusion + text encoder Mistral + VAE + turbo LoRA); **Qwen-Image-Edit 2509**, **Z-Image** e turbo sono già installati.
+Da fare per completare il flusso: workflow/endpoint **Qwen-Image-Edit** per le variazioni del dataset ("stessa persona, ..."), supporto modelli **Qwen-Image / Z-Image / FLUX.2** nella scheda Immagini (famiglie, workflow, selettori) e rimozione dei marker `unsupported` sui nuovi modelli.
+
+**Da riusare (già presente)**: scheda LoRA con registry e coda training; worker kohya; tabelle `character_loras`, `lora_datasets`, `lora_dataset_items`, `pose_references`, `training_jobs`; `image_library` con metadati (prompt, seed, checkpoint, loras, tag, phash); IPAdapter; workflow JSON parametrizzati per famiglia; modello `Influencer` (niente nuovo modello Character: si estende).
+
+**Funzionalità da implementare**
+
+1. **Gestione personaggio (estesa)**: trigger word, reference multiple (canonical/face/full-body), checkpoint preferito, LoRA associate, dataset collegati; duplica/elimina già spostati nella scheda LoRA.
+2. **Creazione personaggio**: checkpoint, prompt/negative, dimensioni, seed/random, sampler, scheduler, steps, CFG, batch; candidati selezionabili come reference. Riusare i controlli del playground immagini.
+3. **Workflow template**: i JSON in `workflows/` restano il registry; aggiungere varianti *character_reference*, *pose_generation*, *dataset_generation*, *multi_lora*; parametri iniettati dal backend (`checkpoint`, prompt, seed, sampler, steps, CFG, risoluzione, LoRA+pesi, pose image, ControlNet strength, identity reference+strength). Nessun node ID nel frontend.
+4. **Posa**: upload immagine o scelta dalla libreria, estrazione skeleton con DWPose/OpenPose (`comfyui_controlnet_aux` già installato; serve il ControlNet SDXL), preview skeleton, forza/start/end, enable. Se i nodi mancano, messaggio chiaro e fallback su skeleton esistente.
+5. **Pose library**: usa `pose_references` (nome, thumbnail, skeleton, tag, data); salva/rinomina/tagga/elimina/seleziona; niente file duplicati.
+6. **Identity reference**: IPAdapter oggi; FaceID/InstantID opzionali con capability detection; controlli separati dalla posa; opzionale quando esiste la LoRA.
+7. **Dataset generation**: ricette/preset di variazione (Portrait, Full-body, Profile, Outdoor, Indoor, Night, Pose-library): inquadratura, angolo, posa, ambiente, luce, outfit, espressione, altezza/distanza camera, focale. Niente combinazioni casuali cieche.
+8. **Metadata dataset item**: estendere `lora_dataset_items` con prompt, negative, seed, checkpoint, loras, pose, identity reference, sampler, scheduler, steps, cfg, dimensioni, workflow JSON, tag; percorsi relativi; nessuna immagine duplicata in DB.
+9. **Curation**: approva/rifiuta/preferito/elimina/apri/vedi metadata/rigenera/**stesso seed**/carica impostazioni; filtri per stato, posa, angolo, full-body/portrait, outfit, scena, batch; scorciatoie tastiera; obiettivo 40–80 immagini curate (qualità > quantità).
+10. **Quality warnings**: statistiche deterministiche (troppi frontali, pochi profili/full-body, outfit/sfondo/posa ripetuti, poca diversità luce/camera, duplicati via `average_hash` già esistente).
+11. **Training**: riuso del worker kohya; job creato **da dataset curato** (`dataset_id`, oggi serve `images_dir`); parametri base/avanzati (rank/alpha/lr/optimizer/steps/risoluzione/batch/caption/output name), default sensati; output tipo `nakita_character_v1.safetensors`; QC volto ArcFace prima di attivare.
+12. **Training job management**: già presente (stati queued/running/completed/failed/cancelled, progress, log, errori); aggiungere epoch/step/loss nel progress e consultazione log.
+13. **Multi-LoRA generation**: stack con enable/disable, selezione, categoria (Character/Style/Outfit/Composition/Other), weight modello e CLIP, rimozione e riordino; pesi liberi (es. character 0.85 + style 0.35 + outfit 0.45 + ControlNet 0.80 + identity 0.50).
+14. **Compatibilità modello/LoRA**: validazione per famiglia con metadata safetensors (header), convenzioni di cartella e `object_info`; warning soft quando non determinabile, blocco solo se certamente incompatibile (SDXL↔FLUX, ecc.).
+15. **Preset di generazione**: CRUD (checkpoint, character, LoRA+pesi, posa/strength, identity, sampler, scheduler, steps, CFG, risoluzione, frammenti prompt, negative).
+16. **Riproducibilità**: per ogni immagine salvare workflow JSON completo + tutti i parametri; "carica impostazioni dall'immagine"; riusare i metadati PNG di ComfyUI; non rimuovere metadata utili.
+17. **ComfyUI client**: resta centralizzato in `app/integrations/comfyui.py` (già fa discovery modelli/LoRA e submit); aggiungere se serve history/cancel/queue; niente secondo client.
+18. **Capability detection**: ControlNet/DWPose/IPAdapter/FaceID/training → available/unavailable/parziale con messaggi tipo "DWPose non rilevato: estrazione posa non disponibile, puoi comunque usare uno skeleton esistente".
+19. **UI**: la scheda LoRA si organizza in sub-sezioni **Characters, Dataset, Pose Library, Training, Generate** (la panoramica modelli resta nella scheda Home, 14.15); dentro Generate separare visivamente CHARACTER/POSE/STYLE/OUTFIT/SCENE/CAMERA/ADVANCED (collassabili). Form niente monoliti.
+20. **Stato**: usare lo stato React esistente; nessuna nuova libreria.
+
+**Ordine di implementazione (vertical slices)**: 1) discovery modelli/worker (fatto) → 2) estensione character (trigger/reference/checkpoint) → 3) generazione reference + selezione → 4) posa (ControlNet+DWPose) → 5) identity reference → 6) dataset generation + metadata → 7) curation + warning → 8) multi-LoRA → 9) riproducibilità/load settings → 10) training da dataset → 11) preset → 12) compatibilità → 13) capability detection/UX → 14) test end-to-end.
+
+**Definition of done (flusso minimo)**: crea personaggio → genera/scegli reference canonical → scegli posa → genera più immagini dello stesso personaggio in configurazioni diverse → rivedi e approva i candidati → avvia training dal dataset curato → LoRA rilevata → seleziona Character LoRA + Style + Outfit + posa + identity opzionale → genera l'immagine finale → salva metadata → ricarica le impostazioni dall'immagine.
+
+**Errori/UX/sicurezza/performance**: messaggi utili (checkpoint/LoRA/nodo mancante, incompatibilità), logging tracciabile delle azioni backend, upload validati (tipo/estensione/percorso, anti path traversal), galleria con thumbnail/lazy loading e cache della discovery modelli.
 
 ## 15. Domande aperte
 
