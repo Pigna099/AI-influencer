@@ -5,6 +5,9 @@
 - Nuova cartella attiva `backend-v4p1/` (copia di `backend-v4`); container API/worker ricreati con immagine `ai-influencer-playground:v4p1`, versione app `0.4.1`.
 - Snapshot pre-lavori in `../backups/v4p0/`: dump PostgreSQL, `.env` e sorgente completo (esclusi venv e node_modules).
 - Inizio della pipeline LoRA per personaggio (Fase A): registry LoRA, coda job di training, trainer kohya-ss sul server.
+- Fase A implementata: migrazione `0012_lora_pipeline` (`character_loras`, `lora_datasets`, `lora_dataset_items`, `pose_references`, `training_jobs`), API `/api/loras` e `/api/training-jobs`, scheda **LoRA** (avanzamento live); trainer host in `scripts/trainer/` (venv Python 3.12 + torch cu124 + kohya sd-scripts, worker con coda/GPU libera/heartbeat/recovery). Test: 79 passati.
+- Verifica training in corso: dataset Nikita di 20 immagini reali in `data/lora_datasets/nikita_proof` (trigger `nkt7fq`); run interrotto per fine sessione, da completare.
+- Git: `.gitignore` di root aggiunto (`backups/`, `.env`, `node_modules/`, `data/`...). I backup già presenti nella storia remota contengono `.env` datati: ruotare `API_KEY`/`POSTGRES_PASSWORD` per sicurezza.
 
 ## Passaggio a backend-v4
 

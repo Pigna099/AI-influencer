@@ -225,7 +225,7 @@ Idea dell'utente. Decisioni prese (13 settembre 2026): famiglia primaria **real*
 1. Migrazione `0012_lora_pipeline`: `character_loras`, `lora_datasets`, `lora_dataset_items`, `pose_references`, `training_jobs`.
 2. API `/api/characters/{id}/loras`, `/api/loras/*`, `/api/training-jobs` (claim/progress/complete/cancel) + scheda **LoRA** (ambra) con stato e avanzamento live.
 3. Trainer host: `scripts/trainer/setup.sh` (venv 3.12 + torch cu124 + kohya) e `scripts/trainer/train_worker.py` (poll coda, GPU libera, log, copia artefatti, recovery job stale); unit systemd pronta in `scripts/trainer/ai-influencer-trainer.service`.
-4. Verifica end-to-end: LoRA "Nikita" real v1 (20 immagini generate con anchor IPAdapter, rank 16, PornMaster) addestrata, copiata in ComfyUI e in `data/loras/`, validazione con generazione.
+4. Verifica end-to-end: dataset di 20 immagini reali generato per Nikita con anchor IPAdapter (PornMaster, rank 16); primo run di training eseguito dal worker (scelta GPU libera, log e avanzamento riportati all'API) ma interrotto per fine sessione — da completare e validare con una generazione con LoRA.
 
 **Fase B — dataset builder**: pose extraction (OpenPose → `pose_references`), batch di candidati con anchor IPAdapter + ControlNet, ranking ArcFace, selezione, caption editabili, gate ≥20.
 
