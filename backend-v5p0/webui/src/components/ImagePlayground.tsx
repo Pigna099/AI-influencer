@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, Character, CheckpointInfo, LibraryImage, PoseReference } from "../api";
+import { api, Character, CharacterLora, CheckpointInfo, LibraryImage, PoseReference } from "../api";
 import { useI18n, LanguageSwitch } from "../i18n";
 import CharacterAvatar from "./CharacterAvatar";
 import Lightbox from "./Lightbox";
@@ -44,6 +44,8 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   const [checkpoint, setCheckpoint] = useState("");
   const [loraSel, setLoraSel] = useState<Record<string, { on: boolean; weight: number }>>({});
   const [poses, setPoses] = useState<PoseReference[]>([]);
+  const [characterLoras, setCharacterLoras] = useState<CharacterLora[]>([]);
+  const autoApplied = useRef<Set<string>>(new Set());
   const [poseIds, setPoseIds] = useState<string[]>([]);
   const [poseStrength, setPoseStrength] = useState("0.8");
   const [count, setCount] = useState(2);
@@ -101,6 +103,27 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   const refreshPoses = useCallback(async () => {
     setPoses(await api.getPoses());
   }, []);
+
+  useEffect(() => {
+    if (!characterId) { setCharacterLoras([]); return; }
+    let live = true;
+    api.getCharacterLoras(characterId)
+      .then(items => { if (live) setCharacterLoras(items); })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, [characterId]);
+
+  const checkpointFamily = checkpoints.find(item => item.name === checkpoint)?.family ?? (style === "anime" ? "anime" : "real");
+  const activeCharacterLora = characterLoras.find(item => item.is_active && item.family === checkpointFamily && item.filename);
+
+  useEffect(() => {
+    if (!characterId || !activeCharacterLora?.filename) return;
+    const key = `${characterId}:${checkpointFamily}:${checkpoint || "default"}`;
+    if (autoApplied.current.has(key)) return;
+    autoApplied.current.add(key);
+    const name = activeCharacterLora.filename;
+    setLoraSel(prev => ({ ...prev, [name]: { on: true, weight: prev[name]?.weight ?? 0.85 } }));
+  }, [characterId, checkpointFamily, checkpoint, activeCharacterLora]);
 
   const refresh = useCallback(async (id: string) => {
     if (!id) { setLibrary([]); return; }
@@ -255,6 +278,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
               <input type="number" min="0" max="2" step="0.05" value={loraSel[name]?.weight ?? 0.8} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { on: prev[name]?.on ?? false, weight: Number(e.target.value) } }))} />
             </div>)}
           </div>
+          {activeCharacterLora?.filename && loraSel[activeCharacterLora.filename]?.on && <p className="muted">{t("ip.characterLoraOn", { name: activeCharacterLora.filename })}</p>}
           <div className="pose-picker"><span>{t("lp.poseSelect")}</span>
             {!poses.length && <small className="muted">{t("lp.noPoses")}</small>}
             {poses.filter(pose => pose.active).map(pose => <label className="pose-choice" key={pose.id}>

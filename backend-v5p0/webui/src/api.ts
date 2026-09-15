@@ -355,6 +355,16 @@ export interface LoraDatasetDetail extends LoraDataset {
   items: LoraDatasetItem[];
 }
 
+export interface DatasetAnalysis {
+  total: number;
+  selected: number;
+  target: number;
+  keywords: Record<string, number>;
+  duplicates: number;
+  pose_counts: { pose_id: string; name: string; count: number }[];
+  warnings: { code: string; detail: string }[];
+}
+
 // API Client
 export const getApiBaseUrl = (): string => {
   // Vite environment variables are prefixed with VITE_
@@ -694,6 +704,10 @@ export class ApiClient {
 
   async getDataset(id: string): Promise<LoraDatasetDetail> {
     return this.request(`/api/datasets/${id}`);
+  }
+
+  async getDatasetAnalysis(id: string): Promise<DatasetAnalysis> {
+    return this.request(`/api/datasets/${id}/analysis`);
   }
 
   async generateDataset(id: string, data: {prompt: string; negative?: string; pose_ids: string[]; count: number; seed?: number; pose_strength?: number}): Promise<LoraDatasetItem[]> {

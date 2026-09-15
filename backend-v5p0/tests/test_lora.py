@@ -329,3 +329,21 @@ def test_dataset_variations_need_anchor(monkeypatch):
         f"/api/datasets/{dataset['id']}/variations", json={"prompts": ["same person"], "count": 1}
     )
     assert response.status_code == 400
+
+
+def test_dataset_analysis(monkeypatch):
+    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
+    character_id = make_character("Analysis")
+    dataset = make_dataset(character_id)
+    items = client.post(
+        f"/api/datasets/{dataset['id']}/generate", json={"prompt": "same person, standing", "count": 4}
+    ).json()
+    for item in items:
+        client.patch(f"/api/dataset-items/{item['id']}", json={"selected": True})
+
+    analysis = client.get(f"/api/datasets/{dataset['id']}/analysis").json()
+    assert analysis["total"] == 4 and analysis["selected"] == 4 and analysis["target"] == 20
+    codes = {warning["code"] for warning in analysis["warnings"]}
+    assert "select_more" in codes
+    assert "duplicates" in codes and analysis["duplicates"] == 3
+    assert analysis["keywords"]["standing"] == 4

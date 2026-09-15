@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, Character, LoraDataset, LoraDatasetDetail, LoraDatasetItem } from "../api";
-import { useI18n } from "../i18n";
+import { api, Character, DatasetAnalysis, LoraDataset, LoraDatasetDetail, LoraDatasetItem } from "../api";
+import { useI18n, TranslationKey } from "../i18n";
+
+const WARNING_LABELS: Record<string, TranslationKey> = {
+  select_more: "lp.warn.select_more",
+  duplicates: "lp.warn.duplicates",
+  few_full_body: "lp.warn.few_full_body",
+  few_profile: "lp.warn.few_profile",
+  too_frontal: "lp.warn.too_frontal",
+  same_pose: "lp.warn.same_pose",
+  same_scene: "lp.warn.same_scene",
+};
 
 function ItemThumb({ item, alt, onView }: { item: LoraDatasetItem; alt: string; onView: (url: string, alt: string) => void }) {
   const [url, setUrl] = useState("");
@@ -39,14 +49,16 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
   const { t } = useI18n();
   const [openId, setOpenId] = useState("");
   const [detail, setDetail] = useState<LoraDatasetDetail | null>(null);
+  const [analysis, setAnalysis] = useState<DatasetAnalysis | null>(null);
   const [trigger, setTrigger] = useState("");
   const [prompt, setPrompt] = useState("");
   const [variationPrompts, setVariationPrompts] = useState("");
   const [count, setCount] = useState(1);
 
   const loadDetail = useCallback(async (id: string) => {
-    if (!id) { setDetail(null); return; }
+    if (!id) { setDetail(null); setAnalysis(null); return; }
     setDetail(await api.getDataset(id));
+    setAnalysis(await api.getDatasetAnalysis(id));
   }, []);
 
   useEffect(() => { void loadDetail(openId).catch(() => undefined); }, [openId, loadDetail]);
@@ -124,6 +136,13 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
     {detail && <div className="dataset-detail">
       <div className="section-title"><h2>{detail.trigger}</h2><span>{t("lp.datasetCounts", { selected: detail.selected_count, total: detail.item_count })}</span></div>
       {busy && <p className="memory-status" role="status"><span className="spinner" />{t("common.loading")} <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
+      {analysis && <div className="dataset-analysis">
+        <div className="job-bar"><i style={{ width: `${Math.min(100, (analysis.selected / analysis.target) * 100)}%` }} /></div>
+        <small>{t("lp.datasetProgress", { selected: analysis.selected, target: analysis.target })}</small>
+        {!!analysis.warnings.length && <ul className="dataset-warnings">{analysis.warnings.map(warning => <li key={warning.code}>
+          <b>{t(WARNING_LABELS[warning.code] || "lp.warnings")}</b> · {warning.detail}
+        </li>)}</ul>}
+      </div>}
       <p className="muted">{t("lp.datasetHint")}</p>
       <div className="dataset-generate">
         <label>{t("lp.variations")}<textarea rows={4} value={variationPrompts} disabled={busy} onChange={e => setVariationPrompts(e.target.value)} placeholder={t("lp.variationsPlaceholder")} /></label>

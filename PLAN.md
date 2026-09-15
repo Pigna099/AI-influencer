@@ -306,6 +306,8 @@ Da fare per completare il flusso: workflow/endpoint **Qwen-Image-Edit** per le v
 
 **Stato (sesta slice, 15 settembre 2026)**: foto profilo con **scelta del modello** (`POST /api/characters/{id}/avatar` con `checkpoint`), **modifica con Qwen-Image-Edit** (`POST /api/characters/{id}/avatar/edit`) o **rigenerazione da zero**; il "+" nuovo personaggio è nella **barra sinistra** della scheda LoRA; aggiunti hint UI che spiegano **candidati (SDXL+IPAdapter)** vs **variazioni (Qwen-Edit)** e il significato del **rank**.
 
+**Stato (settima slice, 15 settembre 2026)**: **analisi qualità dataset** (`GET /api/datasets/{id}/analysis`): progresso verso 20 selezionate, duplicati via phash, copertura pose, keyword (full body, profilo, frontale, standing/sitting/lying, outdoor/indoor, giorno/notte) e avvisi localizzati nella UI; **LoRA personaggio automatica** nella scheda Immagini (all'apertura si attiva la LoRA attiva della famiglia del checkpoint con peso 0.85 e la UI lo segnala). Restano dai punti §14.16: categorie multi-LoRA (Style/Outfit) e CLIP weight, preset di generazione, rigenera/stesso seed per item, carica impostazioni dall'immagine, mappa compatibilità checkpoint↔LoRA, reference canonical/face/full-body, supporto modelli Qwen/Z-Image/FLUX.2 nella scheda Immagini (in attesa dell'ultimo download).
+
 **Da riusare (già presente)**: scheda LoRA con registry e coda training; worker kohya; tabelle `character_loras`, `lora_datasets`, `lora_dataset_items`, `pose_references`, `training_jobs`; `image_library` con metadati (prompt, seed, checkpoint, loras, tag, phash); IPAdapter; workflow JSON parametrizzati per famiglia; modello `Influencer` (niente nuovo modello Character: si estende).
 
 **Funzionalità da implementare**

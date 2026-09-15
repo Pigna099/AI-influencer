@@ -803,6 +803,95 @@ def generate_dataset_variations(dataset_id: str, body: DatasetVariations):
     return created
 
 
+KEYWORD_GROUPS = {
+    "full_body": ("full body", "full-body", "fullbody"),
+    "close_up": ("close-up", "close up", "closeup", "portrait"),
+    "profile": ("profile", "side view", "from the side"),
+    "back": ("from behind", "from the back", "back view", "rear"),
+    "front": ("front", "facing the camera", "looking at the camera"),
+    "standing": ("standing",),
+    "sitting": ("sitting", "seated"),
+    "lying": ("lying", "on the bed", "reclining"),
+    "outdoor": ("outdoor", "outside", "street", "park", "beach", "garden", "field"),
+    "indoor": ("indoor", "inside", "room", "bedroom", "kitchen", "studio"),
+    "night": ("night", "evening", "neon"),
+    "day": ("daylight", "sunny", "morning", "afternoon"),
+}
+
+DATASET_TARGET = 20
+
+
+@router.get("/datasets/{dataset_id}/analysis")
+def dataset_analysis(dataset_id: str):
+    """Deterministic quality analysis for the curation UI (keyword + phash based)."""
+    with Session() as db:
+        required(db, LoraDataset, dataset_id)
+        rows = list(
+            db.execute(
+                select(LoraDatasetItem, ImageLibrary)
+                .outerjoin(ImageLibrary, LoraDatasetItem.image_id == ImageLibrary.id)
+                .where(LoraDatasetItem.dataset_id == dataset_id)
+            )
+        )
+        pose_names = {pose.id: pose.name for pose in db.scalars(select(PoseReference))}
+    total = len(rows)
+    selected = sum(1 for item, _ in rows if item.selected)
+    captions = [(item.caption or (library.prompt if library else "") or "").lower() for item, library in rows]
+    keywords = {
+        name: sum(1 for text in captions if any(word in text for word in words))
+        for name, words in KEYWORD_GROUPS.items()
+    }
+    phashes: dict[str, int] = {}
+    for _, library in rows:
+        if library and library.phash:
+            phashes[library.phash] = phashes.get(library.phash, 0) + 1
+    duplicates = sum(count - 1 for count in phashes.values() if count > 1)
+    pose_counts: dict[str, int] = {}
+    for item, _ in rows:
+        if item.pose_ref_id:
+            pose_counts[item.pose_ref_id] = pose_counts.get(item.pose_ref_id, 0) + 1
+    caption_counts: dict[str, int] = {}
+    for text in captions:
+        if text:
+            caption_counts[text] = caption_counts.get(text, 0) + 1
+    repeated_caption = max(caption_counts.values()) if caption_counts else 0
+
+    warnings: list[dict] = []
+
+    def warn(code: str, detail: str) -> None:
+        warnings.append({"code": code, "detail": detail})
+
+    if selected < DATASET_TARGET:
+        warn("select_more", f"{selected}/{DATASET_TARGET} selezionate")
+    if duplicates:
+        warn("duplicates", f"{duplicates} immagini quasi identiche")
+    if total >= 10:
+        if keywords["full_body"] < max(2, int(total * 0.1)):
+            warn("few_full_body", f"solo {keywords['full_body']} full body")
+        if keywords["profile"] < max(1, int(total * 0.1)):
+            warn("few_profile", f"solo {keywords['profile']} profili")
+        if keywords["front"] > total * 0.7:
+            warn("too_frontal", f"{keywords['front']} frontali su {total}")
+        if pose_counts:
+            top_id = max(pose_counts, key=pose_counts.get)
+            if pose_counts[top_id] > total * 0.6:
+                warn("same_pose", f"posa '{pose_names.get(top_id, top_id)}' usata {pose_counts[top_id]} volte")
+        if repeated_caption > total * 0.5:
+            warn("same_scene", "stessa scena ripetuta in oltre metà delle immagini")
+    return {
+        "total": total,
+        "selected": selected,
+        "target": DATASET_TARGET,
+        "keywords": keywords,
+        "duplicates": duplicates,
+        "pose_counts": [
+            {"pose_id": pose_id, "name": pose_names.get(pose_id, pose_id), "count": count}
+            for pose_id, count in pose_counts.items()
+        ],
+        "warnings": warnings,
+    }
+
+
 @router.patch("/dataset-items/{item_id}")
 def patch_dataset_item(item_id: str, body: DatasetItemPatch):
     with Session.begin() as db:

@@ -116,6 +116,11 @@
 .avatar-edit { display: flex; gap: 6px; margin-top: 8px; }
 .avatar-edit input { flex: 1; font-size: .72rem; }
 .avatar-edit button { font-size: .72rem; padding: .3rem .6rem; }
+.dataset-analysis { display: grid; gap: 6px; }
+.dataset-analysis small { color: #8ba0bd; font-size: .72rem; }
+.dataset-warnings { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 4px; }
+.dataset-warnings li { font-size: .72rem; color: #f0c58a; }
+.dataset-warnings b { color: #ffd9a1; font-weight: 600; }
 .lora-create label { display: block; font-size: .78rem; }
 .lora-create label input, .lora-create label select { margin-top: .35rem; }
 .lora-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
