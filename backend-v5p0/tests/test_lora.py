@@ -298,3 +298,34 @@ def test_dataset_generate_comfyui_failure(monkeypatch):
     response = client.post(f"/api/datasets/{dataset['id']}/generate", json={"prompt": "portrait", "count": 1})
     assert response.status_code == 502
     assert "Generazione dataset non riuscita" in response.json()["detail"]
+
+
+def fake_variation(reference, prompt, negative="", **kwargs):
+    return png_bytes(), {"seed": kwargs.get("seed", 1), "model": "qwen_image_edit_2509"}
+
+
+def test_dataset_variations(monkeypatch):
+    monkeypatch.setattr("app.lora_api.qwen_image_edit", fake_variation)
+    character_id = make_character("Variations")
+    assert client.post(f"/api/characters/{character_id}/avatar").status_code in (200, 201)
+    dataset = make_dataset(character_id)
+    response = client.post(
+        f"/api/datasets/{dataset['id']}/variations",
+        json={"prompts": ["same person, standing in a sunny street", "same person, close-up portrait"], "count": 2},
+    )
+    assert response.status_code == 201, response.text
+    items = response.json()
+    assert len(items) == 4
+    assert all(item["filename"] for item in items)
+    detail = client.get(f"/api/datasets/{dataset['id']}").json()
+    assert detail["item_count"] == 4
+
+
+def test_dataset_variations_need_anchor(monkeypatch):
+    monkeypatch.setattr("app.lora_api.qwen_image_edit", fake_variation)
+    character_id = make_character("No Anchor")
+    dataset = make_dataset(character_id)
+    response = client.post(
+        f"/api/datasets/{dataset['id']}/variations", json={"prompts": ["same person"], "count": 1}
+    )
+    assert response.status_code == 400

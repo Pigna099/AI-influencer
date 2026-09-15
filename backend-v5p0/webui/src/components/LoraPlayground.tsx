@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, Character, CharacterLora, CheckpointInfo, LoraDataset, TrainingJob } from "../api";
+import { api, Character, CharacterLora, CharacterProfile, CheckpointInfo, LoraDataset, TrainingJob } from "../api";
 import { useI18n, LanguageSwitch } from "../i18n";
 import CharacterAvatar from "./CharacterAvatar";
+import CharacterForm from "./CharacterForm";
 import DatasetPanel from "./DatasetPanel";
 import Lightbox from "./Lightbox";
 
@@ -88,7 +89,7 @@ function LoraCard({
           <option value="">{t("lp.baseCheckpointAuto")}</option>
           {checkpoints.map(checkpoint => <option key={checkpoint.name} value={checkpoint.name}>{checkpoint.name} · {checkpoint.family}</option>)}
         </select></label>
-        <label>{t("lp.rank")}<input type="number" min={4} max={128} value={rank} disabled={busy} onChange={e => setRank(Number(e.target.value))} /></label>
+        <label title={t("lp.rankHint")}>{t("lp.rank")}<input type="number" min={4} max={128} value={rank} disabled={busy} onChange={e => setRank(Number(e.target.value))} /></label>
         <label>{t("lp.steps")}<input type="number" min={100} value={steps} disabled={busy} onChange={e => setSteps(e.target.value)} placeholder={t("lp.stepsAuto")} /></label>
         <label>{t("lp.gpu")}<input type="number" min={0} value={gpu} disabled={busy} onChange={e => setGpu(e.target.value)} placeholder={t("lp.gpuAuto")} /></label>
       </div>
@@ -124,6 +125,9 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   const [rank, setRank] = useState(32);
   const [baseCheckpoint, setBaseCheckpoint] = useState("");
   const [queueFor, setQueueFor] = useState("");
+  const [editing, setEditing] = useState<Character | "new" | null>(null);
+  const [avatarCheckpoint, setAvatarCheckpoint] = useState("");
+  const [avatarPrompt, setAvatarPrompt] = useState("");
   const [datasets, setDatasets] = useState<LoraDataset[]>([]);
   const [viewer, setViewer] = useState<{ url: string; alt: string } | null>(null);
   const character = characters.find(item => item.id === characterId);
@@ -207,8 +211,17 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   const generateAvatar = () => {
     if (!character) return;
     void perform(t("pg.busy.avatar"), async () => {
-      const updated = await api.generateAvatar(character.id);
+      const updated = await api.generateAvatar(character.id, avatarCheckpoint ? { checkpoint: avatarCheckpoint } : undefined);
       setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));
+    });
+  };
+
+  const editAvatar = () => {
+    if (!character || !avatarPrompt.trim()) return;
+    void perform(t("pg.busy.avatar"), async () => {
+      const updated = await api.editAvatar(character.id, { prompt: avatarPrompt.trim() });
+      setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));
+      setAvatarPrompt("");
     });
   };
 
@@ -231,6 +244,13 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     });
   };
 
+  const saveCharacter = async (data: { name: string; profile: CharacterProfile }) => {
+    const saved = editing && editing !== "new" ? await api.updateCharacter(editing.id, data) : await api.createCharacter(data);
+    setCharacters(prev => [...prev.filter(item => item.id !== saved.id), saved]);
+    setCharacterId(saved.id);
+    setEditing(null);
+  };
+
   const cancel = (job: TrainingJob) => {
     if (!window.confirm(`${t("lp.cancelJob")}?`)) return;
     void perform("", async () => {
@@ -246,7 +266,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   };
 
   return <div className="playground theme-lora">
-    <header className="topbar"><div className="brand"><span className="brand-mark">ai</span><h1>AI influencer playground <b>v4p1</b></h1></div>
+    <header className="topbar"><div className="brand"><span className="brand-mark">ai</span><h1>AI influencer playground <b>v5</b></h1></div>
       <div className="top-actions">
         <nav className="top-nav"><Link to="/">{t("pg.nav.home")}</Link><Link to="/chat">{t("pg.nav.chat")}</Link><Link to="/images">{t("pg.nav.images")}</Link><Link to="/dataset">{t("pg.nav.dataset")}</Link><Link className="selected" to="/loras">{t("pg.nav.loras")}</Link></nav>
         <LanguageSwitch /><button onClick={onLogout} disabled={!!busy}>{t("pg.logout")}</button>
@@ -254,7 +274,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
     <div className="workspace image-workspace" style={{ gridTemplateColumns: "225px minmax(320px, 1fr)" }}>
       <aside className="character-rail">
-        <div className="section-title"><h2>{t("ip.characters")}</h2><span>{characters.length}</span></div>
+        <div className="section-title"><h2>{t("ip.characters")}</h2><span>{characters.length}</span><button aria-label={t("lp.addCharacter")} disabled={!!busy} onClick={() => setEditing("new")}>+</button></div>
         <div className="character-list">{characters.map((item, index) => <button key={item.id} disabled={!!busy} onClick={() => setCharacterId(item.id)} className={`character-row ${characterId === item.id ? "selected" : ""}`}>
           <CharacterAvatar character={item} index={index} onView={(url, alt) => setViewer({ url, alt })} altTemplate={t("pg.avatarAlt")} /><span><strong>{item.name}</strong><small>{item.image_style === "anime" ? t("pg.style.anime") : t("pg.style.real")}</small></span></button>)}
           {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}</div>
@@ -262,25 +282,44 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
       <main className="main-panel">
         <div className="chat-heading"><div><span className="eyebrow">LoRA</span><h2>{character?.name || t("lp.title")}</h2><p>{t("lp.subtitle")}</p></div>
           <span className="library-count">{loras.length} LoRA</span></div>
+        {busy && <p className="memory-status lora-busy" role="status"><span className="spinner" />{busy} <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
         <div className="lora-content">
-          {character && <section className="lora-avatar">
-            <CharacterAvatar character={character} index={0} onView={(url, alt) => setViewer({ url, alt })} altTemplate={t("pg.avatarAlt")} />
-            <div>
-              <strong>{t("lp.avatarTitle")}</strong>
-              <p className="muted">{t("lp.avatarHint")}</p>
-              <div className="lora-actions">
-                <button disabled={!!busy} onClick={generateAvatar}>{character.avatar_filename ? t("lp.avatarRegenerate") : t("lp.avatarGenerate")}</button>
-                <button disabled={!!busy} title={t("pg.duplicateTitle")} onClick={duplicateCharacter}>{t("pg.duplicate")}</button>
-                <button className="danger" disabled={!!busy} onClick={removeCharacter}>{t("common.delete")}</button>
+          <section className="lora-step">
+            <div className="lora-step-head"><span className="step-badge">1</span><h2>{t("lp.step.character")}</h2></div>
+            {character ? <div className="lora-avatar">
+              <CharacterAvatar character={character} index={0} onView={(url, alt) => setViewer({ url, alt })} altTemplate={t("pg.avatarAlt")} />
+              <div>
+                <strong>{t("lp.avatarTitle")}</strong>
+                <p className="muted">{t("lp.avatarHint")}</p>
+                <label className="lora-avatar-model">{t("lp.avatarModel")}<select value={avatarCheckpoint} disabled={!!busy} onChange={e => setAvatarCheckpoint(e.target.value)}>
+                  <option value="">{t("lp.baseCheckpointAuto")}</option>
+                  {checkpoints.map(checkpoint => <option key={checkpoint.name} value={checkpoint.name}>{checkpoint.name} · {checkpoint.family}</option>)}
+                </select></label>
+                <div className="lora-actions">
+                  <button disabled={!!busy} onClick={generateAvatar}>{character.avatar_filename ? t("lp.avatarRegenerate") : t("lp.avatarGenerate")}</button>
+                  <button disabled={!!busy} title={t("pg.duplicateTitle")} onClick={duplicateCharacter}>{t("pg.duplicate")}</button>
+                  <button className="danger" disabled={!!busy} onClick={removeCharacter}>{t("common.delete")}</button>
+                </div>
+                {character.avatar_filename && <div className="avatar-edit">
+                  <input value={avatarPrompt} disabled={!!busy} onChange={e => setAvatarPrompt(e.target.value)} placeholder={t("lp.avatarEditPlaceholder")} maxLength={1000} />
+                  <button disabled={!!busy || !avatarPrompt.trim()} onClick={editAvatar}>{t("lp.avatarEdit")}</button>
+                </div>}
               </div>
-            </div>
-          </section>}
-          <DatasetPanel character={character} datasets={datasets} busy={!!busy} perform={perform} refresh={() => refresh(characterId)} onView={(url, alt) => setViewer({ url, alt })} />
-          <section className="lora-create">
+            </div> : <p className="muted">{t("pg.noCharacters")}</p>}
+          </section>
+          <section className="lora-step">
+            <div className="lora-step-head"><span className="step-badge">2</span><h2>{t("lp.step.dataset")}</h2></div>
+            <p className="muted">{t("lp.step.datasetHint")}</p>
+            <DatasetPanel character={character} datasets={datasets} busy={!!busy} perform={perform} refresh={() => refresh(characterId)} onView={(url, alt) => setViewer({ url, alt })} />
+          </section>
+          <section className="lora-step">
+            <div className="lora-step-head"><span className="step-badge">3</span><h2>{t("lp.step.training")}</h2></div>
+            <p className="muted">{t("lp.step.trainingHint")}</p>
+            <section className="lora-create">
             <label>{t("lp.name")}<input value={name} disabled={!!busy} onChange={e => setName(e.target.value)} maxLength={120} /></label>
             <label>{t("lp.family")}<select value={family} disabled={!!busy} onChange={e => setFamily(e.target.value as "real" | "pony" | "anime")}>{FAMILIES.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
             <label>{t("lp.trigger")}<input value={trigger} disabled={!!busy} onChange={e => setTrigger(e.target.value)} placeholder={t("lp.triggerHint")} maxLength={64} /></label>
-            <label>{t("lp.rank")}<input type="number" min={4} max={128} value={rank} disabled={!!busy} onChange={e => setRank(Number(e.target.value))} /></label>
+            <label title={t("lp.rankHint")}>{t("lp.rank")}<input type="number" min={4} max={128} value={rank} disabled={!!busy} onChange={e => setRank(Number(e.target.value))} /></label>
             <label>{t("lp.baseCheckpoint")}<select value={baseCheckpoint} disabled={!!busy} onChange={e => setBaseCheckpoint(e.target.value)}>
               <option value="">{t("lp.baseCheckpointAuto")}</option>
               {checkpoints.map(checkpoint => <option key={checkpoint.name} value={checkpoint.name}>{checkpoint.name} · {checkpoint.family}</option>)}
@@ -305,9 +344,11 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
               {(job.status === "queued" || job.status === "running") && <div className="lora-actions"><button disabled={!!busy} onClick={() => cancel(job)}>{t("lp.cancelJob")}</button></div>}
             </div>)}</div>
           </section>
+          </section>
         </div>
       </main>
     </div>
     {viewer && <Lightbox src={viewer.url} alt={viewer.alt} onClose={() => setViewer(null)} />}
+    {editing && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={t("form.aria")}><CharacterForm character={editing === "new" ? undefined : editing} models={[]} onSave={saveCharacter} onCancel={() => setEditing(null)} /></div></div>}
   </div>;
 }

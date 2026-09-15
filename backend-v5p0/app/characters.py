@@ -18,6 +18,8 @@ from sqlalchemy import delete, func, or_, select, update
 
 from .auth import authorize
 from .char_schemas import (
+    AvatarEditInput,
+    AvatarInput,
     BenchmarkInput,
     CharacterClone,
     CharacterInput,
@@ -98,6 +100,8 @@ from .integrations.comfyui import (
     generate_image,
     get_checkpoints,
     get_loras,
+    interrupt,
+    qwen_image_edit,
 )
 from .integrations.gpu import gpu_status
 from .integrations.ollama import OllamaNotAvailable, chat, get_models, validate_model
@@ -225,6 +229,12 @@ def list_image_checkpoints():
 @router.get("/images/loras")
 def list_image_loras():
     return {"available": comfyui_available(), "loras": get_loras()}
+
+
+@router.post("/images/interrupt")
+def interrupt_image_generation():
+    """Cancel the running ComfyUI generation (and clear the queue)."""
+    return {"interrupted": interrupt()}
 
 
 @router.get("/system/gpus")
@@ -488,7 +498,7 @@ def update_character(character_id: str, body: CharacterUpdate):
 
 
 @router.post("/characters/{character_id}/avatar", status_code=201)
-def generate_avatar(character_id: str):
+def generate_avatar(character_id: str, body: AvatarInput | None = None):
     """Generate and remember the character's profile picture (adult, NSFW style)."""
     if not comfyui_available():
         raise HTTPException(503, "ComfyUI non è raggiungibile: avvia il servizio immagini")
@@ -497,8 +507,8 @@ def generate_avatar(character_id: str):
         name = character.name
         profile = normalize_bible_profile(character.bible)
         old_avatar = character.avatar_filename
-        checkpoint = character.image_checkpoint
-        style = character.image_style or "real"
+        checkpoint = (body.checkpoint if body else None) or character.image_checkpoint
+        style = (body.style if body else None) or character.image_style or "real"
         family = checkpoint_family(style, checkpoint)
     appearance = (profile.get("appearance") or profile.get("description") or "").strip()
     profile = {**profile, "appearance": translate_scene(appearance, style)}
@@ -530,6 +540,45 @@ def generate_avatar(character_id: str):
         db.flush()
         result = character_out(item)
     unlink_media([old] if old else [])
+    return result
+
+
+@router.post("/characters/{character_id}/avatar/edit", status_code=201)
+def edit_avatar(character_id: str, body: AvatarEditInput):
+    """Edit the current profile picture with Qwen-Image-Edit (same person, new look/scene)."""
+    if not comfyui_available():
+        raise HTTPException(503, "ComfyUI non è raggiungibile: avvia il servizio immagini")
+    with Session() as db:
+        character = required(db, Influencer, character_id)
+        old_avatar = character.avatar_filename
+    if not old_avatar:
+        raise HTTPException(400, "Genera prima una foto profilo da modificare")
+    source = (settings.media_dir / old_avatar).resolve()
+    if not source.is_file() or not source.is_relative_to(settings.media_dir.resolve()):
+        raise HTTPException(404, "Immagine profilo non disponibile")
+    try:
+        data, _ = qwen_image_edit(
+            source,
+            body.prompt,
+            steps=body.steps,
+            cfg=body.cfg,
+            lora_weight=body.lora_weight,
+        )
+    except ComfyUIError as error:
+        raise HTTPException(502, f"Modifica immagine profilo non riuscita: {error}") from error
+    settings.media_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{identifier()}.png"
+    try:
+        (settings.media_dir / filename).write_bytes(data)
+    except OSError as error:
+        raise HTTPException(500, "Impossibile salvare l'immagine profilo") from error
+    with Session.begin() as db:
+        item = required(db, Influencer, character_id)
+        old = item.avatar_filename
+        item.avatar_filename = filename
+        db.flush()
+        result = character_out(item)
+    unlink_media([old] if old and old != filename else [])
     return result
 
 

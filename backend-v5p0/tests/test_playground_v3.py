@@ -1026,3 +1026,10 @@ def test_dataset_classify_restarts_stuck_source(monkeypatch):
     refreshed = client.get(f"/api/dataset/images?source_id={source_id}").json()
     assert refreshed[0]["status"] == "ready"
     assert client.get(f"/api/dataset/sources/{source_id}").json()["status"] == "ready"
+
+
+def test_interrupt_generation(monkeypatch):
+    monkeypatch.setattr("app.characters.interrupt", lambda: True)
+    response = client.post("/api/images/interrupt")
+    assert response.status_code == 200 and response.json() == {"interrupted": True}
+    assert TestClient(app).post("/api/images/interrupt").status_code == 401

@@ -51,6 +51,18 @@ class ImageCheckpointInput(StrictModel):
     checkpoint: str | None = Field(default=None, max_length=200)
 
 
+class AvatarInput(StrictModel):
+    checkpoint: str | None = Field(default=None, max_length=200)
+    style: Literal["anime", "real"] | None = None
+
+
+class AvatarEditInput(StrictModel):
+    prompt: str = Field(min_length=1, max_length=1000)
+    steps: int | None = Field(default=None, ge=1, le=50)
+    cfg: float | None = Field(default=None, ge=0, le=10)
+    lora_weight: float = Field(default=1.0, ge=0, le=2)
+
+
 class ImageStyleInput(StrictModel):
     style: Literal["anime", "real"] | None = None
 

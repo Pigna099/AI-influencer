@@ -424,8 +424,12 @@ export class ApiClient {
     });
   }
 
-  async generateAvatar(id: string): Promise<Character> {
-    return this.request(`/api/characters/${id}/avatar`, { method: "POST" });
+  async generateAvatar(id: string, data?: {checkpoint?: string; style?: string}): Promise<Character> {
+    return this.request(`/api/characters/${id}/avatar`, { method: "POST", ...(data ? { body: JSON.stringify(data) } : {}) });
+  }
+
+  async editAvatar(id: string, data: {prompt: string; steps?: number; cfg?: number; lora_weight?: number}): Promise<Character> {
+    return this.request(`/api/characters/${id}/avatar/edit`, { method: "POST", body: JSON.stringify(data) });
   }
 
   async getCheckpoints(): Promise<{available: boolean; checkpoints: CheckpointInfo[]}> {
@@ -446,6 +450,10 @@ export class ApiClient {
 
   async freeVram(): Promise<{ollama_unloaded: string[]; comfyui: boolean}> {
     return this.request("/api/system/free-vram", { method: "POST" });
+  }
+
+  async interruptGeneration(): Promise<{interrupted: boolean}> {
+    return this.request("/api/images/interrupt", { method: "POST" });
   }
 
   async setImageCheckpoint(id: string, checkpoint: string | null): Promise<Character> {
@@ -690,6 +698,10 @@ export class ApiClient {
 
   async generateDataset(id: string, data: {prompt: string; negative?: string; pose_ids: string[]; count: number; seed?: number; pose_strength?: number}): Promise<LoraDatasetItem[]> {
     return this.request(`/api/datasets/${id}/generate`, { method: "POST", body: JSON.stringify(data) });
+  }
+
+  async generateDatasetVariations(id: string, data: {prompts: string[]; count?: number; seed?: number; steps?: number; cfg?: number; lora_weight?: number}): Promise<LoraDatasetItem[]> {
+    return this.request(`/api/datasets/${id}/variations`, { method: "POST", body: JSON.stringify(data) });
   }
 
   async patchDatasetItem(itemId: string, data: {caption?: string; selected?: boolean}): Promise<LoraDatasetItem> {

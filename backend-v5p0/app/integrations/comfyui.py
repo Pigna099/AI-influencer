@@ -56,6 +56,144 @@ def free_memory() -> bool:
         return False
 
 
+def interrupt() -> bool:
+    """Interrupt the running ComfyUI prompt and clear its queue."""
+    try:
+        with httpx.Client(base_url=settings.comfyui_url, timeout=10) as client:
+            client.post("/interrupt").raise_for_status()
+            client.post("/queue", json={"clear": True}).raise_for_status()
+        return True
+    except (httpx.HTTPError, OSError):
+        return False
+
+
+def _interrupted_message(history: dict) -> str:
+    """Return a clean error when ComfyUI stopped the prompt due to /interrupt."""
+    return "Generazione annullata" if "interrupt" in json.dumps(history.get("status", {})).lower() else ""
+
+
+def _submit_and_wait(workflow: dict, timeout: int) -> bytes:
+    """Submit a workflow, wait for the first output image and return its bytes."""
+    deadline = time.monotonic() + timeout
+    try:
+        with httpx.Client(base_url=settings.comfyui_url, timeout=30) as client:
+            response = client.post("/prompt", json={"prompt": workflow})
+            response.raise_for_status()
+            data = response.json()
+            if data.get("node_errors") or "prompt_id" not in data:
+                raise ComfyUIError("ComfyUI ha rifiutato il workflow")
+            prompt_id = data["prompt_id"]
+            while time.monotonic() < deadline:
+                response = client.get(f"/history/{prompt_id}")
+                response.raise_for_status()
+                history = response.json().get(prompt_id)
+                if history:
+                    if history.get("status", {}).get("status_str") == "error":
+                        raise ComfyUIError(_interrupted_message(history) or "Generazione ComfyUI non riuscita")
+                    for node in history.get("outputs", {}).values():
+                        for asset in node.get("images", []):
+                            if asset.get("type") != "output":
+                                continue
+                            response = client.get(
+                                "/view",
+                                params={
+                                    key: asset[key]
+                                    for key in ("filename", "subfolder", "type")
+                                    if key in asset
+                                },
+                            )
+                            response.raise_for_status()
+                            return response.content
+                    raise ComfyUIError("Nessuna immagine prodotta")
+                time.sleep(0.5)
+    except httpx.HTTPError as error:
+        raise ComfyUIError(f"ComfyUI error: {error}") from error
+    raise ComfyUIError("Timeout durante la generazione")
+
+
+def qwen_image_edit(
+    reference_path: Path,
+    prompt: str,
+    negative: str = "",
+    *,
+    seed: int | None = None,
+    steps: int | None = None,
+    cfg: float | None = None,
+    lora_weight: float = 1.0,
+    size_label: str = "QWEN EDIT DEMO",
+) -> tuple[bytes, dict]:
+    """Generate a variation of the reference person with Qwen-Image-Edit 2509 (+Lightning)."""
+    seed = random.randrange(2**31) if seed is None else seed
+    steps = steps or settings.qwen_edit_steps
+    cfg = settings.qwen_edit_cfg if cfg is None else cfg
+    if settings.image_provider == "mock":
+        image = Image.new("RGB", (768, 1024), (40, 30, 60))
+        ImageDraw.Draw(image).text((30, 470), f"DEMO - NOT AI GENERATED\n{size_label}", fill="white")
+        output = io.BytesIO()
+        image.save(output, format="PNG")
+        return output.getvalue(), {"provider": "mock", "seed": seed, "model": "qwen_image_edit", "steps": steps, "cfg": cfg}
+    if not comfyui_available():
+        raise ComfyUIError("ComfyUI non è raggiungibile: avvia il servizio immagini")
+    with Image.open(reference_path) as source:
+        width, height = source.size
+    scale = (1024 * 1024 / max(1, width * height)) ** 0.5
+    width = max(512, min(1536, int(width * scale) // 8 * 8))
+    height = max(512, min(1536, int(height * scale) // 8 * 8))
+    uploaded = upload_reference(reference_path)
+    workflow = {
+        "1": {"class_type": "LoadImage", "inputs": {"image": uploaded}},
+        "2": {
+            "class_type": "ImageScaleToTotalPixels",
+            "inputs": {"image": ["1", 0], "upscale_method": "lanczos", "megapixels": 1.0, "resolution_steps": 1},
+        },
+        "3": {
+            "class_type": "CLIPLoader",
+            "inputs": {"clip_name": settings.qwen_edit_clip_name, "type": "qwen_image"},
+        },
+        "4": {"class_type": "VAELoader", "inputs": {"vae_name": settings.qwen_edit_vae_name}},
+        "5": {
+            "class_type": "UNETLoader",
+            "inputs": {"unet_name": settings.qwen_edit_unet_name, "weight_dtype": "default"},
+        },
+        "6": {
+            "class_type": "LoraLoaderModelOnly",
+            "inputs": {"model": ["5", 0], "lora_name": settings.qwen_edit_lora_name, "strength_model": lora_weight},
+        },
+        "7": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["6", 0], "shift": settings.qwen_edit_shift}},
+        "8": {"class_type": "CFGNorm", "inputs": {"model": ["7", 0], "strength": 1.0}},
+        "9": {
+            "class_type": "TextEncodeQwenImageEditPlus",
+            "inputs": {"clip": ["3", 0], "prompt": prompt, "vae": ["4", 0], "image1": ["2", 0]},
+        },
+        "10": {
+            "class_type": "TextEncodeQwenImageEditPlus",
+            "inputs": {"clip": ["3", 0], "prompt": negative, "vae": ["4", 0], "image1": ["2", 0]},
+        },
+        "11": {"class_type": "EmptySD3LatentImage", "inputs": {"width": width, "height": height, "batch_size": 1}},
+        "12": {
+            "class_type": "KSampler",
+            "inputs": {
+                "model": ["8", 0], "positive": ["9", 0], "negative": ["10", 0], "latent_image": ["11", 0],
+                "seed": seed, "steps": steps, "cfg": cfg, "sampler_name": "euler", "scheduler": "simple",
+                "denoise": 1.0,
+            },
+        },
+        "13": {"class_type": "VAEDecode", "inputs": {"samples": ["12", 0], "vae": ["4", 0]}},
+        "14": {"class_type": "SaveImage", "inputs": {"images": ["13", 0], "filename_prefix": "qwen_edit"}},
+    }
+    started = time.perf_counter()
+    data = _submit_and_wait(workflow, settings.qwen_edit_timeout)
+    return data, {
+        "provider": "comfyui",
+        "seed": seed,
+        "model": settings.qwen_edit_unet_name,
+        "steps": steps,
+        "cfg": cfg,
+        "reference": True,
+        "seconds": time.perf_counter() - started,
+    }
+
+
 def extract_pose(image_path: Path, resolution: int = 1024, timeout: int = 240) -> bytes:
     """Run DWPose through ComfyUI and return the skeleton PNG."""
     if not comfyui_available():
@@ -96,7 +234,7 @@ def extract_pose(image_path: Path, resolution: int = 1024, timeout: int = 240) -
                 history = response.json().get(prompt_id)
                 if history:
                     if history.get("status", {}).get("status_str") == "error":
-                        raise ComfyUIError("Estrazione posa non riuscita")
+                        raise ComfyUIError(_interrupted_message(history) or "Estrazione posa non riuscita")
                     for node in history.get("outputs", {}).values():
                         for asset in node.get("images", []):
                             if asset.get("type") != "output":
@@ -271,7 +409,7 @@ def _run_workflow(
                 history = response.json().get(prompt_id)
                 if history:
                     if history.get("status", {}).get("status_str") == "error":
-                        raise ComfyUIError("ComfyUI generation failed")
+                        raise ComfyUIError(_interrupted_message(history) or "ComfyUI generation failed")
                     outputs = []
                     for node in history.get("outputs", {}).values():
                         for asset in node.get("images", []):

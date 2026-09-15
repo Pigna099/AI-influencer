@@ -104,6 +104,18 @@
 .dataset-meta input { font-size: .72rem; padding: .35rem .45rem; }
 .pose-library-panel { margin-top: 14px; }
 .pose-library-panel summary { cursor: pointer; font-size: .78rem; color: #9db2cf; margin-bottom: 8px; }
+.lora-step { display: grid; gap: 10px; padding-bottom: 18px; border-bottom: 1px solid #223048; }
+.lora-step:last-of-type { border-bottom: 0; padding-bottom: 0; }
+.lora-step-head { display: flex; align-items: center; gap: 10px; }
+.lora-step-head h2 { font-size: 1rem; letter-spacing: -.01em; }
+.lora-step-head button { margin-left: auto; padding: .15rem .6rem; font-size: 1.1rem; }
+.step-badge { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-size: .8rem; font-weight: 700; }
+.lora-busy { padding: 0 22px; }
+.lora-avatar-model { display: block; font-size: .72rem; margin: 6px 0 8px; }
+.lora-avatar-model select { margin-top: 4px; font-size: .72rem; }
+.avatar-edit { display: flex; gap: 6px; margin-top: 8px; }
+.avatar-edit input { flex: 1; font-size: .72rem; }
+.avatar-edit button { font-size: .72rem; padding: .3rem .6rem; }
 .lora-create label { display: block; font-size: .78rem; }
 .lora-create label input, .lora-create label select { margin-top: .35rem; }
 .lora-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }

@@ -29,7 +29,7 @@ from .db import (
     now,
 )
 from .image_library import average_hash
-from .integrations.comfyui import ComfyUIError, generate_image
+from .integrations.comfyui import ComfyUIError, generate_image, qwen_image_edit
 
 router = APIRouter(prefix="/api", tags=["LoRA"], dependencies=[Depends(authorize)])
 
@@ -509,6 +509,15 @@ class DatasetItemPatch(StrictModel):
     selected: bool | None = None
 
 
+class DatasetVariations(StrictModel):
+    prompts: list[str] = Field(min_length=1, max_length=20)
+    count: int = Field(default=1, ge=1, le=4)
+    seed: int | None = Field(default=None, ge=0, le=2**31)
+    steps: int | None = Field(default=None, ge=1, le=50)
+    cfg: float | None = Field(default=None, ge=0, le=10)
+    lora_weight: float = Field(default=1.0, ge=0, le=2)
+
+
 def dataset_item_out(item: LoraDatasetItem, library: ImageLibrary | None) -> dict:
     return {
         "id": item.id,
@@ -691,6 +700,96 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
                     image_id=library.id,
                     pose_ref_id=pose.id if pose else None,
                     caption=body.prompt,
+                    similarity=0.0,
+                    selected=False,
+                    seed=meta.get("seed", seed),
+                )
+                db.add(item)
+                db.flush()
+                row = db.get(LoraDataset, dataset_id)
+                if row is not None:
+                    row.updated_at = now()
+                created.append(dataset_item_out(item, library))
+    return created
+
+
+@router.post("/datasets/{dataset_id}/variations", status_code=201)
+def generate_dataset_variations(dataset_id: str, body: DatasetVariations):
+    with Session() as db:
+        dataset = required(db, LoraDataset, dataset_id)
+        character = required(db, Influencer, dataset.character_id)
+        anchor_path = None
+        if dataset.anchor_image_id:
+            anchor = db.get(ImageLibrary, dataset.anchor_image_id)
+            if anchor is not None:
+                candidate = (settings.media_dir / anchor.filename).resolve()
+                if candidate.is_file():
+                    anchor_path = candidate
+        if anchor_path is None and character.avatar_filename:
+            candidate = (settings.media_dir / character.avatar_filename).resolve()
+            if candidate.is_file():
+                anchor_path = candidate
+        if anchor_path is None:
+            raise HTTPException(
+                400, "Serve un'immagine anchor: genera la foto profilo o imposta l'anchor del dataset"
+            )
+        character_id = dataset.character_id
+        trigger = dataset.trigger
+    created: list[dict] = []
+    for raw_prompt in body.prompts:
+        prompt = raw_prompt.strip()
+        if not prompt:
+            continue
+        caption = prompt if (not trigger or trigger in prompt) else f"{trigger}, {prompt}"
+        for index in range(body.count):
+            seed = (body.seed + index) if body.seed is not None else random.randrange(2**31)
+            try:
+                data, meta = qwen_image_edit(
+                    anchor_path,
+                    prompt,
+                    seed=seed,
+                    steps=body.steps,
+                    cfg=body.cfg,
+                    lora_weight=body.lora_weight,
+                )
+            except ComfyUIError as error:
+                if created:
+                    break
+                raise HTTPException(502, f"Generazione variazioni non riuscita: {error}") from error
+            settings.media_dir.mkdir(parents=True, exist_ok=True)
+            filename = f"{identifier()}.png"
+            try:
+                (settings.media_dir / filename).write_bytes(data)
+            except OSError as error:
+                raise HTTPException(500, "Impossibile salvare l'immagine") from error
+            with Session.begin() as db:
+                library = ImageLibrary(
+                    character_id=character_id,
+                    filename=filename,
+                    sha256=hashlib.sha256(data).hexdigest(),
+                    phash=average_hash(data),
+                    prompt=caption,
+                    negative_prompt="",
+                    caption="",
+                    tags=[],
+                    checkpoint=meta.get("model"),
+                    loras=[],
+                    seed=meta.get("seed", seed),
+                    style="real",
+                    status="draft",
+                    rating=0,
+                    source="dataset",
+                    used_count=0,
+                    embedding=[],
+                    embedding_model="",
+                )
+                db.add(library)
+                db.flush()
+                item = LoraDatasetItem(
+                    dataset_id=dataset_id,
+                    image_id=library.id,
+                    pose_ref_id=None,
+                    caption=prompt,
                     similarity=0.0,
                     selected=False,
                     seed=meta.get("seed", seed),

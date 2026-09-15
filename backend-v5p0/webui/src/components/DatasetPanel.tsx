@@ -41,6 +41,7 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
   const [detail, setDetail] = useState<LoraDatasetDetail | null>(null);
   const [trigger, setTrigger] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [variationPrompts, setVariationPrompts] = useState("");
   const [count, setCount] = useState(1);
 
   const loadDetail = useCallback(async (id: string) => {
@@ -64,6 +65,17 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
     if (!detail || !prompt.trim()) return;
     void perform(t("lp.generating"), async () => {
       await api.generateDataset(detail.id, { prompt: prompt.trim(), pose_ids: [], count });
+      await loadDetail(detail.id);
+      await refresh();
+    });
+  };
+
+  const generateVariations = () => {
+    if (!detail) return;
+    const prompts = variationPrompts.split("\n").map(line => line.trim()).filter(Boolean);
+    if (!prompts.length) return;
+    void perform(t("lp.variationsRunning"), async () => {
+      await api.generateDatasetVariations(detail.id, { prompts });
       await loadDetail(detail.id);
       await refresh();
     });
@@ -111,13 +123,18 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
     </li>)}</ul>
     {detail && <div className="dataset-detail">
       <div className="section-title"><h2>{detail.trigger}</h2><span>{t("lp.datasetCounts", { selected: detail.selected_count, total: detail.item_count })}</span></div>
+      {busy && <p className="memory-status" role="status"><span className="spinner" />{t("common.loading")} <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
       <p className="muted">{t("lp.datasetHint")}</p>
       <div className="dataset-generate">
+        <label>{t("lp.variations")}<textarea rows={4} value={variationPrompts} disabled={busy} onChange={e => setVariationPrompts(e.target.value)} placeholder={t("lp.variationsPlaceholder")} /></label>
+        <p className="muted">{t("lp.variationsHint")}</p>
+        <button className="primary" disabled={busy || !variationPrompts.trim()} onClick={generateVariations}>{t("lp.variationsRun")}</button>
         <label>{t("lp.generatePrompt")}<textarea rows={3} value={prompt} disabled={busy} onChange={e => setPrompt(e.target.value)} maxLength={2000} /></label>
         <div className="grid">
           <label>{t("lp.countPerPose")}<select value={count} disabled={busy} onChange={e => setCount(Number(e.target.value))}>{[1, 2, 3, 4].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
         </div>
         <button className="primary" disabled={busy || !prompt.trim()} onClick={generate}>{t("lp.generateCandidates")}</button>
+        <p className="muted">{t("lp.candidatesHint")}</p>
       </div>
       {!detail.items.length && <p className="muted">{t("lp.datasetEmpty")}</p>}
       <div className="dataset-grid">{detail.items.map(item => <article className={`dataset-card ${item.selected ? "selected" : ""}`} key={item.id}>

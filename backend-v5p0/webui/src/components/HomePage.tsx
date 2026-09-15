@@ -162,7 +162,7 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
   }, []);
 
   return <div className="playground theme-home">
-    <header className="topbar"><div className="brand"><span className="brand-mark">ai</span><h1>AI influencer playground <b>v4p1</b></h1></div>
+    <header className="topbar"><div className="brand"><span className="brand-mark">ai</span><h1>AI influencer playground <b>v5</b></h1></div>
       <div className="top-actions">
         <nav className="top-nav"><Link className="selected" to="/">{t("pg.nav.home")}</Link><Link to="/chat">{t("pg.nav.chat")}</Link><Link to="/images">{t("pg.nav.images")}</Link><Link to="/dataset">{t("pg.nav.dataset")}</Link><Link to="/loras">{t("pg.nav.loras")}</Link></nav>
         <LanguageSwitch /><button onClick={onLogout} disabled={loading}>{t("pg.logout")}</button>

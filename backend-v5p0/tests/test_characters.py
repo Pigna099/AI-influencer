@@ -435,3 +435,42 @@ def test_human_bursts_unit():
     bursts = human_bursts(text, Rng())
     assert 2 <= len(bursts) <= 4
     assert any(item.startswith("*") for item in bursts)
+
+
+def _avatar_png():
+    from io import BytesIO
+
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (48, 64), (30, 20, 40)).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def test_avatar_can_choose_checkpoint():
+    profile = {"description": "Test", "personality_traits": "test", "tone_of_voice": "test", "boundaries": "test"}
+    char = client.post("/api/characters", json={"name": "AvatarModel", "profile": profile}).json()
+    response = client.post(f"/api/characters/{char['id']}/avatar", json={"checkpoint": "pornmaster.safetensors"})
+    assert response.status_code in (200, 201)
+    assert response.json()["avatar_filename"]
+
+
+def test_avatar_edit_with_qwen(monkeypatch):
+    profile = {"description": "Test", "personality_traits": "test", "tone_of_voice": "test", "boundaries": "test"}
+    char = client.post("/api/characters", json={"name": "AvatarEdit", "profile": profile}).json()
+    assert client.post(f"/api/characters/{char['id']}/avatar").status_code in (200, 201)
+    before = client.get(f"/api/characters/{char['id']}").json()["avatar_filename"]
+    monkeypatch.setattr("app.characters.qwen_image_edit", lambda path, prompt, **kwargs: (_avatar_png(), {}))
+    response = client.post(
+        f"/api/characters/{char['id']}/avatar/edit", json={"prompt": "same person, studio portrait"}
+    )
+    assert response.status_code in (200, 201), response.text
+    after = response.json()["avatar_filename"]
+    assert after and after != before
+
+
+def test_avatar_edit_requires_avatar():
+    profile = {"description": "Test", "personality_traits": "test", "tone_of_voice": "test", "boundaries": "test"}
+    char = client.post("/api/characters", json={"name": "NoAvatar", "profile": profile}).json()
+    response = client.post(f"/api/characters/{char['id']}/avatar/edit", json={"prompt": "x"})
+    assert response.status_code == 400

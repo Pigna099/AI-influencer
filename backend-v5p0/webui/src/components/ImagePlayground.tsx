@@ -184,7 +184,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   const statusLabel = (item: LibraryImage) => item.status === "approved" ? t("ip.approved") : item.status === "rejected" ? t("ip.rejected") : t("ip.draft");
 
   return <div className="playground theme-images">
-    <header className="topbar"><div className="brand"><span className="brand-mark">ai</span><h1>AI influencer playground <b>v4p1</b></h1></div>
+    <header className="topbar"><div className="brand"><span className="brand-mark">ai</span><h1>AI influencer playground <b>v5</b></h1></div>
       <div className="top-actions">
         <nav className="top-nav"><Link to="/">{t("pg.nav.home")}</Link><Link to="/chat">{t("pg.nav.chat")}</Link><Link className="selected" to="/images">{t("pg.nav.images")}</Link><Link to="/dataset">{t("pg.nav.dataset")}</Link><Link to="/loras">{t("pg.nav.loras")}</Link></nav>
         <LanguageSwitch /><button onClick={onLogout} disabled={!!busy}>{t("pg.logout")}</button>
@@ -268,7 +268,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
             <label>{t("ip.seed")}<input type="number" min="0" value={seed} disabled={!!busy} onChange={e => setSeed(e.target.value)} placeholder="—" /></label>
           </div>
           <label className="auto-label">{t("ip.classify")} <input type="checkbox" checked={classify} disabled={!!busy} onChange={e => setClassify(e.target.checked)} /></label>
-          {busy && <p className="memory-status" role="status"><span className="spinner" />{busy} <b>{elapsed.toFixed(0)} s</b></p>}
+          {busy && <p className="memory-status" role="status"><span className="spinner" />{busy} <b>{elapsed.toFixed(0)} s</b> <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
           <button className="primary" disabled={!!busy || !character || !prompt.trim()} onClick={generate}>{t("ip.generate")}</button>
           <details className="pose-library-panel">
             <summary>{t("lp.poses")}</summary>

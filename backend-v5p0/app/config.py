@@ -52,6 +52,15 @@ class Settings(BaseSettings):
     chat_real_pose_workflow_path: Path = Path("workflows/chat_real_pose.json")
     chat_real_pose_reference_workflow_path: Path = Path("workflows/chat_real_pose_reference.json")
     pose_controlnet_name: str = "controlnet-openpose-sdxl.safetensors"
+    # Qwen-Image-Edit variations for the LoRA dataset (2509 fp8 + Lightning 4-step LoRA).
+    qwen_edit_unet_name: str = "qwen_image_edit_2509_fp8_e4m3fn.safetensors"
+    qwen_edit_clip_name: str = "qwen_2.5_vl_7b_fp8_scaled.safetensors"
+    qwen_edit_vae_name: str = "qwen_image_vae.safetensors"
+    qwen_edit_lora_name: str = "Qwen-Image-Edit-2509-Lightning-4steps-V1.0-bf16.safetensors"
+    qwen_edit_steps: int = 4
+    qwen_edit_cfg: float = 1.0
+    qwen_edit_shift: float = 3.0
+    qwen_edit_timeout: int = 600
     chat_pony_style: str = (
         "rating_explicit, nsfw, explicit adult content, realistic skin texture, detailed anatomy, "
         "photorealistic, sharp focus"
