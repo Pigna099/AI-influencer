@@ -1,6 +1,6 @@
 # PLAN — Da playground a influencer autonoma
 
-Piano di lavoro per trasformare il playground (`backend-v3p3`) in una piattaforma che genera contenuti, pubblica su Instagram e gestisce i fan su Fanvue con vendita di foto/video.
+Piano di lavoro per trasformare il playground (`backend-v4p1`) in una piattaforma che genera contenuti, pubblica su Instagram e gestisce i fan su Fanvue con vendita di foto/video.
 
 Documento vivo: aggiornare quando una decisione cambia.
 
@@ -29,7 +29,7 @@ Vincolo di identità: **personaggi completamente sintetici**, nessuna likeness d
 
 ## 3. Cosa è riusabile oggi
 
-| Componente | File (backend-v3p3) | Riuso |
+| Componente | File (backend-v4p1) | Riuso |
 |---|---|---|
 | Client ComfyUI (parameterize, checkpoint, upload reference/IPAdapter) | `app/integrations/comfyui.py` | Alto — base del workflow selector |
 | Client Ollama (chat, embed, metrics) | `app/integrations/ollama.py` | Alto |
@@ -190,12 +190,13 @@ Queste voci sono richieste esplicite, da pianificare e implementare in passi suc
 - Vincoli: nessun dato di pagamento reale, nessuna integrazione con circuiti; solo simulazione per testare tono, prezzo e flusso.
 - Implementato: colonne PPV su personaggio e chat, marcatore `[PPV:]` nel prompt, anteprima sfocata servita dal backend, sblocco con pagamento simulato registrato in `simulated_payments`, toggle+prezzo per personaggio e invio manuale bloccato.
 
-### 14.2 Notifiche e realismo temporale
+### 14.2 Notifiche e realismo temporale — FATTO (13 settembre 2026)
 
 - Risposte non immediate: ritardo casuale configurabile per personaggio/fan (min-max, distribuzione realistica, "sta scrivendo…").
 - Orari di attività del personaggio (fasce orarie, giorni), con coda dei messaggi generati da consegnare al momento giusto.
 - Notifiche interne al playground (badge conversazione non letta, suono opzionale); niente notifiche esterne.
 - Backend: job programmati (stesso pattern della coda `jobs`) con `deliver_at`, stato `scheduled/sent`.
+- Implementato: ritardo casuale per personaggio (min/max), orari di attività con giorni, coda `scheduled_replies` consegnata dallo scheduler nell'API, "sta per rispondere…" in chat, badge non letti per conversazione e segna-come-letto all'apertura. Niente notifiche esterne.
 
 ### 14.3 Playground video
 
@@ -218,14 +219,45 @@ Queste voci sono richieste esplicite, da pianificare e implementare in passi suc
 
 ### 14.6 Flusso Image Playground: personaggio -> dataset -> LoRA
 
-Idea dell'utente, da progettare:
+Idea dell'utente. Decisioni prese (13 settembre 2026): famiglia primaria **real** (PornMaster/LUSTIFY), trainer **kohya sd-scripts** su venv dedicato host, pose via **ControlNet OpenPose**, ranking identità con **ArcFace (InsightFace)**, una famiglia primaria per personaggio + retrain on-demand per le altre, fallback IPAdapter quando manca la LoRA.
 
-1. **Crea personaggio**: da un prompt aumentato genera 5 immagini; scegline una come riferimento identitario.
-2. **Dataset per LoRA**: con l'immagine scelta, genera batch di 5 immagini guidate da una **pose-database** (pose estratte da Telegram/Instagram come reference di stile/posa, non di volto). Seleziona le più simili all'originale. Ripeti finché il dataset ha almeno ~20 immagini approvate.
-3. **Training LoRA**: addestrare la LoRA del personaggio con il dataset (kohya_ss / diffusion-pipe), trigger word dedicata, QC volto (ArcFace) come gate.
-4. **Uso**: il personaggio diventa selezionabile nel playground immagini per prompt liberi o per generare in blocco le "pose standard".
+**Fase A — registry e training (FATTO 13 settembre 2026)**:
+1. Migrazione `0012_lora_pipeline`: `character_loras`, `lora_datasets`, `lora_dataset_items`, `pose_references`, `training_jobs`.
+2. API `/api/characters/{id}/loras`, `/api/loras/*`, `/api/training-jobs` (claim/progress/complete/cancel) + scheda **LoRA** (ambra) con stato e avanzamento live.
+3. Trainer host: `scripts/trainer/setup.sh` (venv 3.12 + torch cu124 + kohya) e `scripts/trainer/train_worker.py` (poll coda, GPU libera, log, copia artefatti, recovery job stale); unit systemd pronta in `scripts/trainer/ai-influencer-trainer.service`.
+4. Verifica end-to-end: LoRA "Nikita" real v1 (20 immagini generate con anchor IPAdapter, rank 16, PornMaster) addestrata, copiata in ComfyUI e in `data/loras/`, validazione con generazione.
 
-Questioni aperte da decidere prima di implementare: dove gira il training (stessa GPU di ComfyUI?), formato export (kohya), soglia di similarità/QC, gestione versioni LoRA per checkpoint base.
+**Fase B — dataset builder**: pose extraction (OpenPose → `pose_references`), batch di candidati con anchor IPAdapter + ControlNet, ranking ArcFace, selezione, caption editabili, gate ≥20.
+
+**Fase C — wizard 14.6**: creazione personaggio → 5 candidati → anchor → loop pose → dataset → training → validazione → attivazione.
+
+**Fase D — uso**: `resolve(character, checkpoint)` in playground immagini/chat/avatar, peso LoRA e versioni.
+
+I punti 1-4 originali restano validi; le questioni aperte (GPU, export, soglia QC, versioni) sono risolte dalle decisioni sopra.
+
+### 14.7 Fix classificazione dataset (richiesto 13 settembre 2026)
+
+Premendo **Classifica in attesa**, la classificazione deve ripartire per tutte le foto non ancora classificate (non solo le `pending`: includere/riprovare anche `failed` e quelle senza descrizione), non fermarsi alle già pronte.
+
+### 14.8 Checkbox dopo il testo, non sopra (richiesto 13 settembre 2026)
+
+Spostare la casella a destra/dopo l'etichetta (non sopra o a sinistra) per: "Classify with AI after import" (Dataset), "PPV photos" (personaggio), "Activity hours" (realismo). Verificare tutte le checkbox delle UI per coerenza.
+
+### 14.9 Eliminare le conversazioni (richiesto 13 settembre 2026)
+
+Aggiungere un pulsante per eliminare una conversazione dalla lista chat (con conferma), con pulizia di messaggi, foto e stato correlati.
+
+### 14.10 Liberare la VRAM delle GPU (richiesto 13 settembre 2026)
+
+Pulsante (nel pannello GPU in tempo reale) per scaricare i modelli residenti e liberare la VRAM: unload dei modelli Ollama e reset della cache di ComfyUI, con stato dell'operazione.
+
+### 14.11 Human mode nella chat (richiesto 13 settembre 2026)
+
+Modalità "Human mode" (checkbox a sinistra) per rendere la chat più umana:
+
+- risposte multiple in sequenza (più messaggi brevi invece di un unico blocco), con refusi/correzioni occasionali (`*correzione`) e pause tra i messaggi;
+- in questa modalità il personaggio può inviare spontaneamente un nuovo messaggio per riprendere la conversazione (messaggi proattivi casuali, coerenti con memoria e orari di attività);
+- toggle per conversazione e default per personaggio.
 
 ## 15. Domande aperte
 

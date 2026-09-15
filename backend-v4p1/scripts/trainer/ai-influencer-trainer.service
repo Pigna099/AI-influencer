@@ -1,0 +1,13 @@
+[Unit]
+Description=AI influencer LoRA training worker
+After=network-online.target
+
+[Service]
+User=john
+WorkingDirectory=/data/data_ssd/pigni/ai-influencer/backend-v4p1
+ExecStart=/usr/bin/python3 /data/data_ssd/pigni/ai-influencer/backend-v4p1/scripts/trainer/train_worker.py
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

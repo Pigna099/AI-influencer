@@ -1,0 +1,10 @@
+.env
+.env.*
+.venv
+.git
+data
+webui/node_modules
+webui_dist
+**/__pycache__
+.pytest_cache
+.ruff_cache

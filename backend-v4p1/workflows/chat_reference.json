@@ -1,0 +1,124 @@
+{
+  "4": {
+    "inputs": {
+      "ckpt_name": "ponyDiffusionV6XL_v6StartWithThisOne.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint (NSFW SDXL)"
+    }
+  },
+  "10": {
+    "inputs": {
+      "stop_at_clip_layer": -2,
+      "clip": ["4", 1]
+    },
+    "class_type": "CLIPSetLastLayer",
+    "_meta": {
+      "title": "CLIP Skip -2"
+    }
+  },
+  "12": {
+    "inputs": {
+      "image": "{{reference_image}}",
+      "upload": "image"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Character Picture"
+    }
+  },
+  "11": {
+    "inputs": {
+      "model": ["4", 0],
+      "image": ["12", 0],
+      "preset": "PLUS (high strength)",
+      "lora_strength": 0.6,
+      "provider": "CUDA",
+      "weight": 0.85,
+      "weight_faceidv2": 1.0,
+      "weight_type": "ease in-out",
+      "combine_embeds": "concat",
+      "start_at": 0.0,
+      "end_at": 1.0,
+      "embeds_scaling": "V only",
+      "cache_mode": "all",
+      "use_tiled": false,
+      "use_batch": false,
+      "sharpening": 0.0
+    },
+    "class_type": "easy ipadapterApplyADV",
+    "_meta": {
+      "title": "IPAdapter Plus (character reference)"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": "{{positive_prompt}}",
+      "clip": ["10", 0]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Positive Prompt"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "{{negative_prompt}}",
+      "clip": ["10", 0]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Negative Prompt"
+    }
+  },
+  "5": {
+    "inputs": {
+      "width": 832,
+      "height": 1216,
+      "batch_size": "{{image_count}}"
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "3": {
+    "inputs": {
+      "seed": "{{seed}}",
+      "steps": 28,
+      "cfg": 6.5,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
+      "denoise": 1.0,
+      "model": ["11", 0],
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "latent_image": ["5", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": ["3", 0],
+      "vae": ["4", 2]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "chat_ref",
+      "images": ["8", 0]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  }
+}
