@@ -16,7 +16,7 @@ export interface OllamaModel {
 
 export interface CheckpointInfo {
   name: string;
-  family: "real" | "anime" | "pony" | "video";
+  family: "real" | "anime" | "pony" | "qwen-image" | "z-image" | "flux2" | "playground" | "video" | "unsupported";
   usable: boolean;
 }
 
@@ -42,6 +42,7 @@ export interface Character {
   profile: CharacterProfile;
   version: number;
   avatar_filename?: string | null;
+  avatar_prompt?: string | null;
   image_checkpoint?: string | null;
   image_style?: "anime" | "real" | null;
   ppv_enabled?: boolean;
@@ -172,12 +173,20 @@ export interface LibraryGenerateInput {
   negative?: string;
   style?: "anime" | "real";
   checkpoint?: string;
-  loras: { name: string; weight: number }[];
+  loras: { name: string; weight: number; clip_weight?: number; category?: string }[];
   pose_ids?: string[];
   pose_strength?: number;
   count: number;
   seed?: number;
   classify: boolean;
+}
+
+export interface GenerationPreset {
+  id: string;
+  name: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+  updated_at: string | null;
 }
 
 export interface DatasetSource {
@@ -345,6 +354,7 @@ export interface LoraDatasetItem {
   caption: string;
   similarity: number;
   selected: boolean;
+  reference_role: string | null;
   seed: number;
   filename: string | null;
   status: string | null;
@@ -361,6 +371,7 @@ export interface DatasetAnalysis {
   target: number;
   keywords: Record<string, number>;
   duplicates: number;
+  reference_counts?: Record<string, number>;
   pose_counts: { pose_id: string; name: string; count: number }[];
   warnings: { code: string; detail: string }[];
 }
@@ -438,6 +449,10 @@ export class ApiClient {
     return this.request(`/api/characters/${id}/avatar`, { method: "POST", ...(data ? { body: JSON.stringify(data) } : {}) });
   }
 
+  async setAvatarPrompt(id: string, prompt: string | null): Promise<Character> {
+    return this.request(`/api/characters/${id}/avatar-prompt`, { method: "PUT", body: JSON.stringify({ prompt }) });
+  }
+
   async editAvatar(id: string, data: {prompt: string; steps?: number; cfg?: number; lora_weight?: number}): Promise<Character> {
     return this.request(`/api/characters/${id}/avatar/edit`, { method: "POST", body: JSON.stringify(data) });
   }
@@ -480,7 +495,7 @@ export class ApiClient {
     });
   }
 
-  async getLoras(): Promise<{available: boolean; loras: string[]}> {
+  async getLoras(): Promise<{available: boolean; loras: string[]; families: Record<string, string>}> {
     return this.request("/api/images/loras");
   }
 
@@ -694,6 +709,18 @@ export class ApiClient {
     return this.request(`/api/poses/${id}`, {method: "DELETE"});
   }
 
+  async getPresets(): Promise<GenerationPreset[]> {
+    return this.request("/api/presets");
+  }
+
+  async createPreset(data: {name: string; payload: Record<string, unknown>}): Promise<GenerationPreset> {
+    return this.request("/api/presets", { method: "POST", body: JSON.stringify(data) });
+  }
+
+  async deletePreset(id: string): Promise<{deleted: boolean; id: string}> {
+    return this.request(`/api/presets/${id}`, {method: "DELETE"});
+  }
+
   async getDatasets(characterId: string): Promise<LoraDataset[]> {
     return this.request(`/api/characters/${characterId}/datasets`);
   }
@@ -710,20 +737,24 @@ export class ApiClient {
     return this.request(`/api/datasets/${id}/analysis`);
   }
 
-  async generateDataset(id: string, data: {prompt: string; negative?: string; pose_ids: string[]; count: number; seed?: number; pose_strength?: number}): Promise<LoraDatasetItem[]> {
+  async generateDataset(id: string, data: {prompt: string; negative?: string; checkpoint?: string; pose_ids: string[]; count: number; seed?: number; pose_strength?: number}): Promise<LoraDatasetItem[]> {
     return this.request(`/api/datasets/${id}/generate`, { method: "POST", body: JSON.stringify(data) });
   }
 
-  async generateDatasetVariations(id: string, data: {prompts: string[]; count?: number; seed?: number; steps?: number; cfg?: number; lora_weight?: number}): Promise<LoraDatasetItem[]> {
+  async generateDatasetVariations(id: string, data: {prompts: string[]; count?: number; model?: string; seed?: number; steps?: number; cfg?: number; lora_weight?: number}): Promise<LoraDatasetItem[]> {
     return this.request(`/api/datasets/${id}/variations`, { method: "POST", body: JSON.stringify(data) });
   }
 
-  async patchDatasetItem(itemId: string, data: {caption?: string; selected?: boolean}): Promise<LoraDatasetItem> {
+  async patchDatasetItem(itemId: string, data: {caption?: string; selected?: boolean; reference_role?: string}): Promise<LoraDatasetItem> {
     return this.request(`/api/dataset-items/${itemId}`, { method: "PATCH", body: JSON.stringify(data) });
   }
 
   async deleteDatasetItem(itemId: string): Promise<{deleted: boolean; id: string}> {
     return this.request(`/api/dataset-items/${itemId}`, {method: "DELETE"});
+  }
+
+  async deleteDataset(datasetId: string): Promise<{deleted: boolean; id: string}> {
+    return this.request(`/api/datasets/${datasetId}`, {method: "DELETE"});
   }
 }
 

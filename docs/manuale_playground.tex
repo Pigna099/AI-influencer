@@ -1,0 +1,212 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{margin=2.4cm}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue!50!black, urlcolor=blue!60!black, pdftitle={AI Influencer Playground v5 - Manuale d'uso}}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+
+\renewcommand{\contentsname}{Indice}
+\renewcommand{\refname}{Riferimenti}
+\setlist{nosep, leftmargin=1.4em}
+
+\titleformat{\section}{\Large\bfseries}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.6em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{AI Influencer Playground v5}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\title{\textbf{AI Influencer Playground v5}\\[0.3em]\large Manuale d'uso}
+\author{Documento interno}
+\date{\today}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+\noindent Questo manuale descrive come usare il playground: chat con personaggi sintetici, generazione immagini (SDXL, Qwen-Image, Z-Image, FLUX.2), dataset, pipeline LoRA completa e strumenti di diagnostica. Il sistema \`e uno strumento interno: i pagamenti PPV sono simulati e non viene pubblicato nulla su piattaforme esterne.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Introduzione}
+Il playground serve a costruire e testare influencer sintetiche:
+\begin{itemize}
+  \item chat realistiche con fan simulati (memoria per fan, ritardi, orari, \emph{Human mode});
+  \item generazione e curatela di immagini NSFW con ComfyUI;
+  \item creazione di un dataset coerente per personaggio;
+  \item training di una LoRA di identit\`a con kohya (worker sul server) e suo riuso in generazione.
+\end{itemize}
+\textbf{Vincoli}: solo personaggi adulti e completamente sintetici, nessuna likeness di persone reali; pagamenti simulati (nessun circuito reale); Fanvue/Instagram non sono collegati.
+
+\section{Architettura in breve}
+\begin{itemize}
+  \item \textbf{WebUI} (React) servita dall'API su \texttt{http://192.168.1.60:8010}.
+  \item \textbf{API} (FastAPI) + \textbf{PostgreSQL} in Docker (progetto \texttt{ai-influencer}).
+  \item \textbf{Ollama} per chat/embedding, \textbf{ComfyUI} per le immagini (entrambi gi\`a installati sul server).
+  \item \textbf{Trainer LoRA} host-side (\texttt{scripts/trainer/train\_worker.py}) che usa kohya sd-scripts su GPU con memoria libera.
+  \item Dati e media su disco in \texttt{data/} (media, dataset, pose, LoRA).
+\end{itemize}
+
+\section{Avvio, accesso e spegnimento}
+\begin{itemize}
+  \item Avvio: \texttt{cd backend-v5p0 \&\& ./start.sh} (costruisce la WebUI, applica le migrazioni, avvia API e worker).
+  \item Stato: \texttt{docker compose ps}; log: \texttt{docker compose logs -f api} (o \texttt{worker}).
+  \item Accesso: aprire l'URL nel browser e inserire la \texttt{API\_KEY} del file \texttt{.env} (resta nella sessione del browser).
+  \item Arresto senza perdere dati: \texttt{docker compose stop}; riavvio: \texttt{docker compose up -d}.
+  \item Trainer: \texttt{scripts/trainer/train\_worker.py} (oppure servizio systemd gi\`a predisposto).
+\end{itemize}
+
+\section{La scheda Home}
+La pagina iniziale mostra lo stato del sistema:
+\begin{itemize}
+  \item \textbf{Flag colorati} per API+database, ComfyUI, Ollama, telemetria GPU e worker di training (heartbeat): un flag rosso/giallo indica dove intervenire.
+  \item \textbf{GPU in tempo reale} (memoria, utilizzo, potenza, temperatura, processi) con pulsante \textbf{Libera VRAM} (scarica i modelli Ollama e la cache di tutte le istanze ComfyUI). La generazione in batch usa \textbf{4 istanze ComfyUI} (una per GPU): i tempi si dividono quasi per quattro.
+  \item \textbf{Personaggi} con foto profilo, stile e numero di LoRA (link diretto alla chat).
+  \item \textbf{Modelli disponibili}: checkpoint ComfyUI (famiglia, compatibilit\`a), LoRA e modelli Ollama.
+\end{itemize}
+
+\section{La scheda Chat}
+\begin{itemize}
+  \item Creare/gestire \textbf{fan} e \textbf{conversazioni}; il personaggio pu\`o scrivere per primo.
+  \item \textbf{Realismo}: ritardo casuale per personaggio e orari di attivit\`a; le risposte in coda sopravvivono ai riavvii.
+  \item \textbf{Human mode}: risposte multiple, refusi con correzione, messaggi spontanei di ripresa.
+  \item \textbf{PPV simulato}: foto bloccate con prezzo; il fan paga (simulato) e sblocca.
+  \item \textbf{Foto manuale}: invio di una foto generata (con scena e didascalia), anche bloccata.
+  \item \textbf{Annulla generazione} disponibile in ogni punto in cui si genera un'immagine; eliminazione conversazione dalla lista.
+\end{itemize}
+
+\section{La scheda Immagini}
+\begin{itemize}
+  \item \textbf{Checkpoint}: SDXL real/pony/anime, Qwen-Image, Z-Image, FLUX.2 (i modelli video sono nascosti). Il selettore mostra famiglia e compatibilit\`a.
+  \item \textbf{LoRA multiple}: ogni LoRA abilitata ha \textbf{categoria} (Personaggio, Stile, Outfit, Composizione, Altro), \textbf{peso modello} e \textbf{CLIP weight} (vuoto = come il modello). Le LoRA incompatibili con la famiglia del checkpoint vengono nascoste.
+  \item \textbf{Pose Library}: scegli una o pi\`u pose; la generazione cicla sulle pose selezionate (forza regolabile).
+  \item \textbf{Preset}: salva/applica/elimina combinazioni complete (checkpoint, LoRA, pose, prompt, conteggio).
+  \item \textbf{Libreria}: approva/rifiuta, voto a stelle, didascalia e tag, visore a schermo intero, riuso nelle chat.
+  \item La \textbf{LoRA attiva del personaggio} viene abilitata automaticamente quando la famiglia del checkpoint corrisponde.
+\end{itemize}
+
+\section{La scheda Dataset}
+\begin{itemize}
+  \item \textbf{Fonti}: canale Telegram pubblico, elenco di URL, cartella in \texttt{data/imports}, \textbf{profilo Instagram pubblico} (via Scrapling: \texttt{@profilo} o URL). I video vengono scaricati con anteprima e marcati come video. Le immagini da Instagram servono solo come riferimento di posa/stile (moodboard), mai come volto da replicare: l'uso \`e a tuo carico nel rispetto dei ToS di Meta. Se Instagram chiede il login, imposta \texttt{INSTAGRAM\_COOKIES} nel \texttt{.env}.
+  \item \textbf{Classifica non classificate}: descrive con AI le immagini mancanti e ritenta le fallite; se un run si interrompe, il pulsante riparte.
+  \item \textbf{Dettagli immagine}: descrizione, campi strutturati (posa, scena, luce\ldots), tag, \textbf{Estrai posa} (salva lo skeleton nella Pose Library).
+  \item \textbf{Esporta JSONL} e \textbf{Genera profilo} (bozza di personaggio dalle descrizioni).
+\end{itemize}
+
+\section{La scheda LoRA (tre passi)}
+\subsection{1 -- Personaggio}
+\begin{itemize}
+  \item Scegli il \textbf{modello} per la foto profilo e usa \emph{Genera/Rigenera da zero}, oppure \emph{Modifica con Qwen-Edit} (prompt tipo \texttt{same person, studio portrait}).
+  \item Azioni: \textbf{Duplica}, \textbf{Elimina} (pulisce anche LoRA, dataset e job), \textbf{+} nella barra sinistra per creare un nuovo personaggio.
+  \item A destra puoi aprire la \textbf{guida} (Mostra/Nascondi): spiega parametri, checkpoint, pesi e glossario passo per passo.
+\end{itemize}
+\subsection{2 -- Dataset LoRA (reference canoniche e due rami)}
+\begin{itemize}
+  \item \textbf{1 \textperiodcentered{} Identit\`a}: genera 20--50 candidati con \textbf{Qwen-Image-2512} (selezionabile). Il campo prompt \`e precompilato; le scene del ramo variazioni sono 20 di esempio, ripristinabili con \emph{Ripristina default}. La sezione richiudibile \textbf{Prompt del personaggio} mostra la parte identit\`a del prompt della foto profilo (soggetto e aspetto), la salva e la include nei candidati, cos\`i etnia e tratti non si perdono.
+  \item \textbf{2 \textperiodcentered{} Reference canoniche}: assegna un \textbf{ruolo} a 4--8 immagini (volto ravvicinato, 3/4, profilo, mezzo busto, figura intera frontale, 3/4, laterale). Tutte le generazioni successive usano queste reference, non la sola foto profilo.
+  \item \textbf{3 \textperiodcentered{} Due rami indipendenti}: \textbf{Variazioni Qwen-Image-Edit} (una scena per riga, modello selezionabile con LoRA Lightning abbinata) e \textbf{Candidati SDXL} (checkpoint + IPAdapter + pose ControlNet). I due rami non si incrociano e confluiscono nella stessa griglia.
+  \item \textbf{Curatela}: seleziona le immagini, correggi le didascalie, elimina; la barra mostra \texttt{selezionate/60} (obiettivo 50--70 immagini finali).
+  \item \textbf{Avvisi qualit\`a}: duplicati, poche reference, poche inquadrature, stessa posa/scena ripetuta.
+\end{itemize}
+\subsection{3 -- Training}
+\begin{itemize}
+  \item Crea la voce LoRA (nome, famiglia, trigger, checkpoint base, \textbf{rank}: capacit\`a della LoRA, tipico 16--32 per i personaggi).
+  \item Accoda il training scegliendo il \textbf{dataset curato} (minimo 4 selezionate, consigliate 20+).
+  \item Parametri base/avanzati: risoluzione, passi, learning rate, ripetizioni, batch, prefisso caption, salvataggi, GPU.
+  \item Segui l'avanzamento (passo, loss, log) e annulla se serve; a fine training la LoRA \`e copiata in ComfyUI e in \texttt{data/loras}.
+  \item Attiva la LoRA (la prima pronta di una famiglia si attiva da sola).
+\end{itemize}
+
+\section{Flusso completo consigliato}
+\begin{enumerate}
+  \item Crea il personaggio (scheda LoRA, \textbf{+}) e genera la \textbf{foto profilo} (scegli il modello; eventualmente modificala con Qwen-Edit).
+  \item Crea un \textbf{dataset} e genera 30--100 \textbf{variazioni} con Qwen-Image-Edit (scene diverse, stessa persona).
+  \item Se vuoi, aggiungi \textbf{candidati SDXL} per allineare il look alla famiglia della LoRA.
+  \item \textbf{Seleziona} le immagini pi\`u coerenti (obiettivo 20+, meglio 40--80) e correggi le didascalie.
+  \item Controlla gli \textbf{avvisi qualit\`a} e i duplicati.
+  \item Crea la LoRA e \textbf{accoda il training} sul dataset curato.
+  \item Attiva la LoRA e usala nella scheda \textbf{Immagini}: scegli checkpoint della stessa famiglia, eventualmente aggiungi stile/outfit e pose.
+  \item Curati i risultati nella libreria e riusali in chat.
+\end{enumerate}
+
+\section{Modelli e compatibilit\`a}
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\textbf{Famiglia} & \textbf{Modelli} & \textbf{Note} \\
+\midrule
+SDXL real & PornMaster Pro, LUSTIFY & LoRA personaggio, IPAdapter, ControlNet posa, FaceDetailer \\
+SDXL real (SFW) & Playground v2.5 & realistico-estetico per foto quotidiane non esplicite; LoRA SDXL compatibili \\
+SDXL pony & (non installati al momento) & score tag, workflow pony \\
+SDXL anime & (non installati al momento) & tag danbooru, workflow anime \\
+Qwen-Image & qwen\_image fp8, Qwen-Image-Edit 2509 & text2img 20 step; Edit per variazioni/avatar \\
+Z-Image & z\_image bf16, turbo bf16 & turbo 4 step (veloce), base 30 step \\
+FLUX.2 & flux2 dev fp8 + turbo LoRA & 8 step, ottima qualit\`a, primo caricamento lento \\
+\bottomrule
+\end{tabularx}
+\caption{Famiglie supportate e uso. IPAdapter/ControlNet/LoRA personaggio sono solo SDXL.}
+\end{table}
+
+\section{Problemi comuni}
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textbf{Sintomo} & \textbf{Rimedio} \\
+\midrule
+ComfyUI non raggiungibile & Avvia ComfyUI sul server; il flag in Home diventa rosso. \\
+Ollama non raggiungibile & Avvia Ollama; verifica con il flag in Home. \\
+Classificazione dataset ferma & Premi \emph{Classifica non classificate}: riparte anche se bloccata. \\
+Training in coda ma non parte & Controlla il flag \emph{Trainer LoRA}: avvia \texttt{train\_worker.py}. \\
+Generazione bloccata/lenta & Usa \emph{Annulla} nella UI; \emph{Libera VRAM} in Home. \\
+Spazio disco & I modelli sono in \texttt{/data/data\_ssd/pigni/comfyUI}; i media in \texttt{data/}. \\
+Instagram chiede il login & Imposta \texttt{INSTAGRAM\_COOKIES} nel \texttt{.env} oppure usa URL/cartella. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Manutenzione, backup e file importanti}
+\begin{itemize}
+  \item \textbf{Backup}: snapshot in \texttt{backups/<versione>/} (dump PostgreSQL, \texttt{.env}, sorgente). Prima di modifiche importanti crearne uno nuovo.
+  \item \textbf{Aggiornamenti}: modificare il codice in \texttt{backend-v5p0}, poi \texttt{docker compose up -d --build}.
+  \item \textbf{Percorsi utili}: \texttt{app/} (API), \texttt{webui/src} (interfaccia), \texttt{workflows/} (grafi SDXL), \texttt{scripts/} (download modelli, trainer), \texttt{data/} (media, dataset, pose, LoRA).
+  \item \textbf{Log}: \texttt{docker compose logs}; trainer in \texttt{/data/data\_ssd/pigni/trainer/runs/<job>/train.log}.
+\end{itemize}
+
+\section{Appendice: variabili \texttt{.env} principali}
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textbf{Variabile} & \textbf{Significato} \\
+\midrule
+\texttt{API\_KEY} & Chiave di accesso alla WebUI/API. \\
+\texttt{POSTGRES\_PASSWORD} & Password del database (volume persistente). \\
+\texttt{DATABASE\_URL} & Connessione al database usata dai container. \\
+\texttt{TEXT\_PROVIDER} / \texttt{OLLAMA\_URL} & Provider chat e indirizzo Ollama. \\
+\texttt{IMAGE\_PROVIDER} / \texttt{COMFYUI\_URL} & Provider immagini e indirizzo ComfyUI. \\
+\texttt{CHAT\_IMAGE\_ENABLED}, \texttt{CHAT\_IMAGE\_NSFW} & Foto in chat e contenuti NSFW. \\
+\texttt{PPV\_ENABLED} & Pagamenti simulati. \\
+\texttt{HUMAN\_MODE\_PROACTIVE\_*} & Messaggi spontanei della Human mode. \\
+\texttt{LORA\_DIR}, \texttt{LORA\_COMFYUI\_SUBDIR} & Archivio LoRA e sotto-cartella in ComfyUI. \\
+\texttt{POSE\_DIR} & Skeleton della Pose Library. \\
+\texttt{INSTAGRAM\_COOKIES} & Cookie di sessione Instagram per l'import dei profili (opzionale). \\
+\texttt{COMFYUI\_URLS} & Istanze ComfyUI aggiuntive (8189--8191) per la generazione parallela. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\end{document}

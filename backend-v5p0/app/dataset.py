@@ -189,18 +189,102 @@ def media_counts(db, source_id: str) -> tuple[int, int]:
     return counts.get("image", 0), counts.get("video", 0)
 
 
-def import_urls(source: DatasetSource, reference: str, limit: int, db) -> int:
+def _import_url_list(source: DatasetSource, urls, limit: int, db) -> int:
     count = 0
-    for line in reference.splitlines():
+    for raw in urls:
         if count >= limit:
             break
-        url = line.strip()
+        url = raw.strip()
         if not url or url.startswith("#"):
             continue
         downloaded = download_image(url)
         if downloaded and store_image(db, source, downloaded[0], downloaded[1]):
             count += 1
     return count
+
+
+def import_urls(source: DatasetSource, reference: str, limit: int, db) -> int:
+    return _import_url_list(source, reference.splitlines(), limit, db)
+
+
+INSTAGRAM_USER = re.compile(r"^(?:https?://(?:www\.)?instagram\.com/)?@?([A-Za-z0-9._]{2,30})/?$")
+INSTAGRAM_IMAGE = re.compile(
+    r'https:\\?/\\?/[^"\'\\ ]+?(?:cdninstagram\.com|fbcdn\.net)[^"\'\\ ]*?\.(?:jpg|jpeg|webp)(?:\?[^"\'\\ ]*)?'
+)
+
+
+def normalize_instagram(reference: str) -> str:
+    match = INSTAGRAM_USER.match(reference.strip())
+    if not match:
+        raise ValueError("Indica un profilo Instagram pubblico: @nome oppure https://instagram.com/nome")
+    return match.group(1)
+
+
+def _instagram_cookies() -> dict:
+    raw = (settings.instagram_cookies or "").strip()
+    if not raw:
+        return {}
+    if raw.startswith("{"):
+        try:
+            return json.loads(raw)
+        except ValueError:
+            return {}
+    cookies = {}
+    for part in raw.split(";"):
+        if "=" in part:
+            name, value = part.split("=", 1)
+            cookies[name.strip()] = value.strip()
+    return cookies
+
+
+def _scrapling_page(url: str):
+    """Fetch with Scrapling: stealth browser when installed, otherwise HTTP impersonation."""
+    try:
+        from scrapling.fetchers import StealthyFetcher  # type: ignore
+
+        try:
+            return StealthyFetcher.fetch(url, headless=True, network_idle=True)
+        except Exception as error:  # noqa: BLE001 - browser missing or blocked: fall back to HTTP
+            logger.info("Scrapling stealth fetch failed (%s), falling back to Fetcher", error)
+    except ImportError:
+        pass
+    try:
+        from scrapling.fetchers import Fetcher  # type: ignore
+    except ImportError as error:
+        raise ValueError("Scrapling non è installato nel backend") from error
+    cookies = _instagram_cookies()
+    return Fetcher.get(url, impersonate="chrome", stealthy_headers=True, cookies=cookies or None)
+
+
+def fetch_instagram_images(reference: str, limit: int) -> list[str]:
+    """Best-effort list of public profile image URLs (pose/style references, not likeness)."""
+    username = normalize_instagram(reference)
+    url = f"https://www.instagram.com/{username}/"
+    try:
+        page = _scrapling_page(url)
+    except ValueError:
+        raise
+    except Exception as error:
+        raise ValueError(f"Instagram non raggiungibile: {error}") from error
+    html = getattr(page, "html_content", None) or getattr(page, "text", None) or str(page)
+    candidates: list[str] = []
+    for match in INSTAGRAM_IMAGE.findall(html):
+        clean = match.replace("\\u0026", "&").replace("\\/", "/")
+        if clean not in candidates:
+            candidates.append(clean)
+    if not candidates:
+        if "login" in html.lower():
+            raise ValueError(
+                "Instagram richiede il login: aggiungi INSTAGRAM_COOKIES nel .env "
+                "(cookie del browser) oppure usa URL diretti o una cartella"
+            )
+        raise ValueError("Nessuna immagine trovata nel profilo Instagram")
+    return candidates[:limit]
+
+
+def import_instagram(source: DatasetSource, reference: str, limit: int, db) -> int:
+    urls = fetch_instagram_images(reference, limit)
+    return _import_url_list(source, urls, limit, db)
 
 
 def import_folder(source: DatasetSource, reference: str, limit: int, db) -> int:
@@ -309,6 +393,8 @@ def run_import(source_id: str, reference: str, limit: int, classify: bool) -> No
                 import_telegram(source, reference, limit, db)
             elif source.kind == "folder":
                 import_folder(source, reference, limit, db)
+            elif source.kind == "instagram":
+                import_instagram(source, reference, limit, db)
             else:
                 import_urls(source, reference, limit, db)
             count = len(list(db.scalars(select(DatasetImage.id).where(DatasetImage.source_id == source_id))))

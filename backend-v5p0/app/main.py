@@ -18,6 +18,7 @@ from .integrations.comfyui import free_memory
 from .integrations.ollama import unload_models
 from .lora_api import router as lora_router
 from .pose_api import router as pose_router
+from .presets_api import router as presets_router
 from .scheduler import scheduler_loop
 from .schemas import Bible, InfluencerInput, JobInput, ReviewInput
 
@@ -238,3 +239,4 @@ app.include_router(characters_router)
 app.include_router(dataset_router)
 app.include_router(lora_router)
 app.include_router(pose_router)
+app.include_router(presets_router)

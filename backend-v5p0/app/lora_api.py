@@ -5,6 +5,7 @@ import random
 import re
 import secrets
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Literal
 
@@ -29,7 +30,7 @@ from .db import (
     now,
 )
 from .image_library import average_hash
-from .integrations.comfyui import ComfyUIError, generate_image, qwen_image_edit
+from .integrations.comfyui import ComfyUIError, checkpoint_meta, generate_image, pick_target, qwen_image_edit
 
 router = APIRouter(prefix="/api", tags=["LoRA"], dependencies=[Depends(authorize)])
 
@@ -507,6 +508,7 @@ class DatasetGenerate(StrictModel):
 class DatasetItemPatch(StrictModel):
     caption: str | None = Field(default=None, max_length=2000)
     selected: bool | None = None
+    reference_role: str | None = Field(default=None, max_length=24)
 
 
 class DatasetVariations(StrictModel):
@@ -516,6 +518,7 @@ class DatasetVariations(StrictModel):
     steps: int | None = Field(default=None, ge=1, le=50)
     cfg: float | None = Field(default=None, ge=0, le=10)
     lora_weight: float = Field(default=1.0, ge=0, le=2)
+    model: str | None = Field(default=None, max_length=200)
 
 
 def dataset_item_out(item: LoraDatasetItem, library: ImageLibrary | None) -> dict:
@@ -527,6 +530,7 @@ def dataset_item_out(item: LoraDatasetItem, library: ImageLibrary | None) -> dic
         "caption": item.caption,
         "similarity": item.similarity,
         "selected": item.selected,
+        "reference_role": item.reference_role,
         "seed": item.seed,
         "filename": library.filename if library else None,
         "status": library.status if library else None,
@@ -635,12 +639,21 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
         style = character.image_style or "real"
         character_id = dataset.character_id
         trigger = dataset.trigger
+        character_prompt = (character.avatar_prompt or "").strip()
         family = dataset.family
+        if checkpoint:
+            meta = checkpoint_meta(checkpoint)
+            if meta["usable"]:
+                family = meta["family"]
+        reference_paths = _dataset_references(db, dataset_id)
+    if not reference_paths and anchor_path is not None:
+        reference_paths = [anchor_path]
     scene = translate_scene(body.prompt, style)
-    prompt = scene if (not trigger or trigger in scene) else f"{trigger}, {scene}"
+    parts = [trigger, character_prompt, scene]
+    prompt = ", ".join(part for part in parts if part)
     negative = body.negative or build_negative_prompt(family)
-    created: list[dict] = []
     targets: list[PoseReference | None] = poses or [None]
+    jobs: list[tuple[PoseReference | None, Path | None, Path | None, int]] = []
     for pose in targets:
         pose_path = None
         if pose is not None and pose.skeleton_filename:
@@ -649,68 +662,116 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
                 pose_path = candidate
         for index in range(body.count):
             seed = (body.seed + index) if body.seed is not None else random.randrange(2**31)
+            reference = reference_paths[len(jobs) % len(reference_paths)] if reference_paths else None
+            jobs.append((pose, pose_path, reference, seed))
+
+    def render(job: tuple[PoseReference | None, Path | None, Path | None, int]):
+        pose, pose_path, reference, seed = job
+        data, meta = generate_image(
+            prompt,
+            negative,
+            seed=seed,
+            reference_path=reference,
+            checkpoint=checkpoint,
+            style=style,
+            family=family,
+            pose_path=pose_path,
+            pose_strength=body.pose_strength,
+            base_url=pick_target(),
+        )
+        return pose, seed, data, meta
+
+    rendered = []
+    errors: list[Exception] = []
+    with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+        futures = [pool.submit(render, job) for job in jobs]
+        for future in futures:
             try:
-                data, meta = generate_image(
-                    prompt,
-                    negative,
-                    seed=seed,
-                    reference_path=anchor_path,
-                    checkpoint=checkpoint,
-                    style=style,
-                    family=family,
-                    pose_path=pose_path,
-                    pose_strength=body.pose_strength,
-                )
+                rendered.append(future.result())
             except ComfyUIError as error:
-                if created:
-                    break
-                raise HTTPException(502, f"Generazione dataset non riuscita: {error}") from error
-            settings.media_dir.mkdir(parents=True, exist_ok=True)
-            filename = f"{identifier()}.png"
-            try:
-                (settings.media_dir / filename).write_bytes(data)
-            except OSError as error:
-                raise HTTPException(500, "Impossibile salvare l'immagine") from error
-            with Session.begin() as db:
-                required(db, LoraDataset, dataset_id)
-                library = ImageLibrary(
-                    character_id=character_id,
-                    filename=filename,
-                    sha256=hashlib.sha256(data).hexdigest(),
-                    phash=average_hash(data),
-                    prompt=prompt,
-                    negative_prompt=negative,
-                    caption="",
-                    tags=[],
-                    checkpoint=meta.get("checkpoint") or checkpoint,
-                    loras=[],
-                    seed=meta.get("seed", seed),
-                    style=style,
-                    status="draft",
-                    rating=0,
-                    source="dataset",
-                    used_count=0,
-                    embedding=[],
-                    embedding_model="",
-                )
-                db.add(library)
-                db.flush()
-                item = LoraDatasetItem(
-                    dataset_id=dataset_id,
-                    image_id=library.id,
-                    pose_ref_id=pose.id if pose else None,
-                    caption=body.prompt,
-                    similarity=0.0,
-                    selected=False,
-                    seed=meta.get("seed", seed),
-                )
-                db.add(item)
-                db.flush()
-                row = db.get(LoraDataset, dataset_id)
-                if row is not None:
-                    row.updated_at = now()
-                created.append(dataset_item_out(item, library))
+                errors.append(error)
+    if not rendered:
+        raise HTTPException(
+            502, f"Generazione dataset non riuscita: {errors[0] if errors else 'errore sconosciuto'}"
+        )
+    created: list[dict] = []
+    for pose, seed, data, meta in rendered:
+        settings.media_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"{identifier()}.png"
+        try:
+            (settings.media_dir / filename).write_bytes(data)
+        except OSError as error:
+            raise HTTPException(500, "Impossibile salvare l'immagine") from error
+        with Session.begin() as db:
+            required(db, LoraDataset, dataset_id)
+            library = ImageLibrary(
+                character_id=character_id,
+                filename=filename,
+                sha256=hashlib.sha256(data).hexdigest(),
+                phash=average_hash(data),
+                prompt=prompt,
+                negative_prompt=negative,
+                caption="",
+                tags=[],
+                checkpoint=meta.get("checkpoint") or checkpoint,
+                loras=[],
+                seed=meta.get("seed", seed),
+                style=style,
+                status="draft",
+                rating=0,
+                source="dataset",
+                used_count=0,
+                embedding=[],
+                embedding_model="",
+            )
+            db.add(library)
+            db.flush()
+            item = LoraDatasetItem(
+                dataset_id=dataset_id,
+                image_id=library.id,
+                pose_ref_id=pose.id if pose else None,
+                caption=body.prompt,
+                similarity=0.0,
+                selected=False,
+                seed=meta.get("seed", seed),
+            )
+            db.add(item)
+            db.flush()
+            row = db.get(LoraDataset, dataset_id)
+            if row is not None:
+                row.updated_at = now()
+            created.append(dataset_item_out(item, library))
     return created
+
+
+@router.delete("/datasets/{dataset_id}")
+def delete_dataset(dataset_id: str):
+    """Delete a dataset with its items and the images it generated."""
+    filenames: list[str] = []
+    with Session.begin() as db:
+        dataset = required(db, LoraDataset, dataset_id)
+        rows = list(
+            db.execute(
+                select(LoraDatasetItem, ImageLibrary)
+                .outerjoin(ImageLibrary, LoraDatasetItem.image_id == ImageLibrary.id)
+                .where(LoraDatasetItem.dataset_id == dataset_id)
+            )
+        )
+        for item, library in rows:
+            if library is not None:
+                filenames.append(library.filename)
+            db.delete(item)
+        db.flush()
+        for _, library in rows:
+            if library is not None:
+                db.delete(library)
+        db.execute(update(TrainingJob).where(TrainingJob.dataset_id == dataset_id).values(dataset_id=None))
+        db.delete(dataset)
+    for filename in filenames:
+        path = (settings.media_dir / filename).resolve()
+        if path.is_relative_to(settings.media_dir.resolve()):
+            path.unlink(missing_ok=True)
+    return {"deleted": True, "id": dataset_id}
 
 
 @router.post("/datasets/{dataset_id}/variations", status_code=201)
@@ -735,7 +796,10 @@ def generate_dataset_variations(dataset_id: str, body: DatasetVariations):
             )
         character_id = dataset.character_id
         trigger = dataset.trigger
-    created: list[dict] = []
+        reference_paths = _dataset_references(db, dataset_id)
+    if not reference_paths and anchor_path is not None:
+        reference_paths = [anchor_path]
+    jobs: list[tuple[int, str, str, int]] = []
     for raw_prompt in body.prompts:
         prompt = raw_prompt.strip()
         if not prompt:
@@ -743,63 +807,82 @@ def generate_dataset_variations(dataset_id: str, body: DatasetVariations):
         caption = prompt if (not trigger or trigger in prompt) else f"{trigger}, {prompt}"
         for index in range(body.count):
             seed = (body.seed + index) if body.seed is not None else random.randrange(2**31)
+            jobs.append((len(jobs), prompt, caption, seed))
+
+    def render(job: tuple[int, str, str, int]):
+        index, prompt, _caption, seed = job
+        data, meta = qwen_image_edit(
+            reference_paths[index % len(reference_paths)],
+            prompt,
+            seed=seed,
+            steps=body.steps,
+            cfg=body.cfg,
+            lora_weight=body.lora_weight,
+            unet_name=body.model,
+            base_url=pick_target(),
+        )
+        return prompt, seed, data, meta
+
+    rendered = []
+    errors: list[Exception] = []
+    with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+        futures = [pool.submit(render, job) for job in jobs]
+        for future in futures:
             try:
-                data, meta = qwen_image_edit(
-                    anchor_path,
-                    prompt,
-                    seed=seed,
-                    steps=body.steps,
-                    cfg=body.cfg,
-                    lora_weight=body.lora_weight,
-                )
+                rendered.append(future.result())
             except ComfyUIError as error:
-                if created:
-                    break
-                raise HTTPException(502, f"Generazione variazioni non riuscita: {error}") from error
-            settings.media_dir.mkdir(parents=True, exist_ok=True)
-            filename = f"{identifier()}.png"
-            try:
-                (settings.media_dir / filename).write_bytes(data)
-            except OSError as error:
-                raise HTTPException(500, "Impossibile salvare l'immagine") from error
-            with Session.begin() as db:
-                library = ImageLibrary(
-                    character_id=character_id,
-                    filename=filename,
-                    sha256=hashlib.sha256(data).hexdigest(),
-                    phash=average_hash(data),
-                    prompt=caption,
-                    negative_prompt="",
-                    caption="",
-                    tags=[],
-                    checkpoint=meta.get("model"),
-                    loras=[],
-                    seed=meta.get("seed", seed),
-                    style="real",
-                    status="draft",
-                    rating=0,
-                    source="dataset",
-                    used_count=0,
-                    embedding=[],
-                    embedding_model="",
-                )
-                db.add(library)
-                db.flush()
-                item = LoraDatasetItem(
-                    dataset_id=dataset_id,
-                    image_id=library.id,
-                    pose_ref_id=None,
-                    caption=prompt,
-                    similarity=0.0,
-                    selected=False,
-                    seed=meta.get("seed", seed),
-                )
-                db.add(item)
-                db.flush()
-                row = db.get(LoraDataset, dataset_id)
-                if row is not None:
-                    row.updated_at = now()
-                created.append(dataset_item_out(item, library))
+                errors.append(error)
+    if not rendered:
+        raise HTTPException(
+            502, f"Generazione variazioni non riuscita: {errors[0] if errors else 'errore sconosciuto'}"
+        )
+    created: list[dict] = []
+    for prompt, seed, data, meta in rendered:
+        caption = prompt if (not trigger or trigger in prompt) else f"{trigger}, {prompt}"
+        settings.media_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"{identifier()}.png"
+        try:
+            (settings.media_dir / filename).write_bytes(data)
+        except OSError as error:
+            raise HTTPException(500, "Impossibile salvare l'immagine") from error
+        with Session.begin() as db:
+            library = ImageLibrary(
+                character_id=character_id,
+                filename=filename,
+                sha256=hashlib.sha256(data).hexdigest(),
+                phash=average_hash(data),
+                prompt=caption,
+                negative_prompt="",
+                caption="",
+                tags=[],
+                checkpoint=meta.get("model"),
+                loras=[],
+                seed=meta.get("seed", seed),
+                style="real",
+                status="draft",
+                rating=0,
+                source="dataset",
+                used_count=0,
+                embedding=[],
+                embedding_model="",
+            )
+            db.add(library)
+            db.flush()
+            item = LoraDatasetItem(
+                dataset_id=dataset_id,
+                image_id=library.id,
+                pose_ref_id=None,
+                caption=prompt,
+                similarity=0.0,
+                selected=False,
+                seed=meta.get("seed", seed),
+            )
+            db.add(item)
+            db.flush()
+            row = db.get(LoraDataset, dataset_id)
+            if row is not None:
+                row.updated_at = now()
+            created.append(dataset_item_out(item, library))
     return created
 
 
@@ -818,7 +901,35 @@ KEYWORD_GROUPS = {
     "day": ("daylight", "sunny", "morning", "afternoon"),
 }
 
-DATASET_TARGET = 20
+DATASET_TARGET = 60
+REFERENCE_ROLES = (
+    "close_face",
+    "three_quarter_face",
+    "profile",
+    "upper_body",
+    "front_full_body",
+    "three_quarter_full_body",
+    "side_full_body",
+)
+
+
+def _dataset_references(db, dataset_id: str) -> list[Path]:
+    """Canonical reference images of a dataset, ordered by role."""
+    rows = list(
+        db.execute(
+            select(LoraDatasetItem, ImageLibrary)
+            .join(ImageLibrary, LoraDatasetItem.image_id == ImageLibrary.id)
+            .where(LoraDatasetItem.dataset_id == dataset_id, LoraDatasetItem.reference_role.isnot(None))
+        )
+    )
+    order = {role: index for index, role in enumerate(REFERENCE_ROLES)}
+    rows.sort(key=lambda pair: order.get(pair[0].reference_role or "", 99))
+    paths: list[Path] = []
+    for _item, library in rows:
+        candidate = (settings.media_dir / library.filename).resolve()
+        if candidate.is_file():
+            paths.append(candidate)
+    return paths
 
 
 @router.get("/datasets/{dataset_id}/analysis")
@@ -847,9 +958,12 @@ def dataset_analysis(dataset_id: str):
             phashes[library.phash] = phashes.get(library.phash, 0) + 1
     duplicates = sum(count - 1 for count in phashes.values() if count > 1)
     pose_counts: dict[str, int] = {}
+    reference_counts: dict[str, int] = {}
     for item, _ in rows:
         if item.pose_ref_id:
             pose_counts[item.pose_ref_id] = pose_counts.get(item.pose_ref_id, 0) + 1
+        if item.reference_role:
+            reference_counts[item.reference_role] = reference_counts.get(item.reference_role, 0) + 1
     caption_counts: dict[str, int] = {}
     for text in captions:
         if text:
@@ -863,6 +977,8 @@ def dataset_analysis(dataset_id: str):
 
     if selected < DATASET_TARGET:
         warn("select_more", f"{selected}/{DATASET_TARGET} selezionate")
+    if total and len(reference_counts) < 4:
+        warn("few_references", f"solo {len(reference_counts)} reference canoniche (servono 4-8)")
     if duplicates:
         warn("duplicates", f"{duplicates} immagini quasi identiche")
     if total >= 10:
@@ -884,6 +1000,7 @@ def dataset_analysis(dataset_id: str):
         "target": DATASET_TARGET,
         "keywords": keywords,
         "duplicates": duplicates,
+        "reference_counts": reference_counts,
         "pose_counts": [
             {"pose_id": pose_id, "name": pose_names.get(pose_id, pose_id), "count": count}
             for pose_id, count in pose_counts.items()
@@ -900,6 +1017,11 @@ def patch_dataset_item(item_id: str, body: DatasetItemPatch):
             item.caption = body.caption
         if body.selected is not None:
             item.selected = body.selected
+        if body.reference_role is not None:
+            role = body.reference_role or None
+            if role is not None and role not in REFERENCE_ROLES:
+                raise HTTPException(400, "Ruolo di reference non valido")
+            item.reference_role = role
         library = db.get(ImageLibrary, item.image_id) if item.image_id else None
         db.flush()
         return dataset_item_out(item, library)
@@ -910,12 +1032,18 @@ def delete_dataset_item(item_id: str):
     filename = None
     with Session.begin() as db:
         item = required(db, LoraDatasetItem, item_id)
-        if item.image_id:
-            library = db.get(ImageLibrary, item.image_id)
-            if library is not None:
-                filename = library.filename
-                db.delete(library)
+        library = db.get(ImageLibrary, item.image_id) if item.image_id else None
+        if library is not None:
+            filename = library.filename
+            db.execute(
+                update(LoraDataset)
+                .where(LoraDataset.anchor_image_id == library.id)
+                .values(anchor_image_id=None)
+            )
         db.delete(item)
+        db.flush()
+        if library is not None:
+            db.delete(library)
     if filename:
         path = (settings.media_dir / filename).resolve()
         if path.is_relative_to(settings.media_dir.resolve()):

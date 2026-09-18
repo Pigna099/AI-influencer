@@ -37,6 +37,7 @@ class Influencer(Base):
     bible: Mapped[dict] = mapped_column(JSON)
     version: Mapped[int] = mapped_column(Integer, default=1)
     avatar_filename: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    avatar_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     image_checkpoint: Mapped[str | None] = mapped_column(String(200), nullable=True)
     image_style: Mapped[str | None] = mapped_column(String(16), nullable=True)
     ppv_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
@@ -322,6 +323,7 @@ class LoraDatasetItem(Base):
     caption: Mapped[str] = mapped_column(Text, default="", server_default="")
     similarity: Mapped[float] = mapped_column(Float, default=0.0, server_default="0")
     selected: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    reference_role: Mapped[str | None] = mapped_column(String(24), nullable=True)
     seed: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now)
 
@@ -343,6 +345,15 @@ class TrainingJob(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now)
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+
+
+class GenerationPreset(Base):
+    __tablename__ = "generation_presets"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now)
+    updated_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
 
 engine = create_engine(

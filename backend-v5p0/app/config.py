@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     chat_temperature: float = 0.7
     cors_origins: str = "http://localhost:3000"
     comfyui_url: str = "http://127.0.0.1:8188"
+    # Extra ComfyUI instances (one per GPU) for parallel generation: comma-separated URLs.
+    comfyui_urls: str = ""
     workflow_path: Path = Path("workflows/default.json")
     generation_timeout: int = 900
     worker_lease_seconds: int = 1200
@@ -61,6 +63,27 @@ class Settings(BaseSettings):
     qwen_edit_cfg: float = 1.0
     qwen_edit_shift: float = 3.0
     qwen_edit_timeout: int = 600
+    # Non-SDXL families selectable in the image playground (diffusion models).
+    qwen_image_unet_name: str = "qwen_image_fp8_e4m3fn.safetensors"
+    qwen_image_clip_name: str = "qwen_2.5_vl_7b_fp8_scaled.safetensors"
+    qwen_image_steps: int = 20
+    qwen_image_cfg: float = 2.5
+    qwen_image_shift: float = 3.0
+    z_image_clip_name: str = "qwen_3_4b.safetensors"
+    z_image_vae_name: str = "ae.safetensors"
+    z_image_unet_name: str = "z_image_bf16.safetensors"
+    z_image_shift: float = 3.0
+    flux2_unet_name: str = "flux2_dev_fp8mixed.safetensors"
+    flux2_clip_name: str = "mistral_3_small_flux2_fp8.safetensors"
+    flux2_vae_name: str = "flux2-vae.safetensors"
+    flux2_lora_name: str = "flux2_turbo.safetensors"
+    flux2_steps: int = 8
+    flux2_cfg: float = 1.0
+    # Playground v2.5: SFW-friendly aesthetic/realism model (EDM sampling).
+    playground_steps: int = 30
+    playground_cfg: float = 3.0
+    playground_sigma_max: float = 120.0
+    playground_sigma_min: float = 0.002
     chat_pony_style: str = (
         "rating_explicit, nsfw, explicit adult content, realistic skin texture, detailed anatomy, "
         "photorealistic, sharp focus"
@@ -82,6 +105,8 @@ class Settings(BaseSettings):
     dataset_max_images: int = 2000
     dataset_download_max_bytes: int = 20 * 1024 * 1024
     dataset_video_max_bytes: int = 200 * 1024 * 1024
+    # Optional Instagram session cookies for the Scrapling importer (pose/style references only).
+    instagram_cookies: str = ""
     # Per-character LoRA pipeline: canonical artifacts and ComfyUI loras subfolder.
     lora_dir: Path = Path("data/loras")
     lora_comfyui_subdir: str = "ai_influencer"

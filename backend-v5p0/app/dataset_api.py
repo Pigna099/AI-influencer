@@ -41,7 +41,7 @@ MEDIA_TYPES = {
 
 class DatasetSourceInput(StrictModel):
     name: str = Field(min_length=1, max_length=120)
-    kind: Literal["telegram", "urls", "folder"]
+    kind: Literal["telegram", "urls", "folder", "instagram"]
     reference: str = Field(min_length=1, max_length=20000)
     character_id: str | None = None
     limit: int = Field(default=200, ge=1, le=2000)

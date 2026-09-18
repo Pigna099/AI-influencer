@@ -34,6 +34,7 @@ class CharacterOutput(StrictModel):
     profile: CharacterProfile
     version: int
     avatar_filename: str | None = None
+    avatar_prompt: str | None = None
     image_checkpoint: str | None = None
     image_style: str | None = None
     ppv_enabled: bool = False
@@ -54,6 +55,10 @@ class ImageCheckpointInput(StrictModel):
 class AvatarInput(StrictModel):
     checkpoint: str | None = Field(default=None, max_length=200)
     style: Literal["anime", "real"] | None = None
+
+
+class AvatarPromptInput(StrictModel):
+    prompt: str | None = Field(default=None, max_length=4000)
 
 
 class AvatarEditInput(StrictModel):
@@ -99,6 +104,8 @@ class PhotoInput(StrictModel):
 class LoraInput(StrictModel):
     name: str = Field(min_length=1, max_length=200)
     weight: float = Field(default=0.8, ge=0, le=2)
+    clip_weight: float | None = Field(default=None, ge=0, le=2)
+    category: Literal["character", "style", "outfit", "composition", "other"] | None = None
 
 
 class LibraryGenerateInput(StrictModel):

@@ -7,6 +7,7 @@ import random
 import re
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
 from statistics import mean, median
@@ -20,6 +21,7 @@ from .auth import authorize
 from .char_schemas import (
     AvatarEditInput,
     AvatarInput,
+    AvatarPromptInput,
     BenchmarkInput,
     CharacterClone,
     CharacterInput,
@@ -47,6 +49,7 @@ from .chat_service import (
     REFUSAL_PATTERN,
     build_avatar_prompt,
     build_context,
+    build_identity_prompt,
     build_negative_prompt,
     build_prompt_from_profile,
     build_scene_prompt,
@@ -101,6 +104,8 @@ from .integrations.comfyui import (
     get_checkpoints,
     get_loras,
     interrupt,
+    lora_family,
+    pick_target,
     qwen_image_edit,
 )
 from .integrations.gpu import gpu_status
@@ -132,6 +137,7 @@ def character_out(item):
         profile=CharacterProfile(**normalize_bible_profile(item.bible)),
         version=item.version,
         avatar_filename=item.avatar_filename,
+        avatar_prompt=item.avatar_prompt,
         image_checkpoint=item.image_checkpoint,
         image_style=item.image_style,
         ppv_enabled=item.ppv_enabled,
@@ -228,7 +234,12 @@ def list_image_checkpoints():
 
 @router.get("/images/loras")
 def list_image_loras():
-    return {"available": comfyui_available(), "loras": get_loras()}
+    loras = get_loras()
+    return {
+        "available": comfyui_available(),
+        "loras": loras,
+        "families": {name: lora_family(name) for name in loras},
+    }
 
 
 @router.post("/images/interrupt")
@@ -302,27 +313,40 @@ def generate_library_images(character_id: str, body: LibraryGenerateInput):
     negative = body.negative or build_negative_prompt(family)
     loras = [lora.model_dump() for lora in body.loras]
     batch_max = max(1, settings.image_library_batch_max)
-    created = []
-    for index in range(min(body.count, batch_max)):
+    count = min(body.count, batch_max)
+
+    def render(index: int) -> tuple[int, bytes, dict]:
         seed = (body.seed + index) if body.seed is not None else random.randrange(2**31)
         pose_path = pose_paths[index % len(pose_paths)] if pose_paths else None
-        try:
-            data, meta = generate_image(
-                prompt,
-                negative,
-                seed=seed,
-                reference_path=reference,
-                checkpoint=checkpoint,
-                style=style,
-                family=family,
-                loras=loras,
-                pose_path=pose_path,
-                pose_strength=body.pose_strength,
-            )
-        except ComfyUIError as error:
-            if created:
-                break
-            raise HTTPException(502, f"Generazione foto non riuscita: {error}") from error
+        data, meta = generate_image(
+            prompt,
+            negative,
+            seed=seed,
+            reference_path=reference,
+            checkpoint=checkpoint,
+            style=style,
+            family=family,
+            loras=loras,
+            pose_path=pose_path,
+            pose_strength=body.pose_strength,
+            base_url=pick_target(),
+        )
+        return seed, data, meta
+
+    rendered: list[tuple[int, bytes, dict]] = []
+    errors: list[Exception] = []
+    with ThreadPoolExecutor(max_workers=count) as pool:
+        futures = [pool.submit(render, index) for index in range(count)]
+        for future in futures:
+            try:
+                rendered.append(future.result())
+            except ComfyUIError as error:
+                errors.append(error)
+    if not rendered:
+        raise HTTPException(502, f"Generazione foto non riuscita: {errors[0] if errors else 'errore sconosciuto'}")
+
+    created = []
+    for seed, data, meta in rendered:
         settings.media_dir.mkdir(parents=True, exist_ok=True)
         filename = f"{identifier()}.png"
         try:
@@ -403,6 +427,10 @@ def delete_library_item(item_id: str):
     with Session.begin() as db:
         item = required(db, ImageLibrary, item_id)
         filename = item.filename
+        db.execute(delete(LoraDatasetItem).where(LoraDatasetItem.image_id == item_id))
+        db.execute(
+            update(LoraDataset).where(LoraDataset.anchor_image_id == item_id).values(anchor_image_id=None)
+        )
         db.delete(item)
     unlink_media([filename])
     return {"deleted": True}
@@ -513,6 +541,7 @@ def generate_avatar(character_id: str, body: AvatarInput | None = None):
     appearance = (profile.get("appearance") or profile.get("description") or "").strip()
     profile = {**profile, "appearance": translate_scene(appearance, style)}
     prompt = build_avatar_prompt(name, profile, style, family)
+    identity_prompt = build_identity_prompt(name, profile, family)
     negative = build_negative_prompt(family)
     reference = (settings.media_dir / old_avatar) if old_avatar else None
     try:
@@ -537,10 +566,20 @@ def generate_avatar(character_id: str, body: AvatarInput | None = None):
         item = required(db, Influencer, character_id)
         old = item.avatar_filename
         item.avatar_filename = filename
+        item.avatar_prompt = identity_prompt
         db.flush()
         result = character_out(item)
     unlink_media([old] if old else [])
     return result
+
+
+@router.put("/characters/{character_id}/avatar-prompt")
+def set_avatar_prompt(character_id: str, body: AvatarPromptInput):
+    with Session.begin() as db:
+        item = required(db, Influencer, character_id)
+        item.avatar_prompt = body.prompt or None
+        db.flush()
+        return character_out(item)
 
 
 @router.post("/characters/{character_id}/avatar/edit", status_code=201)

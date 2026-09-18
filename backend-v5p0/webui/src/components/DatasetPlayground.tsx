@@ -52,7 +52,7 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
   const [images, setImages] = useState<DatasetImage[]>([]);
   const [selected, setSelected] = useState<DatasetImage | null>(null);
   const [name, setName] = useState("");
-  const [kind, setKind] = useState<"telegram" | "urls" | "folder">("telegram");
+  const [kind, setKind] = useState<"telegram" | "urls" | "folder" | "instagram">("telegram");
   const [reference, setReference] = useState("");
   const [limit, setLimit] = useState(100);
   const [classify, setClassify] = useState(true);
@@ -204,8 +204,8 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
         <div className="section-title"><h2>{t("ds.newSource")}</h2></div>
         <div className="ip-form">
           <label>{t("ds.name")}<input value={name} disabled={!!busy} onChange={e => setName(e.target.value)} maxLength={120} /></label>
-          <label>{t("ds.kind")}<select value={kind} disabled={!!busy} onChange={e => setKind(e.target.value as "telegram" | "urls" | "folder")}><option value="telegram">{t("ds.kind.telegram")}</option><option value="urls">{t("ds.kind.urls")}</option><option value="folder">{t("ds.kind.folder")}</option></select></label>
-          <label>{t("ds.reference")}<textarea rows={3} value={reference} disabled={!!busy} onChange={e => setReference(e.target.value)} placeholder={kind === "telegram" ? t("ds.reference.telegram") : kind === "urls" ? t("ds.reference.urls") : t("ds.reference.folder")} maxLength={20000} /></label>
+          <label>{t("ds.kind")}<select value={kind} disabled={!!busy} onChange={e => setKind(e.target.value as "telegram" | "urls" | "folder" | "instagram")}><option value="telegram">{t("ds.kind.telegram")}</option><option value="urls">{t("ds.kind.urls")}</option><option value="folder">{t("ds.kind.folder")}</option><option value="instagram">{t("ds.kind.instagram")}</option></select></label>
+          <label>{t("ds.reference")}<textarea rows={3} value={reference} disabled={!!busy} onChange={e => setReference(e.target.value)} placeholder={kind === "telegram" ? t("ds.reference.telegram") : kind === "urls" ? t("ds.reference.urls") : kind === "instagram" ? t("ds.reference.instagram") : t("ds.reference.folder")} maxLength={20000} /></label>
           <label>{t("ds.limit")}<input type="number" min="1" max="2000" value={limit} disabled={!!busy} onChange={e => setLimit(Math.max(1, Math.min(2000, Number(e.target.value))))} /></label>
           <label className="auto-label">{t("ds.classify")} <input type="checkbox" checked={classify} disabled={!!busy} onChange={e => setClassify(e.target.checked)} /></label>
           <button className="primary" disabled={!!busy || !name.trim() || !reference.trim()} onClick={createSource}>{t("ds.create")}</button>

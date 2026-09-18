@@ -4,6 +4,8 @@ import { api, Character, CharacterLora, CharacterProfile, CheckpointInfo, LoraDa
 import { useI18n, LanguageSwitch } from "../i18n";
 import CharacterAvatar from "./CharacterAvatar";
 import CharacterForm from "./CharacterForm";
+
+const NO_OLLAMA_MODELS: never[] = [];
 import DatasetPanel from "./DatasetPanel";
 import Lightbox from "./Lightbox";
 
@@ -128,6 +130,12 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   const [editing, setEditing] = useState<Character | "new" | null>(null);
   const [avatarCheckpoint, setAvatarCheckpoint] = useState("");
   const [avatarPrompt, setAvatarPrompt] = useState("");
+  const [guideOpen, setGuideOpen] = useState(() => localStorage.getItem("lora_guide") !== "0");
+  const toggleGuide = () => {
+    const next = !guideOpen;
+    setGuideOpen(next);
+    localStorage.setItem("lora_guide", next ? "1" : "0");
+  };
   const [datasets, setDatasets] = useState<LoraDataset[]>([]);
   const [viewer, setViewer] = useState<{ url: string; alt: string } | null>(null);
   const character = characters.find(item => item.id === characterId);
@@ -272,7 +280,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
         <LanguageSwitch /><button onClick={onLogout} disabled={!!busy}>{t("pg.logout")}</button>
       </div></header>
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
-    <div className="workspace image-workspace" style={{ gridTemplateColumns: "225px minmax(320px, 1fr)" }}>
+    <div className="workspace image-workspace" style={{ gridTemplateColumns: guideOpen ? "225px minmax(320px, 1fr) 340px" : "225px minmax(320px, 1fr)" }}>
       <aside className="character-rail">
         <div className="section-title"><h2>{t("ip.characters")}</h2><span>{characters.length}</span><button aria-label={t("lp.addCharacter")} disabled={!!busy} onClick={() => setEditing("new")}>+</button></div>
         <div className="character-list">{characters.map((item, index) => <button key={item.id} disabled={!!busy} onClick={() => setCharacterId(item.id)} className={`character-row ${characterId === item.id ? "selected" : ""}`}>
@@ -281,7 +289,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
       </aside>
       <main className="main-panel">
         <div className="chat-heading"><div><span className="eyebrow">LoRA</span><h2>{character?.name || t("lp.title")}</h2><p>{t("lp.subtitle")}</p></div>
-          <span className="library-count">{loras.length} LoRA</span></div>
+          <span className="library-count">{loras.length} LoRA</span><button type="button" onClick={toggleGuide}>{guideOpen ? t("lp.guide.hide") : t("lp.guide.show")}</button></div>
         {busy && <p className="memory-status lora-busy" role="status"><span className="spinner" />{busy} <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
         <div className="lora-content">
           <section className="lora-step">
@@ -347,8 +355,20 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
           </section>
         </div>
       </main>
+      {guideOpen && <aside className="lora-guide">
+        <div className="section-title"><h2>{t("lp.guide.title")}</h2><button type="button" onClick={toggleGuide} aria-label={t("lp.guide.hide")}>×</button></div>
+        <p className="muted">{t("lp.guide.intro")}</p>
+        <section><h3>{t("lp.guide.character")}</h3><p>{t("lp.guide.characterText")}</p></section>
+        <section><h3>{t("lp.guide.dataset")}</h3><p>{t("lp.guide.datasetText")}</p></section>
+        <section><h3>{t("lp.guide.training")}</h3><p>{t("lp.guide.trainingText")}</p>
+          <ul><li>{t("lp.guide.rank")}</li><li>{t("lp.guide.stepsTraining")}</li><li>{t("lp.guide.activation")}</li></ul></section>
+        <section><h3>{t("lp.guide.usage")}</h3><p>{t("lp.guide.usageText")}</p>
+          <ul><li>{t("lp.guide.weights")}</li><li>{t("lp.guide.clip")}</li><li>{t("lp.guide.poses")}</li></ul></section>
+        <section><h3>{t("lp.guide.glossary")}</h3>
+          <ul><li>{t("lp.guide.glossaryCheckpoint")}</li><li>{t("lp.guide.glossaryLora")}</li><li>{t("lp.guide.glossaryTrigger")}</li><li>{t("lp.guide.glossaryIpadapter")}</li><li>{t("lp.guide.glossaryControlnet")}</li><li>{t("lp.guide.glossaryQwen")}</li></ul></section>
+      </aside>}
     </div>
     {viewer && <Lightbox src={viewer.url} alt={viewer.alt} onClose={() => setViewer(null)} />}
-    {editing && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={t("form.aria")}><CharacterForm character={editing === "new" ? undefined : editing} models={[]} onSave={saveCharacter} onCancel={() => setEditing(null)} /></div></div>}
+    {editing && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={t("form.aria")}><CharacterForm character={editing === "new" ? undefined : editing} models={NO_OLLAMA_MODELS} onSave={saveCharacter} onCancel={() => setEditing(null)} /></div></div>}
   </div>;
 }

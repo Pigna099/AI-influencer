@@ -226,6 +226,13 @@ def build_scene_prompt(
     )
 
 
+def build_identity_prompt(name: str, profile: dict, family: str = "real") -> str:
+    """Identity core of the avatar prompt (subject + name + appearance), reused by dataset candidates."""
+    appearance = (profile.get("appearance") or profile.get("description") or "").strip()
+    parts = [_subject(profile, family), name if family == "real" else "", appearance]
+    return ", ".join(part for part in parts if part)
+
+
 def build_avatar_prompt(name: str, profile: dict, style: str = "real", family: str | None = None) -> str:
     family = family or checkpoint_family(style, None)
     appearance = (profile.get("appearance") or profile.get("description") or "").strip()

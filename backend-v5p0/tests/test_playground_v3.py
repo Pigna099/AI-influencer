@@ -1033,3 +1033,72 @@ def test_interrupt_generation(monkeypatch):
     response = client.post("/api/images/interrupt")
     assert response.status_code == 200 and response.json() == {"interrupted": True}
     assert TestClient(app).post("/api/images/interrupt").status_code == 401
+
+
+def test_checkpoint_family_detection():
+    from app.integrations.comfyui import checkpoint_meta
+
+    assert checkpoint_meta("qwen_image_fp8_e4m3fn.safetensors")["family"] == "qwen-image"
+    assert checkpoint_meta("qwen_image_edit_2509_fp8_e4m3fn.safetensors")["family"] == "qwen-image"
+    assert checkpoint_meta("z_image_turbo_bf16.safetensors")["family"] == "z-image"
+    assert checkpoint_meta("flux2_dev_fp8mixed.safetensors")["family"] == "flux2"
+    assert checkpoint_meta("pornmasterProSDXL_sdxlV2VAE_1072864.safetensors")["family"] == "real"
+    assert checkpoint_meta("wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors")["family"] == "video"
+    assert checkpoint_meta("flux2_dev_fp8mixed.safetensors")["usable"] is True
+    assert checkpoint_meta("playground-v2.5-1024px-aesthetic.fp16.safetensors")["family"] == "playground"
+    from app.integrations.comfyui import _diffusion_graph
+
+    graph = _diffusion_graph("playground", "playground.safetensors", "p", "n", 1,
+                             loras=[{"name": "ai_influencer/char.safetensors", "weight": 0.85}])
+    assert graph["lora1"]["inputs"]["strength_model"] == 0.85
+    assert graph["5"]["inputs"]["model"] == ["lora1", 0]
+    assert graph["2"]["inputs"]["clip"] == ["lora1", 1]
+
+
+def test_dataset_instagram_import(monkeypatch):
+    data = png_bytes()
+    monkeypatch.setattr(
+        "app.dataset.fetch_instagram_images", lambda reference, limit: ["https://cdninstagram.com/a.jpg"]
+    )
+    monkeypatch.setattr("app.dataset.download_image", lambda url: (data, ".png"))
+    created = client.post(
+        "/api/dataset/sources",
+        json={
+            "name": "IG dataset",
+            "kind": "instagram",
+            "reference": "@someprofile",
+            "limit": 10,
+            "classify": False,
+        },
+    )
+    assert created.status_code == 201, created.text
+    source_id = created.json()["id"]
+    source = client.get(f"/api/dataset/sources/{source_id}").json()
+    assert source["status"] == "ready" and source["imported"] == 1
+    images = client.get(f"/api/dataset/images?source_id={source_id}").json()
+    assert len(images) == 1 and images[0]["status"] == "pending"
+
+
+def test_dataset_instagram_login_wall(monkeypatch):
+    def login_wall(reference, limit):
+        raise ValueError("Instagram richiede il login: aggiungi INSTAGRAM_COOKIES nel .env")
+
+    monkeypatch.setattr("app.dataset.fetch_instagram_images", login_wall)
+    created = client.post(
+        "/api/dataset/sources",
+        json={"name": "IG blocked", "kind": "instagram", "reference": "@blocked", "limit": 5, "classify": False},
+    )
+    source = client.get(f"/api/dataset/sources/{created.json()['id']}").json()
+    assert source["status"] == "failed" and "login" in source["error"]
+
+
+def test_instagram_reference_normalization():
+    from app.dataset import normalize_instagram
+
+    assert normalize_instagram("@Anna.Style") == "Anna.Style"
+    assert normalize_instagram("https://instagram.com/anna.style/") == "anna.style"
+    assert normalize_instagram("anna.style") == "anna.style"
+    import pytest
+
+    with pytest.raises(ValueError):
+        normalize_instagram("https://instagram.com/p/ABC123/")

@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, Character, CharacterLora, CheckpointInfo, LibraryImage, PoseReference } from "../api";
+import { api, Character, CharacterLora, CheckpointInfo, GenerationPreset, LibraryImage, PoseReference } from "../api";
 import { useI18n, LanguageSwitch } from "../i18n";
 import CharacterAvatar from "./CharacterAvatar";
 import Lightbox from "./Lightbox";
 import PoseLibrary from "./PoseLibrary";
+
+type LoraSelection = { on: boolean; weight: number; clip?: number | null; category?: string };
+
+const LORA_CATEGORIES = ["character", "style", "outfit", "composition", "other"] as const;
+const SDXL_FAMILIES = ["real", "pony", "anime", "playground"];
 
 function LibraryThumb({ item, onView, alt }: { item: LibraryImage; onView: (url: string, alt: string) => void; alt: string }) {
   const [url, setUrl] = useState("");
@@ -42,7 +47,10 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   const [negative, setNegative] = useState("");
   const [style, setStyle] = useState<"real" | "anime">("real");
   const [checkpoint, setCheckpoint] = useState("");
-  const [loraSel, setLoraSel] = useState<Record<string, { on: boolean; weight: number }>>({});
+  const [loraSel, setLoraSel] = useState<Record<string, LoraSelection>>({});
+  const [loraFamilies, setLoraFamilies] = useState<Record<string, string>>({});
+  const [presets, setPresets] = useState<GenerationPreset[]>([]);
+  const [presetId, setPresetId] = useState("");
   const [poses, setPoses] = useState<PoseReference[]>([]);
   const [characterLoras, setCharacterLoras] = useState<CharacterLora[]>([]);
   const autoApplied = useRef<Set<string>>(new Set());
@@ -81,14 +89,16 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
 
   useEffect(() => {
     let live = true;
-    Promise.all([api.getCharacters(), api.getCheckpoints(), api.getLoras(), api.getPoses()])
-      .then(([chars, checkpointData, loraData, poseData]) => {
+    Promise.all([api.getCharacters(), api.getCheckpoints(), api.getLoras(), api.getPoses(), api.getPresets()])
+      .then(([chars, checkpointData, loraData, poseData, presetData]) => {
         if (!live) return;
         setCharacters(chars);
         setCheckpoints(checkpointData.checkpoints);
         setLoras(loraData.loras);
+        setLoraFamilies(loraData.families ?? {});
         setPoses(poseData);
-        setLoraSel(Object.fromEntries(loraData.loras.map(name => [name, { on: false, weight: 0.8 }])));
+        setPresets(presetData);
+        setLoraSel(Object.fromEntries(loraData.loras.map(name => [name, { on: false, weight: 0.8, clip: null, category: "other" }])));
         const first = chars[0];
         if (first) {
           setCharacterId(first.id);
@@ -114,7 +124,13 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   }, [characterId]);
 
   const checkpointFamily = checkpoints.find(item => item.name === checkpoint)?.family ?? (style === "anime" ? "anime" : "real");
-  const activeCharacterLora = characterLoras.find(item => item.is_active && item.family === checkpointFamily && item.filename);
+  const activeCharacterLora = characterLoras.find(item => item.is_active && item.filename && (SDXL_FAMILIES.includes(checkpointFamily) ? SDXL_FAMILIES.includes(item.family) : item.family === checkpointFamily));
+  const compatibleLoras = loras.filter(name => {
+    const family = loraFamilies[name] ?? "sdxl";
+    if (SDXL_FAMILIES.includes(checkpointFamily)) return family === "sdxl" || SDXL_FAMILIES.includes(family);
+    return family === checkpointFamily;
+  });
+  const hiddenLoras = loras.length - compatibleLoras.length;
 
   useEffect(() => {
     if (!characterId || !activeCharacterLora?.filename) return;
@@ -122,7 +138,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
     if (autoApplied.current.has(key)) return;
     autoApplied.current.add(key);
     const name = activeCharacterLora.filename;
-    setLoraSel(prev => ({ ...prev, [name]: { on: true, weight: prev[name]?.weight ?? 0.85 } }));
+    setLoraSel(prev => ({ ...prev, [name]: { on: true, weight: prev[name]?.weight ?? 0.85, clip: prev[name]?.clip ?? null, category: "character" } }));
   }, [characterId, checkpointFamily, checkpoint, activeCharacterLora]);
 
   const refresh = useCallback(async (id: string) => {
@@ -173,7 +189,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
     void perform(t("ip.generating"), async () => {
       const selectedLoras = Object.entries(loraSel)
         .filter(([, value]) => value.on)
-        .map(([name, value]) => ({ name, weight: value.weight }));
+        .map(([name, value]) => ({ name, weight: value.weight, clip_weight: value.clip ?? undefined, category: value.category }));
       const items = await api.generateLibraryImages(character.id, {
         prompt: prompt.trim(),
         negative: negative.trim() || undefined,
@@ -187,6 +203,56 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
         classify,
       });
       setLibrary(prev => [...items, ...prev]);
+    });
+  };
+
+  const applyPreset = () => {
+    const preset = presets.find(item => item.id === presetId);
+    if (!preset) return;
+    const payload = preset.payload as {
+      prompt?: string; negative?: string; style?: "real" | "anime"; checkpoint?: string;
+      loras?: { name: string; weight: number; clip_weight?: number; category?: string }[];
+      pose_ids?: string[]; pose_strength?: number; count?: number;
+    };
+    if (payload.prompt !== undefined) setPrompt(payload.prompt);
+    if (payload.negative !== undefined) setNegative(payload.negative);
+    if (payload.style) setStyle(payload.style);
+    if (payload.checkpoint !== undefined) setCheckpoint(payload.checkpoint);
+    if (payload.count) setCount(payload.count);
+    if (payload.pose_ids) setPoseIds(payload.pose_ids);
+    if (payload.pose_strength !== undefined) setPoseStrength(String(payload.pose_strength));
+    if (payload.loras) {
+      const next: Record<string, LoraSelection> = {};
+      for (const [name, value] of Object.entries(loraSel)) next[name] = { ...value, on: false };
+      for (const lora of payload.loras) {
+        next[lora.name] = { on: true, weight: lora.weight, clip: lora.clip_weight ?? null, category: lora.category ?? "other" };
+      }
+      setLoraSel(next);
+    }
+  };
+
+  const savePreset = () => {
+    const name = window.prompt(t("ip.presetName"), "");
+    if (!name || !name.trim()) return;
+    const selectedLoras = Object.entries(loraSel)
+      .filter(([, value]) => value.on)
+      .map(([loraName, value]) => ({ name: loraName, weight: value.weight, clip_weight: value.clip ?? undefined, category: value.category }));
+    void perform(t("common.save"), async () => {
+      const created = await api.createPreset({
+        name: name.trim(),
+        payload: { prompt, negative, style, checkpoint, loras: selectedLoras, pose_ids: poseIds, pose_strength: Number(poseStrength), count },
+      });
+      setPresets(prev => [...prev, created]);
+      setPresetId(created.id);
+    });
+  };
+
+  const deletePreset = () => {
+    if (!presetId || !window.confirm(t("ip.presetDeleteConfirm"))) return;
+    void perform("", async () => {
+      await api.deletePreset(presetId);
+      setPresets(prev => prev.filter(item => item.id !== presetId));
+      setPresetId("");
     });
   };
 
@@ -262,6 +328,15 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
       <aside className="inspector image-inspector">
         <div className="section-title"><h2>{t("ip.generatePanel")}</h2>{character?.avatar_filename && <span title={t("ip.referenceOn")}>◉</span>}</div>
         <div className="ip-form">
+          <label>{t("ip.preset")}<select value={presetId} disabled={!!busy} onChange={e => setPresetId(e.target.value)}>
+            <option value="">{t("ip.presetNone")}</option>
+            {presets.map(preset => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
+          </select></label>
+          <div className="preset-actions">
+            <button type="button" disabled={!!busy || !presetId} onClick={applyPreset}>{t("ip.presetApply")}</button>
+            <button type="button" disabled={!!busy} onClick={savePreset}>{t("ip.presetSave")}</button>
+            {presetId && <button type="button" className="danger" disabled={!!busy} onClick={deletePreset}>{t("common.delete")}</button>}
+          </div>
           <label>{t("ip.prompt")}<textarea rows={4} value={prompt} disabled={!!busy} onChange={e => setPrompt(e.target.value)} placeholder={t("ip.promptPlaceholder")} maxLength={2000} /></label>
           <label>{t("ip.direction")}<input value={direction} disabled={!!busy} onChange={e => setDirection(e.target.value)} placeholder={t("ip.directionPlaceholder")} maxLength={1000} /></label>
           <button type="button" disabled={!!busy || !prompt.trim()} onClick={augment}>{t("ip.augment")}</button>
@@ -272,11 +347,18 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
           </details>
           <div className="lora-picker"><span>{t("ip.loras")}</span>
             {!loras.length && <small className="muted">{t("ip.noLoras")}</small>}
-            {loras.map(name => <div className="lora-row" key={name}>
-              <input type="checkbox" checked={loraSel[name]?.on || false} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { on: e.target.checked, weight: prev[name]?.weight ?? 0.8 } }))} />
+            {compatibleLoras.map(name => <div className="lora-row" key={name}>
+              <input type="checkbox" checked={loraSel[name]?.on || false} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: e.target.checked, weight: prev[name]?.weight ?? 0.8 } }))} />
               <span className="lora-name" title={name}>{name}</span>
-              <input type="number" min="0" max="2" step="0.05" value={loraSel[name]?.weight ?? 0.8} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { on: prev[name]?.on ?? false, weight: Number(e.target.value) } }))} />
+              <input type="number" min="0" max="2" step="0.05" value={loraSel[name]?.weight ?? 0.8} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: prev[name]?.on ?? false, weight: Number(e.target.value) } }))} />
+              {loraSel[name]?.on && <div className="lora-extra">
+                <select value={loraSel[name]?.category ?? "other"} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: prev[name]?.on ?? false, weight: prev[name]?.weight ?? 0.8, category: e.target.value } }))}>
+                  {LORA_CATEGORIES.map(category => <option key={category} value={category}>{t(`ip.loraCat.${category}`)}</option>)}
+                </select>
+                <label>CLIP<input type="number" min="0" max="2" step="0.05" value={loraSel[name]?.clip ?? ""} placeholder="auto" disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: prev[name]?.on ?? false, weight: prev[name]?.weight ?? 0.8, clip: e.target.value === "" ? null : Number(e.target.value) } }))} /></label>
+              </div>}
             </div>)}
+            {hiddenLoras > 0 && <small className="muted">{t("ip.lorasHidden", { count: hiddenLoras })}</small>}
           </div>
           {activeCharacterLora?.filename && loraSel[activeCharacterLora.filename]?.on && <p className="muted">{t("ip.characterLoraOn", { name: activeCharacterLora.filename })}</p>}
           <div className="pose-picker"><span>{t("lp.poseSelect")}</span>

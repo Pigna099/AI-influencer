@@ -342,8 +342,174 @@ def test_dataset_analysis(monkeypatch):
         client.patch(f"/api/dataset-items/{item['id']}", json={"selected": True})
 
     analysis = client.get(f"/api/datasets/{dataset['id']}/analysis").json()
-    assert analysis["total"] == 4 and analysis["selected"] == 4 and analysis["target"] == 20
+    assert analysis["total"] == 4 and analysis["selected"] == 4 and analysis["target"] == 60
     codes = {warning["code"] for warning in analysis["warnings"]}
     assert "select_more" in codes
     assert "duplicates" in codes and analysis["duplicates"] == 3
     assert analysis["keywords"]["standing"] == 4
+
+
+def test_delete_dataset_item(monkeypatch):
+    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
+    character_id = make_character("Delete Item")
+    dataset = make_dataset(character_id)
+    items = client.post(
+        f"/api/datasets/{dataset['id']}/generate", json={"prompt": "same person, standing", "count": 1}
+    ).json()
+    item = items[0]
+    response = client.delete(f"/api/dataset-items/{item['id']}")
+    assert response.status_code == 200, response.text
+    detail = client.get(f"/api/datasets/{dataset['id']}").json()
+    assert detail["item_count"] == 0
+    assert client.get(f"/api/library/{item['image_id']}/file").status_code == 404
+
+
+def test_delete_library_item_in_dataset(monkeypatch):
+    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
+    character_id = make_character("Delete Library")
+    dataset = make_dataset(character_id)
+    items = client.post(
+        f"/api/datasets/{dataset['id']}/generate", json={"prompt": "same person, sitting", "count": 1}
+    ).json()
+    image_id = items[0]["image_id"]
+    assert client.delete(f"/api/library/{image_id}").status_code == 200
+    detail = client.get(f"/api/datasets/{dataset['id']}").json()
+    assert detail["item_count"] == 0
+
+
+def test_delete_dataset_with_images(monkeypatch):
+    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
+    character_id = make_character("Delete Dataset")
+    dataset = make_dataset(character_id)
+    items = client.post(
+        f"/api/datasets/{dataset['id']}/generate", json={"prompt": "same person", "count": 2}
+    ).json()
+    response = client.delete(f"/api/datasets/{dataset['id']}")
+    assert response.status_code == 200, response.text
+    assert client.get(f"/api/datasets/{dataset['id']}").status_code == 404
+    assert client.get(f"/api/characters/{character_id}/datasets").json() == []
+    assert client.get(f"/api/library/{items[0]['image_id']}/file").status_code == 404
+
+
+def test_dataset_reference_roles(monkeypatch):
+    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
+    character_id = make_character("References")
+    dataset = make_dataset(character_id)
+    items = client.post(
+        f"/api/datasets/{dataset['id']}/generate", json={"prompt": "portrait", "count": 2}
+    ).json()
+    patched = client.patch(
+        f"/api/dataset-items/{items[0]['id']}", json={"reference_role": "close_face"}
+    )
+    assert patched.status_code == 200
+    assert patched.json()["reference_role"] == "close_face"
+    invalid = client.patch(
+        f"/api/dataset-items/{items[1]['id']}", json={"reference_role": "nope"}
+    )
+    assert invalid.status_code == 400
+    cleared = client.patch(f"/api/dataset-items/{items[0]['id']}", json={"reference_role": ""}).json()
+    assert cleared["reference_role"] is None
+
+    client.patch(f"/api/dataset-items/{items[0]['id']}", json={"reference_role": "profile"})
+    analysis = client.get(f"/api/datasets/{dataset['id']}/analysis").json()
+    assert analysis["reference_counts"] == {"profile": 1}
+    assert any(warning["code"] == "few_references" for warning in analysis["warnings"])
+
+
+def test_candidates_use_canonical_references(monkeypatch):
+    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
+    character_id = make_character("RefCandidates")
+    dataset = make_dataset(character_id)
+    first = client.post(
+        f"/api/datasets/{dataset['id']}/generate", json={"prompt": "portrait", "count": 1}
+    ).json()[0]
+    client.patch(f"/api/dataset-items/{first['id']}", json={"reference_role": "front_full_body"})
+
+    captured = []
+
+    def spy(prompt, negative, **kwargs):
+        captured.append(kwargs.get("reference_path"))
+        return png_bytes(), {"seed": kwargs.get("seed", 1)}
+
+    monkeypatch.setattr("app.lora_api.generate_image", spy)
+    client.post(f"/api/datasets/{dataset['id']}/generate", json={"prompt": "standing", "count": 2})
+    assert len(captured) == 2
+    assert all(path is not None and path.name == first["filename"] for path in captured)
+
+
+def test_variations_use_canonical_references(monkeypatch):
+    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
+    character_id = make_character("RefVariations")
+    assert client.post(f"/api/characters/{character_id}/avatar").status_code in (200, 201)
+    dataset = make_dataset(character_id)
+    reference = client.post(
+        f"/api/datasets/{dataset['id']}/generate", json={"prompt": "portrait", "count": 1}
+    ).json()[0]
+    client.patch(f"/api/dataset-items/{reference['id']}", json={"reference_role": "upper_body"})
+
+    captured = []
+
+    def spy(reference_path, prompt, negative="", **kwargs):
+        captured.append(reference_path)
+        return png_bytes(), {"seed": kwargs.get("seed", 1)}
+
+    monkeypatch.setattr("app.lora_api.qwen_image_edit", spy)
+    client.post(f"/api/datasets/{dataset['id']}/variations", json={"prompts": ["same person, cafe"], "count": 1})
+    assert len(captured) == 1 and captured[0].name == reference["filename"]
+
+
+def test_candidates_family_follows_checkpoint(monkeypatch):
+    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
+    character_id = make_character("Family Follow")
+    dataset = make_dataset(character_id)
+    captured = {}
+
+    def spy(prompt, negative, **kwargs):
+        captured.update(kwargs)
+        return png_bytes(), {"seed": kwargs.get("seed", 1)}
+
+    monkeypatch.setattr("app.lora_api.generate_image", spy)
+    client.post(
+        f"/api/datasets/{dataset['id']}/generate",
+        json={"prompt": "portrait", "checkpoint": "qwen_image_2512_fp8_e4m3fn.safetensors", "pose_ids": [], "count": 1},
+    )
+    assert captured["family"] == "qwen-image"
+    assert captured["checkpoint"] == "qwen_image_2512_fp8_e4m3fn.safetensors"
+
+
+def test_character_prompt_flows_into_candidates(monkeypatch):
+    profile = {
+        "description": "d",
+        "appearance": "asian woman with black hair and green eyes",
+        "personality_traits": "t",
+        "tone_of_voice": "t",
+        "boundaries": "b",
+    }
+    character_id = client.post("/api/characters", json={"name": "Identity Prompt", "profile": profile}).json()["id"]
+    assert client.post(f"/api/characters/{character_id}/avatar").status_code in (200, 201)
+    character = client.get(f"/api/characters/{character_id}").json()
+    assert "asian" in (character["avatar_prompt"] or "").lower()
+
+    updated = client.put(
+        f"/api/characters/{character_id}/avatar-prompt",
+        json={"prompt": "asian woman, long black hair, green eyes"},
+    ).json()
+    assert updated["avatar_prompt"] == "asian woman, long black hair, green eyes"
+
+    dataset = make_dataset(character_id)
+    captured = {}
+
+    def spy(prompt, negative, **kwargs):
+        captured["prompt"] = prompt
+        return png_bytes(), {"seed": 1}
+
+    monkeypatch.setattr("app.lora_api.generate_image", spy)
+    client.post(
+        f"/api/datasets/{dataset['id']}/generate",
+        json={"prompt": "standing in a park", "pose_ids": [], "count": 1},
+    )
+    assert "asian woman" in captured["prompt"]
+    assert "standing in a park" in captured["prompt"]
+
+    cleared = client.put(f"/api/characters/{character_id}/avatar-prompt", json={"prompt": None}).json()
+    assert cleared["avatar_prompt"] is None

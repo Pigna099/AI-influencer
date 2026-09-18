@@ -31,7 +31,8 @@ docker compose stop              # ferma senza cancellare dati
 La scheda **Home** (pagina iniziale su `/`) mostra lo stato del sistema a colpo d'occhio:
 
 - **Flag di stato** (verde/giallo/rosso) per API+database, **ComfyUI**, **Ollama**, telemetria **GPU** e worker di training (heartbeat): utili per capire subito quale servizio ha un problema.
-- **GPU in tempo reale** aggiornate ogni 5 secondi (memoria, utilizzo, potenza, temperatura, processi) e pulsante **Libera VRAM** nella scheda Chat.
+- **GPU in tempo reale** aggiornate ogni 5 secondi (memoria, utilizzo, potenza, temperatura, processi); **Libera VRAM** agisce su tutte le istanze ComfyUI.
+- **Generazione parallela**: 4 istanze ComfyUI (8188-8191, una per GPU) avviate dallo script di boot; i batch vengono distribuiti automaticamente sulle istanze libere.
 - **Personaggi** con foto profilo, stile e numero di LoRA, con link diretto alla chat.
 - **Modelli disponibili**: checkpoint ComfyUI (famiglia, compatibilità), LoRA ComfyUI e modelli Ollama (tipo, dimensione); pulsante Aggiorna e timestamp.
 
@@ -138,6 +139,7 @@ Il checkpoint per personaggio si sceglie dal menu **Checkpoint foto**; la famigl
 - **Reale** (SDXL): `lustifySDXLNSFWSFW_v20.safetensors` (LUSTIFY v2) — fotorealistico, senza LoRA.
 - **Pony**: `CyberRealisticPony_V18.0_F16.safetensors` — composizioni esplicite e pose difficili; richiede score tag Pony (gestiti automaticamente) e LoRA Pony.
 - **Anime**: `NoobAI-XL-v1.1.safetensors` / `illustriousXL20_v20.safetensors`.
+- **Playground v2.5** (`playground-v2.5-1024px-aesthetic.fp16.safetensors`): realistico-estetico **SFW-friendly** per le foto quotidiane (lifestyle, ritratti, non esplicito). Richiede campionamento EDM, gestito automaticamente dal backend; le LoRA SDXL del personaggio restano compatibili.
 - **PornMaster Pro SDXL**: dalla fonte originale su Civitai (autore `iamddtla`, model id `1031308`). Il token è nel `.env` privato; comando verificato:
   `uv run python scripts/download_models.py --only pornmaster --civitai-model-id 1031308 --civitai-version-id 1167499`
   Lo script preferisce il file FP16 (~7 GB) al FP32 quando entrambi esistono. In alternativa `--civitai-file <parte-del-nome>`. I modelli non-SDXL (Flux, SD1.5, Qwen, ecc.) sono marcati `unsupported` e nascosti dal selettore.
@@ -162,6 +164,8 @@ La quarta scheda **LoRA** (accento ambra) registra le LoRA di identità per pers
 3. **Worker sul server**: `scripts/trainer/train_worker.py` ritira i job `queued`, sceglie la GPU con più memoria libera (o quella indicata), esegue kohya `sdxl_train_network.py` e riporta l'avanzamento (passo/loss) alla UI. Alla fine copia il file in `ai_influencer/` dentro i LoRA di ComfyUI e in `data/loras/` come backup.
 4. **Attiva**: la prima LoRA pronta di una famiglia diventa attiva automaticamente; le successive si attivano a mano. Il job si può annullare dalla UI.
 
+**Flusso dataset (reference canoniche)**: crea un dataset e genera 20-50 **candidati identità** con Qwen-Image-2512 (o un altro modello). Assegna un **ruolo** a 4-8 immagini scelte (volto ravvicinato, 3/4, profilo, mezzo busto, figura intera frontale/3-4/laterale): sono le *reference canoniche*. Da qui partono due **rami indipendenti**: **Variazioni** (Qwen-Image-Edit, scene/outfit/pose) e **Candidati SDXL** (checkpoint + IPAdapter + ControlNet pose). Entrambi finiscono nella stessa griglia di cura; l'obiettivo e' 50-70 immagini finali (la barra mostra il progresso verso 60). I due rami non si incrociano: le immagini Qwen non passano da SDXL.
+
 Installazione del trainer (una volta):
 
 ```bash
@@ -183,7 +187,7 @@ La terza scheda **Dataset** costruisce un dataset di immagini e descrizioni da u
 - **URL immagini**: una linea per URL (https). Utile con export propri o file già scaricati altrove.
 - **Cartella sul server**: metti i file in `backend-v5p0/data/imports/<nome>` e indica `<nome>`. Solo percorsi dentro `data/imports` sono accettati.
 
-**Instagram non viene scaricato automaticamente**: lo scraping dei profili viola i ToS di Meta e il vincolo del progetto è non replicare persone reali. Usa un export ufficiale o i tuoi file nella cartella `data/imports`, oppure gli URL che hai diritto di usare.
+**Profilo Instagram pubblico** (opzionale, via [Scrapling](https://github.com/D4Vinci/Scrapling)): indica `@profilo` o `https://instagram.com/profilo`. Le immagini servono **solo come riferimento di posa/stile** (moodboard), mai come volto da replicare; l'uso è a tuo carico nel rispetto dei ToS di Meta. Se Instagram mostra il login, aggiungi i cookie del browser in `INSTAGRAM_COOKIES` nel `.env` (formato `sessionid=...; csrftoken=...`). Il fetcher HTTP con impersonificazione funziona gi\`a; per la modalit\`a stealth avanzata (browser) serve `scrapling install` dentro il container (richiede dipendenze di sistema aggiuntive). In alternativa usa un export ufficiale, i tuoi file in `data/imports` o URL diretti.
 
 **Descrizione automatica**: ogni immagine viene analizzata dal modello vision (`IMAGE_TAG_MODEL`, predefinito `gemma3:27b`) che produce caption + campi strutturati (posa, ambiente, luce, scena, outfit, corpo, pelle, inquadratura, mood, stile) + tag. Se il modello segnala un possibile minore l'immagine viene marcata **blocked** e non descritta.
 

@@ -1,0 +1,17 @@
+
+.character-prompt {
+  margin-bottom: 12px;
+  border: 1px solid var(--border, #444);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.character-prompt summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.character-prompt .muted {
+  font-size: 0.85em;
+  margin: 6px 0;
+}

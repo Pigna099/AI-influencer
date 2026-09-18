@@ -205,6 +205,7 @@ Queste voci sono richieste esplicite, da pianificare e implementare in passi suc
 - Cura dei risultati (approva/scarta/elimina), libreria video per personaggio, stesso pattern della libreria immagini.
 - Prerequisito già pronto: il dataset Telegram scarica anche i video e li marca `kind=video` con anteprima, da usare per le pose.
 - Metriche GPU e tempi dedicati (i video sono molto più pesanti).
+- **Nota (18 settembre 2026)**: modelli LTX 2.3 riscaricati e completati (dev fp8 29.1 GB, distilled fp8 29.5 GB, distilled LoRA); resta mancante solo la LoRA Gemma abliterated citata dai workflow LTX dell'utente (da reinserire a mano o rimuovere dal grafo). Wan 2.2 i2v + LoRA lightx2v restano installati come via pronta. Generazione ora parallela su 4 GPU (4 istanze ComfyUI, porte 8188-8191).
 
 ### 14.4 Filtro modelli nelle UI — FATTO (13 settembre 2026)
 
@@ -267,12 +268,12 @@ Il pulsante ora **forza il riavvio**: le immagini senza descrizione (`pending`+`
 
 La generazione della foto profilo è ora nella scheda **LoRA** (anteprima del personaggio, pulsante Genera/Rigenera, visore a schermo intero); nel pannello chat resta solo la visualizzazione.
 
-### 14.14 Supporto checkpoint e LoRA FLUX.2 e Qwen Image (richiesto 15 settembre 2026)
+### 14.14 Supporto checkpoint e LoRA FLUX.2 e Qwen Image — FATTO (15 settembre 2026)
 
-- Usare nelle UI anche checkpoint e LoRA di **FLUX.2** e **Qwen Image**, oltre a SDXL.
-- Workflow dedicati per famiglia (prompt/negativi, guidance, steps, eventuali text encoder dedicati), metadati `family` estesi (`flux2`, `qwen-image`) e modelli non più esclusi dal filtro.
-- Registry LoRA per famiglia: una LoRA è valida solo per la sua famiglia; selettori immagini/chat mostrano solo le combinazioni compatibili.
-- Verificare VRAM richiesta (Flux fp8/GGUF, Qwen) e scaricare i checkpoint mancanti.
+- Discovery modelli estesa: `GET /api/images/checkpoints` unisce `CheckpointLoaderSimple` e `UNETLoader` con famiglia `qwen-image`, `z-image`, `flux2` (oltre a real/pony/anime/video) e `usable`.
+- Workflow programmatici per famiglia (niente JSON SDXL): **Qwen-Image** (UNETLoader + qwen_2.5_vl + vae, AuraFlow shift 3, CFGNorm, 20 step cfg 2.5), **Z-Image** (turbo 4 step cfg 1 / base 30 step cfg 4, sampler `res_multistep`, CLIP type `lumina2`), **FLUX.2 dev** (Mistral fp8, flux2 VAE, turbo LoRA, `SamplerCustomAdvanced` + `Flux2Scheduler`, 8 step cfg 1).
+- IPAdapter/ControlNet/LoRA personaggio restano solo SDXL (le famiglie nuove generano testo→immagine; Qwen-Image-Edit resta dedicato alle variazioni dataset).
+- Validato con generazioni reali: Z-Image turbo 41 s, FLUX.2 183 s (primo caricamento 53 GB). Selettori Immagini/LoRA/chat mostrano le nuove famiglie; la LoRA automatica del personaggio non si applica a queste famiglie.
 
 ### 14.15 Scheda "Home" — FATTO (15 settembre 2026)
 
@@ -306,7 +307,11 @@ Da fare per completare il flusso: workflow/endpoint **Qwen-Image-Edit** per le v
 
 **Stato (sesta slice, 15 settembre 2026)**: foto profilo con **scelta del modello** (`POST /api/characters/{id}/avatar` con `checkpoint`), **modifica con Qwen-Image-Edit** (`POST /api/characters/{id}/avatar/edit`) o **rigenerazione da zero**; il "+" nuovo personaggio è nella **barra sinistra** della scheda LoRA; aggiunti hint UI che spiegano **candidati (SDXL+IPAdapter)** vs **variazioni (Qwen-Edit)** e il significato del **rank**.
 
-**Stato (settima slice, 15 settembre 2026)**: **analisi qualità dataset** (`GET /api/datasets/{id}/analysis`): progresso verso 20 selezionate, duplicati via phash, copertura pose, keyword (full body, profilo, frontale, standing/sitting/lying, outdoor/indoor, giorno/notte) e avvisi localizzati nella UI; **LoRA personaggio automatica** nella scheda Immagini (all'apertura si attiva la LoRA attiva della famiglia del checkpoint con peso 0.85 e la UI lo segnala). Restano dai punti §14.16: categorie multi-LoRA (Style/Outfit) e CLIP weight, preset di generazione, rigenera/stesso seed per item, carica impostazioni dall'immagine, mappa compatibilità checkpoint↔LoRA, reference canonical/face/full-body, supporto modelli Qwen/Z-Image/FLUX.2 nella scheda Immagini (in attesa dell'ultimo download).
+**Stato (settima slice, 15 settembre 2026)**: **analisi qualità dataset** (`GET /api/datasets/{id}/analysis`): progresso verso 20 selezionate, duplicati via phash, copertura pose, keyword (full body, profilo, frontale, standing/sitting/lying, outdoor/indoor, giorno/notte) e avvisi localizzati nella UI; **LoRA personaggio automatica** nella scheda Immagini (all'apertura si attiva la LoRA attiva della famiglia del checkpoint con peso 0.85 e la UI lo segnala).
+
+**Stato (ottava slice, 15 settembre 2026)**: **multi-LoRA** con categorie (Personaggio/Stile/Outfit/Composizione/Altro) e **CLIP weight** per riga (`apply_loras` imposta `strength_clip`); **preset di generazione** persistenti (`generation_presets`, CRUD API + UI: applica/salva/elimina nella scheda Immagini); **filtro compatibilità** LoRA nel selettore (famiglie dedotte da nome/cartella: le LoRA incompatibili col checkpoint vengono nascoste e conteggiate). Fatto anche: scelta del modello per step (variazioni/candidati), pose nei candidati SDXL, obiettivo dataset 40, guida utente nella scheda LoRA, generazione parallela su 4 GPU. Restano dai punti §14.16: rigenera/stesso seed per item, carica impostazioni dall'immagine, reference canonical/face/full-body.
+
+**Stato (nona slice, 18 settembre 2026)**: pipeline dataset **a reference canoniche** — flusso: (1) 20-50 candidati identità con **Qwen-Image-2512**, (2) cura e scelta di **4-8 reference** con ruoli (`close_face`, `three_quarter_face`, `profile`, `upper_body`, `front_full_body`, `three_quarter_full_body`, `side_full_body`), (3) due **rami indipendenti** — variazioni **Qwen-Image-Edit** e candidati **SDXL + IPAdapter + DWPose/ControlNet** — entrambi nella stessa griglia di cura fino a 50-70 immagini finali (target 60). Migrazione `0015`; le reference alimentano entrambi i rami (rotazione sulle reference, fallback alla foto profilo).
 
 **Da riusare (già presente)**: scheda LoRA con registry e coda training; worker kohya; tabelle `character_loras`, `lora_datasets`, `lora_dataset_items`, `pose_references`, `training_jobs`; `image_library` con metadati (prompt, seed, checkpoint, loras, tag, phash); IPAdapter; workflow JSON parametrizzati per famiglia; modello `Influencer` (niente nuovo modello Character: si estende).
 
