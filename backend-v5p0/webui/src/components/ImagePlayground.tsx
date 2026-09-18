@@ -38,6 +38,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   const [characters, setCharacters] = useState<Character[]>([]);
   const [characterId, setCharacterId] = useState("");
   const [library, setLibrary] = useState<LibraryImage[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [checkpoints, setCheckpoints] = useState<CheckpointInfo[]>([]);
   const [loras, setLoras] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState("");
@@ -143,6 +144,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
 
   const refresh = useCallback(async (id: string) => {
     if (!id) { setLibrary([]); return; }
+    setSelectedIds([]);
     const epoch = generation.current;
     const items = await api.getLibrary(id, { status: statusFilter, style: styleFilter });
     if (epoch === generation.current) setLibrary(items);
@@ -262,6 +264,20 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
     void perform("", async () => updateItem(await api.patchLibraryItem(item.id, { rating })));
   const classifyItem = (item: LibraryImage) =>
     void perform(t("ip.classifying"), async () => updateItem(await api.classifyLibraryItem(item.id)));
+  const toggleSelectedId = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(entry => entry !== id) : [...prev, id]);
+  };
+
+  const removeSelected = () => {
+    if (!selectedIds.length) return;
+    if (!window.confirm(t("bulk.confirmDelete", { count: selectedIds.length }))) return;
+    void perform("", async () => {
+      await api.deleteLibraryItems(selectedIds);
+      setLibrary(prev => prev.filter(entry => !selectedIds.includes(entry.id)));
+      setSelectedIds([]);
+    });
+  };
+
   const removeItem = (item: LibraryImage) => {
     if (!window.confirm(t("ip.deleteConfirm"))) return;
     void perform("", async () => {
@@ -303,11 +319,16 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
           <span className="library-count">{t("ip.imagesCount", { count: library.length })}</span>
         </div>
         <div className="library-scroll">
+          <div className="bulk-bar">
+            <label><input type="checkbox" disabled={!!busy || !library.length} checked={selectedIds.length > 0 && selectedIds.length === library.length} onChange={e => setSelectedIds(e.target.checked ? library.map(entry => entry.id) : [])} /> {t("bulk.selectAll")}</label>
+            <button className="danger" disabled={!!busy || !selectedIds.length} onClick={removeSelected}>{t("bulk.deleteSelected", { count: selectedIds.length })}</button>
+          </div>
           {!library.length && <div className="empty-memory"><span>◎</span><p>{t("ip.empty")}</p></div>}
           <div className="library-grid">{library.map(item => <article className={`library-card status-${item.status}`} key={item.id}>
             <div className="library-thumb">
               <LibraryThumb item={item} onView={(url, alt) => setViewer({ url, alt })} alt={item.caption || item.prompt} />
               <span className={`badge ${item.status}`}>{statusLabel(item)}</span>
+              <label className="select-check" title={t("bulk.select")}><input type="checkbox" checked={selectedIds.includes(item.id)} disabled={!!busy} onChange={() => toggleSelectedId(item.id)} /></label>
             </div>
             <div className="library-meta">
               <div className="library-stars" role="group" aria-label={t("ip.rating")}>{[1, 2, 3, 4, 5].map(value => <button key={value} className={item.rating >= value ? "on" : ""} disabled={!!busy} onClick={() => setRating(item, value)} aria-label={`${value}/5`}>★</button>)}</div>

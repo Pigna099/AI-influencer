@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, Character, CheckpointInfo, DatasetAnalysis, LoraDataset, LoraDatasetDetail, LoraDatasetItem, PoseReference } from "../api";
 import { useI18n, TranslationKey } from "../i18n";
 
-const SDXL_FAMILIES = ["real", "pony", "anime"];
+const SDXL_FAMILIES = ["real", "pony", "anime", "playground"];
 const REFERENCE_ROLES = [
   "close_face",
   "three_quarter_face",
@@ -76,6 +76,7 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
   const [candidateCheckpoint, setCandidateCheckpoint] = useState("");
   const [candidateCount, setCandidateCount] = useState(1);
   const [candidatePoseIds, setCandidatePoseIds] = useState<string[]>([]);
+  const [deleteIds, setDeleteIds] = useState<string[]>([]);
   const [candidateStrength, setCandidateStrength] = useState("0.8");
 
   const loadDetail = useCallback(async (id: string) => {
@@ -85,6 +86,8 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
   }, []);
 
   useEffect(() => { void loadDetail(openId).catch(() => undefined); }, [openId, loadDetail]);
+
+  useEffect(() => { setDeleteIds([]); }, [openId]);
 
   useEffect(() => {
     setCharacterPrompt(character?.avatar_prompt ?? "");
@@ -182,6 +185,21 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
     void perform("", async () => {
       const updated = await api.patchDatasetItem(item.id, { caption });
       setDetail(prev => prev ? { ...prev, items: prev.items.map(entry => (entry.id === updated.id ? updated : entry)) } : prev);
+    });
+  };
+
+  const toggleDeleteId = (id: string) => {
+    setDeleteIds(prev => prev.includes(id) ? prev.filter(entry => entry !== id) : [...prev, id]);
+  };
+
+  const removeSelected = () => {
+    if (!detail || !deleteIds.length) return;
+    if (!window.confirm(t("bulk.confirmDelete", { count: deleteIds.length }))) return;
+    void perform("", async () => {
+      await api.deleteDatasetItems(deleteIds);
+      setDeleteIds([]);
+      await loadDetail(detail.id);
+      await refresh();
     });
   };
 
@@ -295,8 +313,12 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
       </div>
 
       {!detail.items.length && <p className="muted">{t("lp.datasetEmpty")}</p>}
+      <div className="bulk-bar">
+        <label><input type="checkbox" disabled={busy || !detail.items.length} checked={deleteIds.length > 0 && deleteIds.length === detail.items.length} onChange={e => setDeleteIds(e.target.checked ? detail.items.map(entry => entry.id) : [])} /> {t("bulk.selectAll")}</label>
+        <button className="danger" disabled={busy || !deleteIds.length} onClick={removeSelected}>{t("bulk.deleteSelected", { count: deleteIds.length })}</button>
+      </div>
       <div className="dataset-grid">{detail.items.map(item => <article className={`dataset-card ${item.selected ? "selected" : ""}`} key={item.id}>
-        <div className="dataset-thumb"><ItemThumb item={item} alt={item.caption || detail.trigger} onView={onView} /></div>
+        <div className="dataset-thumb"><label className="select-check" title={t("bulk.select")}><input type="checkbox" checked={deleteIds.includes(item.id)} disabled={busy} onChange={() => toggleDeleteId(item.id)} /></label><ItemThumb item={item} alt={item.caption || detail.trigger} onView={onView} /></div>
         <div className="dataset-meta">
           {item.reference_role && <span className="reference-badge">{t(`lp.role.${item.reference_role}` as TranslationKey)}</span>}
           <input key={item.id} defaultValue={item.caption} disabled={busy} onBlur={e => saveCaption(item, e.target.value)} maxLength={2000} />

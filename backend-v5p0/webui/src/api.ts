@@ -522,6 +522,10 @@ export class ApiClient {
     return this.request(`/api/library/${id}`, { method: "DELETE" });
   }
 
+  async deleteLibraryItems(ids: string[]): Promise<{deleted: number}> {
+    return this.request("/api/library/bulk-delete", { method: "POST", body: JSON.stringify({ ids }) });
+  }
+
   async classifyLibraryItem(id: string): Promise<LibraryImage> {
     return this.request(`/api/library/${id}/classify`, { method: "POST" });
   }
@@ -751,6 +755,10 @@ export class ApiClient {
 
   async deleteDatasetItem(itemId: string): Promise<{deleted: boolean; id: string}> {
     return this.request(`/api/dataset-items/${itemId}`, {method: "DELETE"});
+  }
+
+  async deleteDatasetItems(ids: string[]): Promise<{deleted: number}> {
+    return this.request("/api/loras/dataset-items/bulk-delete", { method: "POST", body: JSON.stringify({ ids }) });
   }
 
   async deleteDataset(datasetId: string): Promise<{deleted: boolean; id: string}> {

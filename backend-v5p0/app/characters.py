@@ -23,6 +23,7 @@ from .char_schemas import (
     AvatarInput,
     AvatarPromptInput,
     BenchmarkInput,
+    BulkIdsInput,
     CharacterClone,
     CharacterInput,
     CharacterOutput,
@@ -434,6 +435,23 @@ def delete_library_item(item_id: str):
         db.delete(item)
     unlink_media([filename])
     return {"deleted": True}
+
+
+@router.post("/library/bulk-delete")
+def delete_library_items(body: BulkIdsInput):
+    with Session.begin() as db:
+        items = db.scalars(select(ImageLibrary).where(ImageLibrary.id.in_(body.ids))).all()
+        ids = [item.id for item in items]
+        filenames = [item.filename for item in items]
+        if ids:
+            db.execute(delete(LoraDatasetItem).where(LoraDatasetItem.image_id.in_(ids)))
+            db.execute(
+                update(LoraDataset).where(LoraDataset.anchor_image_id.in_(ids)).values(anchor_image_id=None)
+            )
+        for item in items:
+            db.delete(item)
+    unlink_media(filenames)
+    return {"deleted": len(filenames)}
 
 
 @router.post("/library/{item_id}/classify")

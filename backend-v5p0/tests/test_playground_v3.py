@@ -1054,6 +1054,16 @@ def test_checkpoint_family_detection():
     assert graph["5"]["inputs"]["model"] == ["lora1", 0]
     assert graph["2"]["inputs"]["clip"] == ["lora1", 1]
 
+    graph = _diffusion_graph(
+        "playground", "playground.safetensors", "p", "n", 1,
+        reference_name="ref.png", pose_name="pose.png", pose_strength=0.7,
+    )
+    assert graph["11"]["class_type"] == "easy ipadapterApplyADV"
+    assert graph["11"]["inputs"]["image"] == ["12", 0]
+    assert graph["5"]["inputs"]["model"] == ["11", 0]
+    assert graph["32"]["inputs"]["strength"] == 0.7
+    assert graph["6"]["inputs"]["positive"] == ["32", 0]
+
 
 def test_dataset_instagram_import(monkeypatch):
     data = png_bytes()

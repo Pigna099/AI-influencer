@@ -622,9 +622,17 @@ def _style_workflows(style: str, family: str | None = None) -> tuple[Path, Path]
 
 
 def _diffusion_graph(
-    family: str, checkpoint: str, prompt: str, negative: str, seed: int, loras: list[dict] | None = None
+    family: str,
+    checkpoint: str,
+    prompt: str,
+    negative: str,
+    seed: int,
+    loras: list[dict] | None = None,
+    reference_name: str | None = None,
+    pose_name: str | None = None,
+    pose_strength: float = 0.8,
 ) -> dict:
-    """Programmatic graph for the non-SDXL diffusion families (no IPAdapter/ControlNet)."""
+    """Programmatic graph for the non-SDXL families. Playground (SDXL-based) supports IPAdapter and OpenPose."""
     width = height = 1024
     if family == "playground":
         graph = {
@@ -646,8 +654,34 @@ def _diffusion_graph(
                 },
             }
             model_ref, clip_ref = [node_id, 0], [node_id, 1]
+        if reference_name:
+            graph["12"] = {"class_type": "LoadImage", "inputs": {"image": reference_name, "upload": "image"}}
+            graph["11"] = {
+                "class_type": "easy ipadapterApplyADV",
+                "inputs": {
+                    "model": model_ref, "image": ["12", 0], "preset": "PLUS (high strength)",
+                    "lora_strength": 0.6, "provider": "CUDA", "weight": 0.6, "weight_faceidv2": 1.0,
+                    "weight_type": "ease in-out", "combine_embeds": "concat", "start_at": 0.0,
+                    "end_at": 1.0, "embeds_scaling": "K+V", "cache_mode": "all", "use_tiled": False,
+                    "use_batch": False, "sharpening": 0.0,
+                },
+            }
+            model_ref = ["11", 0]
         graph["2"] = {"class_type": "CLIPTextEncode", "inputs": {"clip": clip_ref, "text": prompt}}
         graph["3"] = {"class_type": "CLIPTextEncode", "inputs": {"clip": clip_ref, "text": negative}}
+        positive_ref, negative_ref = ["2", 0], ["3", 0]
+        if pose_name:
+            graph["30"] = {"class_type": "ControlNetLoader", "inputs": {"control_net_name": settings.pose_controlnet_name}}
+            graph["31"] = {"class_type": "LoadImage", "inputs": {"image": pose_name, "upload": "image"}}
+            graph["32"] = {
+                "class_type": "ControlNetApplyAdvanced",
+                "inputs": {
+                    "positive": positive_ref, "negative": negative_ref, "control_net": ["30", 0],
+                    "image": ["31", 0], "strength": float(pose_strength),
+                    "start_percent": 0.0, "end_percent": 0.85,
+                },
+            }
+            positive_ref, negative_ref = ["32", 0], ["32", 1]
         graph["5"] = {
             "class_type": "ModelSamplingContinuousEDM",
             "inputs": {
@@ -658,7 +692,7 @@ def _diffusion_graph(
         graph["6"] = {
             "class_type": "KSampler",
             "inputs": {
-                "model": ["5", 0], "positive": ["2", 0], "negative": ["3", 0], "latent_image": ["4", 0],
+                "model": ["5", 0], "positive": positive_ref, "negative": negative_ref, "latent_image": ["4", 0],
                 "seed": seed, "steps": settings.playground_steps, "cfg": settings.playground_cfg,
                 "sampler_name": "dpmpp_2m", "scheduler": "sgm_uniform", "denoise": 1.0,
             },
@@ -775,7 +809,19 @@ def generate_image(
     family = family or style
     base_url = base_url or pick_target()
     if family in DIFFUSION_FAMILIES:
-        workflow = _diffusion_graph(family, checkpoint or "", prompt, negative_prompt, seed, loras=loras)
+        reference_name = None
+        pose_name = None
+        if family == "playground":
+            if reference_path is not None and reference_path.is_file():
+                reference_name = upload_reference(reference_path, base_url=base_url)
+            if pose_path is not None:
+                if not pose_path.is_file():
+                    raise ComfyUIError("Skeleton di posa non trovato")
+                pose_name = upload_reference(pose_path, base_url=base_url)
+        workflow = _diffusion_graph(
+            family, checkpoint or "", prompt, negative_prompt, seed, loras=loras,
+            reference_name=reference_name, pose_name=pose_name, pose_strength=pose_strength,
+        )
         started = time.perf_counter()
         data = _submit_and_wait(workflow, settings.generation_timeout, base_url=base_url)
         return data, {
@@ -785,8 +831,8 @@ def generate_image(
             "style": style,
             "family": family,
             "loras": [],
-            "reference": False,
-            "pose": False,
+            "reference": bool(reference_name),
+            "pose": bool(pose_name),
             "seconds": time.perf_counter() - started,
         }
     plain_path, reference_setting = _style_workflows(style, family)

@@ -513,3 +513,35 @@ def test_character_prompt_flows_into_candidates(monkeypatch):
 
     cleared = client.put(f"/api/characters/{character_id}/avatar-prompt", json={"prompt": None}).json()
     assert cleared["avatar_prompt"] is None
+
+
+def test_bulk_delete_library_and_dataset_items(monkeypatch):
+    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
+    monkeypatch.setattr("app.characters.generate_image", fake_generate)
+    character_id = make_character("Bulk Delete")
+    dataset = make_dataset(character_id, trigger="bulk_ds")
+    items = client.post(
+        f"/api/datasets/{dataset['id']}/generate", json={"prompt": "portrait", "count": 2}
+    ).json()
+    assert len(items) == 2
+
+    response = client.post(
+        "/api/loras/dataset-items/bulk-delete", json={"ids": [item["id"] for item in items]}
+    )
+    assert response.status_code == 200 and response.json()["deleted"] == 2
+    detail = client.get(f"/api/datasets/{dataset['id']}").json()
+    assert detail["item_count"] == 0
+    for item in items:
+        assert not (settings.media_dir / item["filename"]).exists()
+
+    generated = client.post(
+        f"/api/characters/{character_id}/library/generate", json={"prompt": "studio", "count": 2}
+    ).json()
+    assert len(generated) == 2
+    response = client.post(
+        "/api/library/bulk-delete", json={"ids": [item["id"] for item in generated]}
+    )
+    assert response.status_code == 200 and response.json()["deleted"] == 2
+    assert client.get(f"/api/characters/{character_id}/library").json() == []
+    for item in generated:
+        assert not (settings.media_dir / item["filename"]).exists()

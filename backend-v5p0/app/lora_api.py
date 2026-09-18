@@ -14,7 +14,7 @@ from pydantic import Field
 from sqlalchemy import func, select, update
 
 from .auth import authorize
-from .char_schemas import StrictModel
+from .char_schemas import BulkIdsInput, StrictModel
 from .chat_service import build_negative_prompt, translate_scene
 from .config import settings
 from .db import (
@@ -385,6 +385,10 @@ def update_training_progress(job_id: str, body: ProgressInput):
     with Session.begin() as db:
         job = required(db, TrainingJob, job_id)
         if job.status in JOB_FINISHED:
+            if job.status == "canceled":
+                lora = db.get(CharacterLora, job.lora_id) if job.lora_id else None
+                character = db.get(Influencer, job.character_id)
+                return job_out(job, lora, character)
             raise HTTPException(409, "Job già concluso")
         job.progress = body.progress
         job.heartbeat_at = now()
@@ -1025,6 +1029,32 @@ def patch_dataset_item(item_id: str, body: DatasetItemPatch):
         library = db.get(ImageLibrary, item.image_id) if item.image_id else None
         db.flush()
         return dataset_item_out(item, library)
+
+
+@router.post("/loras/dataset-items/bulk-delete")
+def delete_dataset_items(body: BulkIdsInput):
+    filenames: list[str] = []
+    with Session.begin() as db:
+        items = db.scalars(select(LoraDatasetItem).where(LoraDatasetItem.id.in_(body.ids))).all()
+        for item in items:
+            library = db.get(ImageLibrary, item.image_id) if item.image_id else None
+            if library is not None:
+                filenames.append(library.filename)
+                db.execute(
+                    update(LoraDataset)
+                    .where(LoraDataset.anchor_image_id == library.id)
+                    .values(anchor_image_id=None)
+                )
+            db.delete(item)
+            db.flush()
+            if library is not None:
+                db.delete(library)
+        deleted = len(items)
+    for filename in filenames:
+        path = (settings.media_dir / filename).resolve()
+        if path.is_relative_to(settings.media_dir.resolve()):
+            path.unlink(missing_ok=True)
+    return {"deleted": deleted}
 
 
 @router.delete("/dataset-items/{item_id}")

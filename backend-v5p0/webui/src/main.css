@@ -174,3 +174,11 @@
 .history-row { display: flex; align-items: center; gap: 4px; }
 .history-row>button:first-child { flex: 1; min-width: 0; }
 .history-row .delete-chat { flex-shrink: 0; padding: .2rem .45rem; color: #f8a4af; }
+
+.character-prompt { margin-bottom: 12px; border: 1px solid #2a3a53; border-radius: 8px; padding: 8px 10px; }
+.character-prompt summary { cursor: pointer; font-weight: 600; }
+.character-prompt .muted { font-size: .85em; margin: 6px 0; }
+.bulk-bar { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: .78rem; }
+.bulk-bar label { display: flex; align-items: center; gap: 5px; color: #9fb3cd; }
+.select-check { position: absolute; top: 8px; right: 8px; z-index: 2; background: #0b1423cc; border-radius: 5px; padding: 2px 4px; display: flex; }
+.select-check input { width: 15px; height: 15px; margin: 0; cursor: pointer; }

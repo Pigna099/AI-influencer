@@ -57,6 +57,10 @@ class AvatarInput(StrictModel):
     style: Literal["anime", "real"] | None = None
 
 
+class BulkIdsInput(StrictModel):
+    ids: list[str] = Field(min_length=1, max_length=200)
+
+
 class AvatarPromptInput(StrictModel):
     prompt: str | None = Field(default=None, max_length=4000)
 

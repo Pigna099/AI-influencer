@@ -581,6 +581,10 @@ const it = {
   "lp.characterPrompt": "Prompt del personaggio (identità)",
   "lp.characterPromptHint": "È la parte identità del prompt usata per la foto profilo (soggetto + aspetto): viene inclusa nei candidati identità per non perdere le caratteristiche (etnia, capelli, occhi, fisico...). Puoi modificarla e salvarla; rigenerando la foto profilo viene aggiornata.",
   "lp.characterPromptSave": "Salva prompt",
+  "bulk.selectAll": "Seleziona tutte",
+  "bulk.select": "Seleziona foto",
+  "bulk.deleteSelected": "Elimina selezionate ({{count}})",
+  "bulk.confirmDelete": "Eliminare {{count}} foto selezionate? L'operazione non è reversibile.",
 } as const;
 
 type Catalog = typeof it;
@@ -1164,6 +1168,10 @@ const en: Record<TranslationKey, string> = {
   "lp.characterPrompt": "Character prompt (identity)",
   "lp.characterPromptHint": "Identity part of the prompt used for the profile picture (subject + appearance): it is included in identity candidates so characteristics (ethnicity, hair, eyes, body...) are preserved. You can edit and save it; regenerating the profile picture updates it.",
   "lp.characterPromptSave": "Save prompt",
+  "bulk.selectAll": "Select all",
+  "bulk.select": "Select photo",
+  "bulk.deleteSelected": "Delete selected ({{count}})",
+  "bulk.confirmDelete": "Delete {{count}} selected photos? This cannot be undone.",
 };
 
 const catalogs: Record<Lang, Record<TranslationKey, string>> = { it, en };

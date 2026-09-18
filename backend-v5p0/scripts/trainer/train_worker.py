@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -20,7 +21,9 @@ from datetime import datetime
 from pathlib import Path
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
-STEP_RE = re.compile(r"(\d+)/(\d+)\s*\[")
+COMFYUI_PORTS = (8188, 8189, 8190, 8191)
+MIN_FREE_MIB = int(os.environ.get("TRAINER_MIN_FREE_MIB") or 16000)
+STEP_RE = re.compile(r"steps:\s+\d+%\|[^|]*\|\s*(\d+)/(\d+)\s*\[")
 LOSS_RE = re.compile(r"loss=([0-9.]+)")
 
 
@@ -78,6 +81,41 @@ def free_gpus():
     return sorted(result, key=lambda item: item[1], reverse=True)
 
 
+def comfyui_urls():
+    raw = os.environ.get("COMFYUI_URLS") or ""
+    urls = [item.strip().rstrip("/") for item in raw.split(",") if item.strip()]
+    return urls or [f"http://127.0.0.1:{port}" for port in COMFYUI_PORTS]
+
+
+def free_comfyuis():
+    payload = json.dumps({"unload_models": True, "free_memory": True}).encode()
+    for url in comfyui_urls():
+        request = urllib.request.Request(url + "/free", data=payload, method="POST")
+        request.add_header("Content-Type", "application/json")
+        try:
+            with urllib.request.urlopen(request, timeout=30):
+                pass
+        except Exception as exc:  # noqa: BLE001 - instance may be down; best effort
+            log(f"free {url} failed: {exc}")
+
+
+def ensure_free_gpu():
+    ranked = free_gpus()
+    if not ranked or ranked[0][1] >= MIN_FREE_MIB:
+        return ranked
+    log(f"training needs {MIN_FREE_MIB} MiB free, best GPU has {ranked[0][1]}: unloading ComfyUI models")
+    free_comfyuis()
+    deadline = time.time() + 90
+    while time.time() < deadline:
+        time.sleep(5)
+        ranked = free_gpus()
+        if ranked and ranked[0][1] >= MIN_FREE_MIB:
+            log(f"GPU {ranked[0][0]} has {ranked[0][1]} MiB free")
+            return ranked
+    log(f"warning: best GPU still has {ranked[0][1] if ranked else 0} MiB free, training may fail")
+    return ranked
+
+
 def host_path(value, data_dir):
     text = str(value)
     if text.startswith("/app/data"):
@@ -114,10 +152,10 @@ def prepare_dataset(job, args):
     return run_dir, run_dir / "dataset", len(images)
 
 
-def pick_gpu(params):
+def pick_gpu(params, rank=None):
     if params.get("gpu") is not None:
         return str(int(params["gpu"]))
-    ranked = free_gpus()
+    ranked = rank if rank is not None else ensure_free_gpu()
     return str(ranked[0][0]) if ranked else "0"
 
 
@@ -173,72 +211,115 @@ def build_command(job, args, dataset_dir, run_dir, steps):
     return command
 
 
-def run_job(job, args, api):
-    job_id = job["id"]
-    params = job["params"]
-    run_dir, dataset_dir, image_count = prepare_dataset(job, args)
-    steps = int(params.get("steps") or max(200, image_count * 100))
-    gpu = pick_gpu(params)
-    log_file = run_dir / "train.log"
-    command = build_command(job, args, dataset_dir, run_dir, steps)
-    cache_dir = args.trainer_dir / "hf-cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    env = {
-        **os.environ,
-        "CUDA_VISIBLE_DEVICES": gpu,
-        "PYTHONUNBUFFERED": "1",
-        "HF_HOME": str(cache_dir),
-        "HF_HUB_CACHE": str(cache_dir / "hub"),
-    }
-    log(f"job {job_id}: {image_count} images, {steps} steps, rank {params.get('rank')}, GPU {gpu}")
-    log(f"job {job_id}: log -> {log_file}")
-    started = time.time()
-    final_loss = None
-    last_post = 0.0
+def stop_process(process):
+    try:
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        return
+    try:
+        process.wait(timeout=30)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    try:
+        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+    try:
+        process.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def launch_training(job_id, command, env, log_file, args, api):
+    state = {"loss": None, "last_post": 0.0}
     canceled = False
-    code = 1
     with open(log_file, "w") as handle:
         handle.write(" ".join(command) + "\n\n")
         handle.flush()
         process = subprocess.Popen(
             command, cwd=str(args.kohya_dir), stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, text=True, env=env, bufsize=1,
+            stderr=subprocess.STDOUT, text=True, env=env, bufsize=1, start_new_session=True,
         )
         for line in process.stdout:
             handle.write(line)
             handle.flush()
             match = STEP_RE.search(line)
-            if match and time.time() - last_post > 5:
-                last_post = time.time()
+            if match and time.time() - state["last_post"] > 5:
+                state["last_post"] = time.time()
                 last_step = int(match.group(1))
                 total = int(match.group(2))
                 loss = LOSS_RE.search(line)
                 if loss:
-                    final_loss = float(loss.group(1))
+                    state["loss"] = float(loss.group(1))
                 try:
                     response = api.call(
                         "POST", f"/api/training-jobs/{job_id}/progress",
-                        {"progress": {"step": last_step, "total": total, "loss": final_loss},
+                        {"progress": {"step": last_step, "total": total, "loss": state["loss"]},
                          "log_path": str(log_file)},
                     )
                     if response and response.get("status") == "canceled":
                         canceled = True
-                        process.terminate()
+                        log(f"job {job_id}: cancellation detected, stopping training")
+                        stop_process(process)
+                        break
                 except RuntimeError as exc:
                     log(f"job {job_id}: progress update failed: {exc}")
-        code = process.wait(timeout=120)
-    seconds = int(time.time() - started)
-    if canceled:
-        log(f"job {job_id}: canceled by user")
-        return
-    if code != 0:
+                    if "409" in str(exc):
+                        try:
+                            state = api.call("GET", f"/api/training-jobs/{job_id}")
+                            if state and state.get("status") == "canceled":
+                                canceled = True
+                                log(f"job {job_id}: cancellation detected, stopping training")
+                                stop_process(process)
+                                break
+                        except RuntimeError:
+                            pass
+    return process.wait(timeout=120), canceled, state["loss"]
+
+
+def run_job(job, args, api):
+    job_id = job["id"]
+    params = job["params"]
+    run_dir, dataset_dir, image_count = prepare_dataset(job, args)
+    steps = int(params.get("steps") or max(200, image_count * 100))
+    log_file = run_dir / "train.log"
+    command = build_command(job, args, dataset_dir, run_dir, steps)
+    cache_dir = args.trainer_dir / "hf-cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    started = time.time()
+    final_loss = None
+    gpu = ""
+    for attempt in range(2):
+        gpu = pick_gpu(params, rank=None if attempt == 0 else ensure_free_gpu())
+        env = {
+            **os.environ,
+            "CUDA_VISIBLE_DEVICES": gpu,
+            "PYTHONUNBUFFERED": "1",
+            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+            "HF_HOME": str(cache_dir),
+            "HF_HUB_CACHE": str(cache_dir / "hub"),
+        }
+        log(f"job {job_id}: {image_count} images, {steps} steps, rank {params.get('rank')}, GPU {gpu}")
+        log(f"job {job_id}: log -> {log_file}")
+        code, canceled, final_loss = launch_training(job_id, command, env, log_file, args, api)
+        if canceled:
+            log(f"job {job_id}: canceled by user")
+            return
+        if code == 0:
+            break
         tail = "".join(log_file.read_text().splitlines(keepends=True)[-12:]).strip()
+        if attempt == 0 and params.get("gpu") is None and "out of memory" in tail.lower():
+            log(f"job {job_id}: CUDA OOM on GPU {gpu}, freeing ComfyUI and retrying on another GPU")
+            free_comfyuis()
+            continue
         api.call(
             "POST", f"/api/training-jobs/{job_id}/complete",
             {"success": False, "error": f"kohya exit {code}: {tail[-1500:]}"},
         )
         log(f"job {job_id}: failed (exit {code})")
         return
+    seconds = int(time.time() - started)
     output = sorted((run_dir / "output").glob("*.safetensors"))
     if not output:
         api.call("POST", f"/api/training-jobs/{job_id}/complete",
