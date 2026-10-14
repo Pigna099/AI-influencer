@@ -657,6 +657,7 @@ const en = {
   "lp.errorDetails": "Technical details",
   "common.loadMore": "Load more",
   "lp.manageModels": "Open model management (Home)",
+  "pg.navAria": "Main navigation",
 } as const;
 
 type Catalog = typeof en;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { api, Character, CheckpointInfo, Conversation, Memory, Message, OllamaModel, CharacterProfile, RealismInput } from "../api";
 import {useI18n} from "../i18n";
+import AppHeader from "./ui/AppHeader";
 import CharacterForm from "./CharacterForm";
 import ChatPanel from "./ChatPanel";
 import BenchmarkPanel from "./BenchmarkPanel";
@@ -270,8 +270,7 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
   };
 
   return <div className="playground theme-chat">
-    <header className="topbar"><div className="brand"><span className="brand-mark">ai</span><h1>AI influencer playground <b>v6</b></h1></div>
-      <div className="top-actions"><span className="sandbox-label">{t("pg.sandbox")}</span>        <nav className="top-nav"><Link to="/">{t("pg.nav.home")}</Link><Link className="selected" to="/chat">{t("pg.nav.chat")}</Link><Link to="/images">{t("pg.nav.images")}</Link><Link to="/video">{t("pg.nav.video")}</Link><Link to="/dataset">{t("pg.nav.dataset")}</Link><Link to="/loras">{t("pg.nav.loras")}</Link></nav><button onClick={onLogout} disabled={!!busy}>{t("pg.logout")}</button></div></header>
+    <AppHeader current="/chat" onLogout={onLogout} busy={!!busy} label={t("pg.sandbox")} />
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
     <div className="workspace">
       <aside className="character-rail">

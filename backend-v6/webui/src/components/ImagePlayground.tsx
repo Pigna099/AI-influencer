@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { api, Character, CharacterLora, CheckpointInfo, GenerationPreset, LibraryImage, PoseReference } from "../api";
 import {useI18n} from "../i18n";
+import AppHeader from "./ui/AppHeader";
 import CharacterAvatar from "./CharacterAvatar";
 import Lightbox from "./Lightbox";
 import AsyncBoundary from "./ui/AsyncBoundary";
@@ -322,11 +322,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   };
 
   return <div className="playground theme-images">
-    <header className="topbar"><div className="brand"><span className="brand-mark">ai</span><h1>AI influencer playground <b>v6</b></h1></div>
-      <div className="top-actions">
-        <nav className="top-nav"><Link to="/">{t("pg.nav.home")}</Link><Link to="/chat">{t("pg.nav.chat")}</Link><Link className="selected" to="/images">{t("pg.nav.images")}</Link><Link to="/video">{t("pg.nav.video")}</Link><Link to="/dataset">{t("pg.nav.dataset")}</Link><Link to="/loras">{t("pg.nav.loras")}</Link></nav>
-        <button onClick={onLogout} disabled={!!busy}>{t("pg.logout")}</button>
-      </div></header>
+    <AppHeader current="/images" onLogout={onLogout} busy={!!busy} />
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
     <div className="workspace image-workspace" style={{ gridTemplateColumns: `225px minmax(320px, 1fr) 6px ${panelWidth}px` }}>
       <aside className="character-rail">

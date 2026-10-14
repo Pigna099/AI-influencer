@@ -235,6 +235,10 @@ Done (second block):
   job badges; skeleton-card CSS.
 - **API smoke test** for every tab (`tests/test_smoke_tabs.py`); suite now **149 passing**; ruff,
   tsc, lint, build clean; deployed and verified.
+- **Phase 2 slice — shared shell**: `ui/AppHeader.tsx` (single sticky topbar + nav with
+  `aria-current`, replaces the six duplicated headers in Chat/Images/Video/Dataset/LoRA/Home),
+  `ui/Banner.tsx`; CSS design tokens (spacing/type/surfaces/borders/status) used by the new
+  primitives.
 
 Remaining in Phase 1: no false zeros/placeholders left in the audited set — kept under watch;
 larger component tests (no frontend test runner yet, needs vitest setup decision).
