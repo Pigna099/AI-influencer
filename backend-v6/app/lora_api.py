@@ -19,6 +19,7 @@ from .chat_service import build_negative_prompt, translate_scene
 from .config import settings
 from .db import (
     CharacterLora,
+    ExecutionJob,
     ImageLibrary,
     Influencer,
     LoraDataset,
@@ -31,6 +32,7 @@ from .db import (
 )
 from .image_library import average_hash
 from .integrations.comfyui import ComfyUIError, checkpoint_meta, generate_image, pick_target, qwen_image_edit
+from .jobs import create_job, finish_job, request_cancel, start_job, update_progress
 
 router = APIRouter(prefix="/api", tags=["LoRA"], dependencies=[Depends(authorize)])
 
@@ -298,6 +300,12 @@ def activate_lora(lora_id: str):
     return lora_out(item)
 
 
+def _exec_job(db, training_job) -> ExecutionJob | None:
+    return db.scalar(
+        select(ExecutionJob).where(ExecutionJob.external_id == training_job.id, ExecutionJob.type == "training")
+    )
+
+
 @router.post("/loras/{lora_id}/training-jobs", status_code=201)
 def queue_training(lora_id: str, body: TrainingJobCreate):
     if not body.images_dir and not body.dataset_id:
@@ -317,13 +325,13 @@ def queue_training(lora_id: str, body: TrainingJobCreate):
             if lora.family == "qwen-image" and detected not in (None, "qwen-image"):
                 raise HTTPException(
                     400,
-                    f"Il checkpoint {base_checkpoint} è della famiglia {detected}: la LoRA è impostata su qwen-image",
+                    f"Checkpoint {base_checkpoint} belongs to the {detected} family: this LoRA is set to qwen-image",
                 )
             if lora.family != "qwen-image" and detected in ("qwen-image", "flux2", "z-image"):
                 raise HTTPException(
                     400,
-                    f"Il checkpoint {base_checkpoint} è della famiglia {detected}: imposta la famiglia "
-                    f"{detected} sulla LoRA (o scegli un checkpoint {lora.family})",
+                    f"Checkpoint {base_checkpoint} belongs to the {detected} family: set the LoRA family to "
+                    f"{detected} (or pick a {lora.family} checkpoint)",
                 )
         if base_checkpoint and not lora.base_checkpoint:
             lora.base_checkpoint = base_checkpoint
@@ -364,6 +372,15 @@ def queue_training(lora_id: str, body: TrainingJobCreate):
         )
         db.add(job)
         db.flush()
+        create_job(
+            db,
+            type="training",
+            character_id=lora.character_id,
+            dataset_id=body.dataset_id,
+            external_id=job.id,
+            idempotency_key=f"training:{job.id}",
+            message=f"training queued for {stem}",
+        )
         lora.status = "queued"
         lora.updated_at = now()
         character = db.get(Influencer, lora.character_id)
@@ -414,6 +431,9 @@ def claim_training_job(job_id: str, body: ClaimInput):
         if lora is not None and lora.status == "queued":
             lora.status = "training"
             lora.updated_at = now()
+        exec_job = _exec_job(db, job)
+        if exec_job is not None and exec_job.state == "queued":
+            start_job(db, exec_job, worker=job.worker, gpu=(job.params or {}).get("gpu"))
         character = db.get(Influencer, job.character_id)
     return job_out(job, lora, character)
 
@@ -432,6 +452,17 @@ def update_training_progress(job_id: str, body: ProgressInput):
         job.heartbeat_at = now()
         if body.log_path is not None:
             job.log_path = body.log_path
+        exec_job = _exec_job(db, job)
+        if exec_job is not None and exec_job.state in ("queued", "running"):
+            if exec_job.state == "queued":
+                start_job(db, exec_job)
+            update_progress(
+                db,
+                exec_job,
+                current=(body.progress or {}).get("step"),
+                total=(body.progress or {}).get("total"),
+                unit="step",
+            )
         lora = db.get(CharacterLora, job.lora_id) if job.lora_id else None
         character = db.get(Influencer, job.character_id)
     return job_out(job, lora, character)
@@ -447,7 +478,7 @@ def complete_training_job(job_id: str, body: CompleteInput):
         job.finished_at = now()
         if body.success:
             if not body.filename or not body.artifact_filename:
-                raise HTTPException(400, "filename e artifact_filename sono richiesti")
+                raise HTTPException(400, "filename and artifact_filename are required")
             artifact = (settings.lora_dir / body.artifact_filename).resolve()
             if not artifact.is_relative_to(settings.lora_dir.resolve()) or not artifact.is_file():
                 raise HTTPException(400, "Artifact not found in the server LoRA folder")
@@ -478,6 +509,30 @@ def complete_training_job(job_id: str, body: CompleteInput):
                 lora.status = "failed"
                 lora.error = job.error
                 lora.updated_at = now()
+        exec_job = _exec_job(db, job)
+        if exec_job is not None and exec_job.state in ("queued", "running"):
+            if body.success:
+                update_progress(
+                    db,
+                    exec_job,
+                    current=(job.progress or {}).get("total"),
+                    total=(job.progress or {}).get("total"),
+                    unit="step",
+                )
+                finish_job(db, exec_job, state="succeeded", message="training finished")
+            else:
+                finish_job(
+                    db,
+                    exec_job,
+                    state="failed",
+                    error_info=body.error_info
+                    or {
+                        "code": "trainer_failed",
+                        "summary": "Training failed.",
+                        "remediation": "Check the technical details and retry.",
+                        "technical_details": (body.error or "")[:800],
+                    },
+                )
         character = db.get(Influencer, job.character_id)
     return job_out(job, lora, character)
 
@@ -494,6 +549,10 @@ def cancel_training_job(job_id: str):
         if lora is not None and lora.status in LORA_BUSY:
             lora.status = "draft"
             lora.updated_at = now()
+        exec_job = _exec_job(db, job)
+        if exec_job is not None and exec_job.state in ("queued", "running"):
+            request_cancel(db, exec_job)
+            finish_job(db, exec_job, state="canceled", message="training canceled")
         character = db.get(Influencer, job.character_id)
     return job_out(job, lora, character)
 

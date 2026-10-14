@@ -7,6 +7,7 @@ import ImagePlayground from "./components/ImagePlayground";
 import DatasetPlayground from "./components/DatasetPlayground";
 import LoraPlayground from "./components/LoraPlayground";
 import VideoPlayground from "./components/VideoPlayground";
+import JobsPage from "./components/JobsPage";
 
 function App() {
   const [apiKey, setApiKey] = useState<string | null>(null);
@@ -43,6 +44,7 @@ function App() {
       <Route path="/dataset" element={<DatasetPlayground onLogout={handleLogout} />} />
       <Route path="/loras" element={<LoraPlayground onLogout={handleLogout} />} />
       <Route path="/video" element={<VideoPlayground onLogout={handleLogout} />} />
+      <Route path="/jobs" element={<JobsPage onLogout={handleLogout} />} />
     </Routes>
   );
 }

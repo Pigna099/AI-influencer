@@ -314,6 +314,26 @@ component-test coverage to grow beyond the shell primitives.
 
 ## 9. Phase 3 — Build a unified persistent job system
 
+Progress log — 14 October 2026 (first slice):
+- Tables `execution_jobs` + `job_events` (migration `0023`; the legacy v1 `jobs` table used by the
+  dead content-jobs pipeline is untouched). Fields: type, state, character/dataset/asset scope,
+  progress current/total/unit, worker, GPU, heartbeat, idempotency key, error_info
+  (code/summary/remediation/technical_details), cancel_requested, retry_of, timestamps.
+- `app/jobs.py` service: create (idempotent), start, progress+heartbeat, finish, cancel request,
+  retry linkage, per-type stale-heartbeat policy + `recover_stale`.
+- API: `GET /api/jobs` (state/type/character filters + limit/offset), `/api/jobs/summary`,
+  `/api/jobs/{id}`, `/api/jobs/{id}/events`, `POST .../cancel`, `POST .../retry`.
+- Producers wired: training jobs mirror queue/claim/progress/complete/cancel into the unified job
+  (external_id = training job id); video generation records start/success/failure with structured
+  errors.
+- Frontend: job tray in the header (active spinner count + failed badge, 5 s poll) and a
+  **Jobs & System** page (`/jobs`) with filters, compact rows, progress bars, cancel/retry and
+  events behind a Technical details disclosure. 153 backend tests + 13 frontend tests; live-verified
+  endpoints and migration.
+
+Remaining in Phase 3: wire image/dataset/pose/consistency producers, SSE or bounded polling for
+detail views, concurrency limits per GPU/family, orphan-file reconciliation task.
+
 ### Why first
 
 Images, video, imports, classification, consistency checks, and training all have long-running behavior but currently expose different progress models. A common orchestrator is required before further automation.

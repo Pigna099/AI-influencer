@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useI18n } from "../../i18n";
+import JobTray from "./JobTray";
 
 const LINKS = [
   { to: "/", key: "pg.nav.home" },
@@ -8,6 +9,7 @@ const LINKS = [
   { to: "/video", key: "pg.nav.video" },
   { to: "/dataset", key: "pg.nav.dataset" },
   { to: "/loras", key: "pg.nav.loras" },
+  { to: "/jobs", key: "pg.nav.jobs" },
 ] as const;
 
 interface Props {
@@ -29,6 +31,7 @@ export default function AppHeader({ current, onLogout, busy, label }: Props) {
             <Link key={link.to} className={link.to === current ? "selected" : undefined} aria-current={link.to === current ? "page" : undefined} to={link.to}>{t(link.key)}</Link>
           ))}
         </nav>
+        <JobTray />
         <button onClick={onLogout} disabled={!!busy}>{t("pg.logout")}</button>
       </div>
     </header>

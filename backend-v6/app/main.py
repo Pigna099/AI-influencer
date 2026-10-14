@@ -17,6 +17,7 @@ from .db import Asset, BibleVersion, Influencer, Job, Review, Session
 from .i18n import translate_detail
 from .integrations.comfyui import free_memory
 from .integrations.ollama import unload_models
+from .jobs_api import router as jobs_router
 from .lora_api import router as lora_router
 from .pose_api import router as pose_router
 from .presets_api import router as presets_router
@@ -246,3 +247,4 @@ app.include_router(presets_router)
 app.include_router(video_router)
 app.include_router(settings_router)
 app.include_router(consistency_router)
+app.include_router(jobs_router)

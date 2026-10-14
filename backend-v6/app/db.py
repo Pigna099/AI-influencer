@@ -387,6 +387,37 @@ class TrainingJob(Base):
     finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
 
+class ExecutionJob(Base):
+    __tablename__ = "execution_jobs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    type: Mapped[str] = mapped_column(String(32), index=True)
+    state: Mapped[str] = mapped_column(String(16), default="queued", server_default="queued", index=True)
+    character_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    dataset_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    asset_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    external_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    progress: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    worker: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    gpu: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(120), nullable=True, unique=True)
+    error_info: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    retry_of: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now, index=True)
+    started_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+
+
+class JobEvent(Base):
+    __tablename__ = "job_events"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    job_id: Mapped[str] = mapped_column(ForeignKey("execution_jobs.id"), index=True)
+    level: Mapped[str] = mapped_column(String(16), default="info", server_default="info")
+    message: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now)
+
+
 class GenerationPreset(Base):
     __tablename__ = "generation_presets"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)

@@ -11,7 +11,7 @@ from sqlalchemy import select
 from .auth import authorize
 from .char_schemas import StrictModel
 from .config import settings
-from .db import ImageLibrary, Influencer, Session, VideoClip, identifier, now
+from .db import ExecutionJob, ImageLibrary, Influencer, Session, VideoClip, identifier, now
 from .integrations.comfyui import (
     ComfyUIError,
     comfyui_available,
@@ -22,6 +22,7 @@ from .integrations.comfyui import (
     lora_family,
     pick_target,
 )
+from .jobs import create_job, finish_job, start_job, update_progress
 
 router = APIRouter(prefix="/api", tags=["Video"], dependencies=[Depends(authorize)])
 
@@ -153,9 +154,17 @@ def generate_video(character_id: str, body: VideoGenerateInput):
         height = max(256, (height // 32) * 32)
         length = max(9, round((length - 1) / 8) * 8 + 1)
     image_path: Path | None = None
-    with Session() as db:
+    with Session.begin() as db:
         required(db, Influencer, character_id)
         source = required(db, ImageLibrary, body.image_id) if body.image_id else None
+        exec_job = create_job(
+            db,
+            type="video",
+            character_id=character_id,
+            asset_id=body.image_id,
+            message=f"{body.model} {body.mode} video",
+        )
+        start_job(db, exec_job, worker=f"comfyui:{body.model}")
         if source is not None:
             if source.character_id != character_id:
                 raise HTTPException(400, "The image belongs to another character")
@@ -205,6 +214,20 @@ def generate_video(character_id: str, body: VideoGenerateInput):
                 base_url=pick_target(),
             )
     except ComfyUIError as error:
+        with Session.begin() as db:
+            stored = db.get(ExecutionJob, exec_job.id)
+            if stored is not None and stored.state == "running":
+                finish_job(
+                    db,
+                    stored,
+                    state="failed",
+                    error_info={
+                        "code": "video_generation_failed",
+                        "summary": "Video generation failed.",
+                        "remediation": "Check the ComfyUI instance and the selected model, then retry.",
+                        "technical_details": str(error)[:800],
+                    },
+                )
         raise HTTPException(502, f"Video generation failed: {error}") from error
     suffix = ".webm"
     base = identifier()
@@ -232,6 +255,10 @@ def generate_video(character_id: str, body: VideoGenerateInput):
         )
         db.add(item)
         db.flush()
+        stored = db.get(ExecutionJob, exec_job.id)
+        if stored is not None and stored.state == "running":
+            update_progress(db, stored, current=1, total=1, unit="clip")
+            finish_job(db, stored, state="succeeded", message="video ready")
         result = video_out(item)
     return result
 

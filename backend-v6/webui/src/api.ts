@@ -215,6 +215,37 @@ export interface VideoClip {
   created_at: string;
 }
 
+
+export interface ExecutionJob {
+  id: string;
+  type: string;
+  state: string;
+  character_id: string | null;
+  dataset_id: string | null;
+  asset_id: string | null;
+  external_id: string | null;
+  progress: { current?: number; total?: number; unit?: string };
+  queue_position: number | null;
+  worker: string | null;
+  gpu: number | null;
+  heartbeat_at: string | null;
+  idempotency_key: string | null;
+  error_info: TrainingJobErrorInfo | null;
+  cancel_requested: boolean;
+  retry_of: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface JobEvent {
+  id: string;
+  job_id: string;
+  level: string;
+  message: string;
+  created_at: string;
+}
+
 export interface VideoGenerateInput {
   prompt: string;
   negative?: string;
@@ -630,6 +661,32 @@ export class ApiClient {
 
   async patchLibraryItem(id: string, data: {status?: string; rating?: number; caption?: string; tags?: string[]}): Promise<LibraryImage> {
     return this.request(`/api/library/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+  }
+
+  async getJobs(params: { state?: string; type?: string; character_id?: string; limit?: number; offset?: number } = {}): Promise<ExecutionJob[]> {
+    const query = new URLSearchParams();
+    if (params.state) query.set("state", params.state);
+    if (params.type) query.set("type", params.type);
+    if (params.character_id) query.set("character_id", params.character_id);
+    query.set("limit", String(params.limit ?? 50));
+    if (params.offset) query.set("offset", String(params.offset));
+    return this.request(`/api/jobs?${query.toString()}`);
+  }
+
+  getJobSummary(): Promise<{ active: ExecutionJob[]; failed: ExecutionJob[]; active_count: number; failed_count: number }> {
+    return this.request("/api/jobs/summary");
+  }
+
+  getJobEvents(id: string): Promise<JobEvent[]> {
+    return this.request(`/api/jobs/${id}/events`);
+  }
+
+  cancelJob(id: string): Promise<ExecutionJob> {
+    return this.request(`/api/jobs/${id}/cancel`, { method: "POST" });
+  }
+
+  retryJob(id: string): Promise<ExecutionJob> {
+    return this.request(`/api/jobs/${id}/retry`, { method: "POST" });
   }
 
   getOverview(): Promise<{ characters: number; draft_images: number; draft_videos: number; jobs_running: number; jobs_failed: number; loras_ready: number }> {
