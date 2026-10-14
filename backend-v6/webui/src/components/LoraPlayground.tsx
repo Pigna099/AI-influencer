@@ -9,6 +9,7 @@ import CharacterForm from "./CharacterForm";
 const NO_OLLAMA_MODELS: never[] = [];
 import DatasetPanel from "./DatasetPanel";
 import StatusBadge from "./ui/StatusBadge";
+import JobProgress from "./ui/JobProgress";
 import Lightbox from "./Lightbox";
 
 const FAMILIES: Array<"real" | "pony" | "anime" | "qwen-image"> = ["real", "pony", "anime", "qwen-image"];
@@ -371,7 +372,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
             {!jobs.length && (loaded ? <p className="muted">{t("lp.noJobs")}</p> : <p className="muted"><span className="spinner" /> {t("common.loadingData")}</p>)}
             <div className="job-list">{jobs.map(job => <div key={job.id} className={`job-row status-${job.status}`}>
               <header><strong>{job.name || job.lora?.name || job.lora_id || t("lp.jobs")}</strong><StatusBadge status={job.status} label={t(`lp.jobStatus.${job.status}`)} /><small>{new Date(job.created_at).toLocaleString()}</small></header>
-              {job.status === "running" && <div className="job-bar"><i style={{ width: `${progressPercent(job)}%` }} /></div>}
+              {job.status === "running" && <JobProgress percent={progressPercent(job)} label={job.name || `#${job.id}`} />}
               {job.status === "running" && <small>{job.progress?.total ? t("lp.progressStep", { step: job.progress.step ?? 0, total: job.progress.total }) : ""}{job.progress?.loss != null ? ` · ${t("lp.loss")} ${job.progress.loss.toFixed(4)}` : ""}</small>}
               {job.worker && <small>{t("lp.worker")}: {job.worker}</small>}
               {job.error_info ? <div className="lora-error">

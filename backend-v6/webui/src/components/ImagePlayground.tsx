@@ -5,6 +5,7 @@ import AppHeader from "./ui/AppHeader";
 import CharacterAvatar from "./CharacterAvatar";
 import Lightbox from "./Lightbox";
 import AsyncBoundary from "./ui/AsyncBoundary";
+import EmptyState from "./ui/EmptyState";
 import PoseLibrary from "./PoseLibrary";
 
 type LoraSelection = { on: boolean; weight: number; clip?: number | null; category?: string };
@@ -357,7 +358,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
             empty={!library.length}
             skeleton="grid"
             loadingText={t("common.loadingData")}
-            emptyState={<div className="empty-memory"><span>◎</span><p>{t("ip.empty")}</p></div>}
+            emptyState={<EmptyState symbol="◎" title={t("ip.empty")} />}
           >
           <div className="library-grid">{library.map(item => <article className={`library-card status-${item.status}`} key={item.id}>
             <div className="library-thumb">

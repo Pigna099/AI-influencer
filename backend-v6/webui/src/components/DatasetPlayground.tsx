@@ -4,6 +4,7 @@ import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import AsyncBoundary from "./ui/AsyncBoundary";
 import StatusBadge from "./ui/StatusBadge";
+import EmptyState from "./ui/EmptyState";
 import Lightbox from "./Lightbox";
 
 const detailFields = ["pose", "setting", "lighting", "scene", "outfit", "body", "skin", "camera", "mood", "art_style"] as const;
@@ -250,7 +251,7 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
             empty={!images.length}
             skeleton="grid"
             loadingText={t("common.loadingData")}
-            emptyState={<div className="empty-memory"><span>◎</span><p>{t("ds.noImages")}</p></div>}
+            emptyState={<EmptyState symbol="◎" title={t("ds.noImages")} />}
           >
           <div className="library-grid">{images.map(item => <article className={`library-card status-${item.status === "ready" ? "approved" : item.status === "failed" || item.status === "blocked" ? "rejected" : ""}`} key={item.id}>
             <DatasetThumb item={item} onView={(url, alt, video) => setViewer({ url, alt, video })} select={() => setSelected(item)} videoLabel={t("ds.video")} openLabel={t("ds.openMedia")} selectLabel={t("ds.selectItem")} />

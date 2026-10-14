@@ -3,6 +3,7 @@ import { api, Character, LibraryImage, VideoClip } from "../api";
 import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import AsyncBoundary from "./ui/AsyncBoundary";
+import EmptyState from "./ui/EmptyState";
 
 function VideoCard({ item, sourceImage, busy, onDelete, onError }: {
   item: VideoClip;
@@ -251,7 +252,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
             empty={!videos.length}
             skeleton="grid"
             loadingText={t("common.loadingData")}
-            emptyState={<div className="empty-memory"><span>▶</span><p>{t("vd.empty")}</p></div>}
+            emptyState={<EmptyState symbol="▶" title={t("vd.empty")} />}
           >
           <div className="video-grid">{videos.map(item => <VideoCard key={item.id} item={item} sourceImage={library.find(image => image.id === item.source_image_id)} busy={!!busy} onDelete={removeVideo} onError={setError} />)}</div>
           {videosHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreVideos}>{t("common.loadMore")}</button></div>}

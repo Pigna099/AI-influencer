@@ -239,6 +239,8 @@ Done (second block):
   `aria-current`, replaces the six duplicated headers in Chat/Images/Video/Dataset/LoRA/Home),
   `ui/Banner.tsx`; CSS design tokens (spacing/type/surfaces/borders/status) used by the new
   primitives.
+- **Phase 2 primitives**: `ui/EmptyState` (adopted in Images/Video/Dataset/chat memories) and
+  `ui/JobProgress` (ARIA progressbar for running training jobs).
 
 Remaining in Phase 1: no false zeros/placeholders left in the audited set — kept under watch;
 larger component tests (no frontend test runner yet, needs vitest setup decision).

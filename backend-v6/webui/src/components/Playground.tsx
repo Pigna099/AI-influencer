@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Character, CheckpointInfo, Conversation, Memory, Message, OllamaModel, CharacterProfile, RealismInput } from "../api";
 import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
+import EmptyState from "./ui/EmptyState";
 import CharacterForm from "./CharacterForm";
 import ChatPanel from "./ChatPanel";
 import BenchmarkPanel from "./BenchmarkPanel";
@@ -372,7 +373,7 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
         {conversation?.memory_status === "pending" && <p className="memory-status" role="status"><span className="spinner" /> {t("pg.memory.extracting")}</p>}
         {conversation?.memory_status === "failed" && <p className="memory-status warning">{t("pg.memory.failed")}</p>}
         <div className="memory-list">{memories.map(m => <article key={m.id}><div><span>{m.embedding_model === "manual" ? t("pg.memory.manual") : t("pg.memory.fromChat")} · {m.importance}/5</span><button aria-label={`${t("pg.busy.deleteMemory")}: ${m.content}`} disabled={!!busy} onClick={() => void perform(t("pg.busy.deleteMemory"), async () => { await api.deleteMemory(m.id); setMemories(prev => prev.filter(x => x.id !== m.id)); })}>×</button></div><p>{m.content}</p></article>)}
-          {!memories.length && <div className="empty-memory"><span>◎</span><p>{t("pg.memory.empty")}</p><small>{t("pg.memory.emptyHint")}</small></div>}</div>
+          {!memories.length && <EmptyState symbol="◎" title={t("pg.memory.empty")} hint={t("pg.memory.emptyHint")} />}</div>
         {character && fan && <><form className="memory-form" onSubmit={e => { e.preventDefault(); void perform(t("pg.busy.saveMemory"), async () => {
           const saved = await api.request<Memory>(`/api/characters/${characterId}/memories?${scope}`, { method: "POST", body: JSON.stringify({ content: newMemory, category: "personal_fact", importance: 3 }) });
           setMemories(prev => [...prev.filter(m => m.id !== saved.id), saved]); setNewMemory("");
