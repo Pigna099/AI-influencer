@@ -180,8 +180,8 @@ def resolve_checkpoint(args, family, name):
         if candidate.is_file():
             return candidate
         raise RuntimeError(
-            f"il training Qwen richiede i pesi bf16: {stem} non trovato in {base} "
-            "(i file fp8 non sono supportati da musubi-tuner)"
+            f"Qwen training requires the bf16 weights: {stem} not found in {base} "
+            "(fp8 files are not supported by musubi-tuner)"
         )
     checkpoint = args.models_dir / "checkpoints" / name
     if not checkpoint.is_file():
@@ -193,7 +193,7 @@ def write_musubi_config(run_dir, dataset_dir, params):
     stem = params["output_stem"]
     concept = dataset_dir / f"{int(params.get('repeats') or 10)}_{stem}"
     if not concept.is_dir():
-        raise RuntimeError(f"cartella dataset non trovata: {concept}")
+        raise RuntimeError(f"dataset folder not found: {concept}")
     cache = run_dir / "musubi_cache"
     cache.mkdir(parents=True, exist_ok=True)
     resolution = int(params.get("resolution") or 1024)
@@ -224,7 +224,7 @@ def build_qwen_commands(job, args, dataset_dir, run_dir, steps):
     text_encoder = args.models_dir / "text_encoders" / "qwen_2.5_vl_7b.safetensors"
     for path in (vae, text_encoder):
         if not path.is_file():
-            raise RuntimeError(f"file mancante per il training Qwen: {path}")
+            raise RuntimeError(f"missing file for Qwen training: {path}")
     config = write_musubi_config(run_dir, dataset_dir, params)
     python = str(args.musubi_venv / "bin" / "python")
     accelerate = str(args.musubi_venv / "bin" / "accelerate")
@@ -479,7 +479,7 @@ def cleanup_pending_deletes(args):
 def classify_failure(message: str) -> dict:
     """Structured error for the UI: code, summary, remediation, technical details."""
     text = message.lower()
-    if "checkpoint not found" in text or "checkpoint non trovato" in text or "richiede i pesi bf16" in text:
+    if "checkpoint not found" in text or "checkpoint not found" in text or "richiede i pesi bf16" in text:
         code = "checkpoint_missing"
         summary = "The base checkpoint is not available on the server"
         remediation = "Install the checkpoint in the ComfyUI models folder (or choose another base checkpoint) and queue the job again."
@@ -487,7 +487,7 @@ def classify_failure(message: str) -> dict:
         code = "gpu_oom"
         summary = "The GPU ran out of memory during training"
         remediation = "Free VRAM from Home, lower resolution/rank, or pick a different GPU."
-    elif "file mancante per il training" in text or ("non trovato in" in text and "text_encoder" in text):
+    elif "missing file for training" in text or ("not found in" in text and "text_encoder" in text):
         code = "trainer_assets_missing"
         summary = "The trainer is missing required model files"
         remediation = "Download the required weights (diffusion_models / text_encoders) and retry."

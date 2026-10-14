@@ -101,7 +101,7 @@ def test_pose_extract_comfyui_failure(monkeypatch):
         "/api/poses/extract", json={"source": "dataset", "source_image_id": image_id}
     )
     assert response.status_code == 502
-    assert "Estrazione posa non riuscita" in response.json()["detail"]
+    assert "Pose extraction failed" in response.json()["detail"]
 
 
 def test_library_generate_with_pose(monkeypatch):

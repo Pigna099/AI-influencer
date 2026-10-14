@@ -231,7 +231,7 @@ def normalize_x_reference(reference: str) -> tuple[str, str | None]:
     status = X_STATUS.search(text)
     match = X_HANDLE.match(text)
     if not match:
-        raise ValueError("Indica un profilo X pubblico (@nome, https://x.com/nome) o un link a un post")
+        raise ValueError("Provide a public X profile (@name, https://x.com/name) or a post link")
     return match.group(1), (status.group(1) if status else None)
 
 
@@ -362,10 +362,10 @@ class XClient:
             timeout=20,
         )
         if response.status_code != 200:
-            raise ValueError(f"X: impossibile ottenere il guest token (HTTP {response.status_code})")
+            raise ValueError(f"X: could not obtain a guest token (HTTP {response.status_code})")
         self.guest_token = str(response.json().get("guest_token") or "")
         if not self.guest_token:
-            raise ValueError("X: guest token non ricevuto")
+            raise ValueError("X: guest token not received")
 
     def _bootstrap(self):
         if _X_OPERATIONS_CACHE["data"] and _X_OPERATIONS_CACHE["expires"] > time.time():
@@ -384,7 +384,7 @@ class XClient:
                 {name: info for name, info in self._bundle_operations().items() if name not in operations}
             )
         if not all(name in operations for name in X_OPERATIONS):
-            raise ValueError("X: operazioni GraphQL non trovate (X potrebbe aver cambiato struttura)")
+            raise ValueError("X: GraphQL operations not found (X may have changed its structure)")
         _X_OPERATIONS_CACHE.update({"data": operations, "expires": time.time() + X_OPERATIONS_TTL})
         self.operations = operations
 
@@ -463,9 +463,9 @@ class XClient:
                     self.operations = {}
                     self._bootstrap()
                     continue
-                raise ValueError("X: operazione non disponibile senza login (auth wall)")
+                raise ValueError("X: operation unavailable without login (auth wall)")
             if response.status_code == 429:
-                raise ValueError("X ha limitato le richieste (429): riprova più tardi")
+                raise ValueError("X rate-limited the requests (429): try again later")
             if response.status_code == 400:
                 missing = re.search(r'features cannot be null:?\s*([^"}\n]+)', response.text)
                 if missing:
@@ -474,18 +474,18 @@ class XClient:
                         if name:
                             info.setdefault("features", {})[name] = True
                     continue
-                raise ValueError(f"X: richiesta rifiutata (HTTP 400): {response.text[:200]}")
+                raise ValueError(f"X: request rejected (HTTP 400): {response.text[:200]}")
             if response.status_code != 200:
-                raise ValueError(f"X: errore HTTP {response.status_code}")
+                raise ValueError(f"X: HTTP error {response.status_code}")
             return response.json()
-        raise ValueError("X: richiesta non riuscita dopo i tentativi")
+        raise ValueError("X: request failed after retries")
 
     def _user_id(self, handle: str) -> str:
         data = self._graphql("UserByScreenName", {"screen_name": handle})
         result = ((data.get("data") or {}).get("user") or {}).get("result") or {}
         user_id = result.get("rest_id")
         if not user_id:
-            raise ValueError(f"X: profilo @{handle} non trovato o non accessibile")
+            raise ValueError(f"X: profile @{handle} not found or not accessible")
         return str(user_id)
 
     def tweet_photos(self, tweet_id: str, limit: int) -> list[str]:
@@ -530,16 +530,16 @@ def fetch_x_images(reference: str, limit: int) -> list[str]:
         if tweet_id:
             photos = client.tweet_photos(tweet_id, limit)
             if not photos:
-                raise ValueError("Il post indicato non contiene foto")
+                raise ValueError("The linked post contains no photos")
             return photos
         photos = client.profile_photos(handle, limit)
         if not photos:
-            raise ValueError(f"Nessuna foto recente trovata per @{handle} (forse solo testo o account protetto)")
+            raise ValueError(f"No recent photos found for @{handle} (maybe text only or a protected account)")
         return photos
     except ValueError:
         raise
     except Exception as error:
-        raise ValueError(f"X non raggiungibile: {error}") from error
+        raise ValueError(f"X unreachable: {error}") from error
 
 
 NEXTCLOUD_SHARE = re.compile(r"^https?://([^/]+)/s/([A-Za-z0-9]+)")
@@ -640,7 +640,7 @@ def import_nextcloud(source: DatasetSource, reference: str, limit: int, db) -> i
             if response is None or root_path is None:
                 if current == folder:
                     raise ValueError(
-                        "Condivisione Nextcloud non raggiungibile: il server deve permettere WebDAV pubblico (PROPFIND)"
+                        "Nextcloud share unreachable: the server must allow public WebDAV (PROPFIND)"
                     )
                 continue
             for entry in _parse_nextcloud_propfind(response.text, root_path, server):
@@ -669,7 +669,7 @@ def import_folder(source: DatasetSource, reference: str, limit: int, db) -> int:
         root = settings.dataset_import_dir / reference
     root = root.resolve()
     if not root.is_relative_to(settings.dataset_import_dir.resolve()) or not root.is_dir():
-        raise ValueError("Cartella non valida: usa un percorso dentro data/imports")
+        raise ValueError("Invalid folder: use a path inside data/imports")
     count = 0
     for path in sorted(root.rglob("*")):
         if count >= limit:
@@ -695,7 +695,7 @@ def import_telegram(source: DatasetSource, reference: str, limit: int, db) -> in
         channel = channel.removeprefix(prefix)
     channel = channel.lstrip("@")
     if not channel:
-        raise ValueError("Canale Telegram non valido")
+        raise ValueError("Invalid Telegram channel")
     seen_images: set[str] = set()
     seen_videos: set[str] = set()
     order_images: list[str] = []
@@ -711,7 +711,7 @@ def import_telegram(source: DatasetSource, reference: str, limit: int, db) -> in
                 response = client.get(f"https://t.me/s/{channel}", params=params)
                 response.raise_for_status()
             except httpx.HTTPError as error:
-                raise ValueError(f"Canale Telegram non raggiungibile: {error}") from error
+                raise ValueError(f"Telegram channel unreachable: {error}") from error
             page = parse_telegram_page(response.text)
             new_items = 0
             for url in page["images"]:
@@ -780,7 +780,7 @@ def run_import(source_id: str, reference: str, limit: int, classify: bool) -> No
             source.total = count
             source.status = "ready" if count > 0 else "failed"
             if count == 0:
-                source.error = "Nessuna immagine importata"
+                source.error = "No images imported"
             source.updated_at = now()
         if classify:
             classify_source(source_id)
@@ -1025,7 +1025,7 @@ def synthesize_profile(source_id: str) -> dict:
     """Draft a character profile from the dataset descriptions of a source."""
     rows = export_rows(source_id)
     if not rows:
-        raise ValueError("La fonte non ha immagini classificate")
+        raise ValueError("The source has no classified images")
     if settings.text_provider == "mock":
         return CharacterProfile(
             description="mock dataset profile",
@@ -1058,13 +1058,13 @@ def synthesize_profile(source_id: str) -> dict:
             max_tokens=2048,
         )
     except (OllamaNotAvailable, KeyError, TypeError) as error:
-        raise ValueError(f"Sintesi non riuscita: {error}") from error
+        raise ValueError(f"Synthesis failed: {error}") from error
     content = response.get("message", {}).get("content", "")
     content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
     try:
         return CharacterProfile.model_validate_json(content).model_dump()
     except (ValueError, TypeError) as error:
-        raise ValueError("Il modello non ha restituito un profilo valido") from error
+        raise ValueError("The model did not return a valid profile") from error
 
 
 def delete_source_files(source_id: str) -> None:

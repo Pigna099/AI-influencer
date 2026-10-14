@@ -71,11 +71,11 @@ class GpuPlanInput(StrictModel):
 def _validate_plan(media: list[int], text: list[int]) -> None:
     gpus = [*media, *text]
     if any(gpu < 0 or gpu > 3 for gpu in gpus):
-        raise HTTPException(400, "GPU non valida: usa indici 0-3")
+        raise HTTPException(400, "Invalid GPU: use indexes 0-3")
     if len(set(gpus)) != len(gpus):
-        raise HTTPException(400, "Una GPU non puo essere assegnata a due usi")
+        raise HTTPException(400, "A GPU cannot be assigned to two uses")
     if len(text) not in (0, 2):
-        raise HTTPException(400, "vLLM richiede 0 o 2 GPU (tensor parallel)")
+        raise HTTPException(400, "vLLM requires 0 or 2 GPUs (tensor parallel)")
 
 
 def _data_dir():

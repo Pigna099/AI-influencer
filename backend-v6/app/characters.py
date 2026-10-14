@@ -123,7 +123,7 @@ router = APIRouter(prefix="/api", tags=["Playground"], dependencies=[Depends(aut
 def required(db, model, item_id):
     item = db.get(model, item_id)
     if item is None:
-        raise HTTPException(404, "Elemento non trovato")
+        raise HTTPException(404, "Item not found")
     return item
 
 
@@ -242,7 +242,7 @@ def profile_fingerprint(profile: dict) -> str:
 def ensure_model(model):
     try:
         if not validate_model(model):
-            raise HTTPException(400, "Seleziona un modello installato capace di generare chat")
+            raise HTTPException(400, "Select an installed chat-capable model")
     except OllamaNotAvailable as error:
         raise HTTPException(503, str(error)) from error
 
@@ -313,7 +313,7 @@ def list_library(
 def generate_library_images(character_id: str, body: LibraryGenerateInput):
     """Generate a batch for the image playground and store it as draft."""
     if not comfyui_available():
-        raise HTTPException(503, "ComfyUI non è raggiungibile: avvia il servizio immagini")
+        raise HTTPException(503, "ComfyUI is unreachable: start the image service")
     with Session() as db:
         character = required(db, Influencer, character_id)
         name = character.name
@@ -325,7 +325,7 @@ def generate_library_images(character_id: str, body: LibraryGenerateInput):
         if body.pose_ids:
             poses = list(db.scalars(select(PoseReference).where(PoseReference.id.in_(body.pose_ids))))
             if len(poses) != len(set(body.pose_ids)):
-                raise HTTPException(404, "Una o più pose non sono state trovate")
+                raise HTTPException(404, "One or more poses were not found")
             for pose in poses:
                 candidate = (settings.pose_dir / (pose.skeleton_filename or "")).resolve()
                 if candidate.is_file():
@@ -334,7 +334,7 @@ def generate_library_images(character_id: str, body: LibraryGenerateInput):
     if body.loras:
         available = get_loras()
         if available and any(lora.name not in available for lora in body.loras):
-            raise HTTPException(400, "Uno o più LoRA non sono installati in ComfyUI")
+            raise HTTPException(400, "One or more LoRAs are not installed in ComfyUI")
     reference = (settings.media_dir / avatar) if avatar else None
     scene = translate_scene(body.prompt, style)
     prompt = build_prompt_from_profile(name, profile, scene, style, family)
@@ -371,7 +371,7 @@ def generate_library_images(character_id: str, body: LibraryGenerateInput):
             except ComfyUIError as error:
                 errors.append(error)
     if not rendered:
-        raise HTTPException(502, f"Generazione foto non riuscita: {errors[0] if errors else 'errore sconosciuto'}")
+        raise HTTPException(502, f"Photo generation failed: {errors[0] if errors else 'unknown error'}")
 
     created = []
     for seed, data, meta in rendered:
@@ -380,7 +380,7 @@ def generate_library_images(character_id: str, body: LibraryGenerateInput):
         try:
             (settings.media_dir / filename).write_bytes(data)
         except OSError as error:
-            raise HTTPException(500, "Impossibile salvare la foto") from error
+            raise HTTPException(500, "Could not save the photo") from error
         caption, tags = classify_image(data) if body.classify else ("", [])
         embedding, embedding_model = embed_library_text(
             " ".join(filter(None, [caption, ", ".join(tags), prompt]))
@@ -425,7 +425,7 @@ def download_library_image(item_id: str):
         filename = item.filename
     path = (settings.media_dir / filename).resolve()
     if not path.is_relative_to(settings.media_dir.resolve()) or not path.is_file():
-        raise HTTPException(404, "Immagine non disponibile")
+        raise HTTPException(404, "Image unavailable")
     return FileResponse(path, media_type="image/png", filename=filename)
 
 
@@ -566,7 +566,7 @@ def update_character(character_id: str, body: CharacterUpdate):
             .values(name=body.name or item.name, bible=bible, version=version)
         )
         if changed.rowcount != 1:
-            raise HTTPException(409, "Il personaggio è stato modificato: ricarica la pagina")
+            raise HTTPException(409, "The character was modified: reload the page")
         db.add(BibleVersion(influencer_id=item.id, version=version, bible=bible))
         db.refresh(item)
         return character_out(item)
@@ -576,7 +576,7 @@ def update_character(character_id: str, body: CharacterUpdate):
 def generate_avatar(character_id: str, body: AvatarInput | None = None):
     """Generate and remember the character's profile picture (adult, NSFW style)."""
     if not comfyui_available():
-        raise HTTPException(503, "ComfyUI non è raggiungibile: avvia il servizio immagini")
+        raise HTTPException(503, "ComfyUI is unreachable: start the image service")
     with Session() as db:
         character = required(db, Influencer, character_id)
         name = character.name
@@ -602,13 +602,13 @@ def generate_avatar(character_id: str, body: AvatarInput | None = None):
             size_label="NSFW DEMO AVATAR",
         )
     except ComfyUIError as error:
-        raise HTTPException(502, f"Generazione immagine profilo non riuscita: {error}") from error
+        raise HTTPException(502, f"Profile picture generation failed: {error}") from error
     settings.media_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{identifier()}.png"
     try:
         (settings.media_dir / filename).write_bytes(data)
     except OSError as error:
-        raise HTTPException(500, "Impossibile salvare l'immagine profilo") from error
+        raise HTTPException(500, "Could not save the profile picture") from error
     with Session.begin() as db:
         item = required(db, Influencer, character_id)
         old = item.avatar_filename
@@ -633,15 +633,15 @@ def set_avatar_prompt(character_id: str, body: AvatarPromptInput):
 def edit_avatar(character_id: str, body: AvatarEditInput):
     """Edit the current profile picture with Qwen-Image-Edit (same person, new look/scene)."""
     if not comfyui_available():
-        raise HTTPException(503, "ComfyUI non è raggiungibile: avvia il servizio immagini")
+        raise HTTPException(503, "ComfyUI is unreachable: start the image service")
     with Session() as db:
         character = required(db, Influencer, character_id)
         old_avatar = character.avatar_filename
     if not old_avatar:
-        raise HTTPException(400, "Genera prima una foto profilo da modificare")
+        raise HTTPException(400, "Generate a profile picture before editing it")
     source = (settings.media_dir / old_avatar).resolve()
     if not source.is_file() or not source.is_relative_to(settings.media_dir.resolve()):
-        raise HTTPException(404, "Immagine profilo non disponibile")
+        raise HTTPException(404, "Profile picture unavailable")
     try:
         data, _ = qwen_image_edit(
             source,
@@ -651,13 +651,13 @@ def edit_avatar(character_id: str, body: AvatarEditInput):
             lora_weight=body.lora_weight,
         )
     except ComfyUIError as error:
-        raise HTTPException(502, f"Modifica immagine profilo non riuscita: {error}") from error
+        raise HTTPException(502, f"Profile picture edit failed: {error}") from error
     settings.media_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{identifier()}.png"
     try:
         (settings.media_dir / filename).write_bytes(data)
     except OSError as error:
-        raise HTTPException(500, "Impossibile salvare l'immagine profilo") from error
+        raise HTTPException(500, "Could not save the profile picture") from error
     with Session.begin() as db:
         item = required(db, Influencer, character_id)
         old = item.avatar_filename
@@ -673,7 +673,7 @@ def set_image_checkpoint(character_id: str, body: ImageCheckpointInput):
     if body.checkpoint:
         checkpoints = get_checkpoints()
         if checkpoints and body.checkpoint not in [item["name"] for item in checkpoints]:
-            raise HTTPException(400, "Checkpoint non installato in ComfyUI")
+            raise HTTPException(400, "Checkpoint not installed in ComfyUI")
     with Session.begin() as db:
         item = required(db, Influencer, character_id)
         item.image_checkpoint = body.checkpoint
@@ -721,10 +721,10 @@ def download_avatar(character_id: str):
         character = required(db, Influencer, character_id)
         filename = character.avatar_filename
     if not filename:
-        raise HTTPException(404, "Immagine profilo non disponibile")
+        raise HTTPException(404, "Profile picture unavailable")
     path = (settings.media_dir / filename).resolve()
     if not path.is_relative_to(settings.media_dir.resolve()) or not path.is_file():
-        raise HTTPException(404, "Immagine profilo non disponibile")
+        raise HTTPException(404, "Profile picture unavailable")
     return FileResponse(path, media_type="image/png", filename=filename)
 
 
@@ -736,12 +736,12 @@ def download_chat_image(image_id: str):
         locked = item.price_cents > 0 and item.unlocked_at is None
     path = (settings.media_dir / filename).resolve()
     if not path.is_relative_to(settings.media_dir.resolve()) or not path.is_file():
-        raise HTTPException(404, "Immagine non disponibile")
+        raise HTTPException(404, "Image unavailable")
     if locked:
         try:
             return Response(content=blurred_png(path.read_bytes()), media_type="image/png")
         except OSError as error:
-            raise HTTPException(404, "Immagine non disponibile") from error
+            raise HTTPException(404, "Image unavailable") from error
     return FileResponse(path, media_type=media_type, filename=filename)
 
 
@@ -753,10 +753,10 @@ def download_chat_video(video_id: str):
         locked = item.price_cents > 0 and item.unlocked_at is None
         filename = clip.filename if clip else ""
     if locked:
-        raise HTTPException(403, "Video bloccato: sbloccalo per guardarlo")
+        raise HTTPException(403, "Video locked: unlock it to watch")
     path = (settings.media_dir / filename).resolve()
     if not path.is_file() or not path.is_relative_to(settings.media_dir.resolve()):
-        raise HTTPException(404, "Video non disponibile")
+        raise HTTPException(404, "Video unavailable")
     return FileResponse(path, media_type="video/webm", filename=path.name)
 
 
@@ -766,9 +766,9 @@ def unlock_chat_video(video_id: str):
     with Session.begin() as db:
         item = required(db, ChatVideo, video_id)
         if item.price_cents <= 0:
-            raise HTTPException(409, "Questo video non è a pagamento")
+            raise HTTPException(409, "This video is not paywalled")
         if item.unlocked_at is not None:
-            raise HTTPException(409, "Video già sbloccato")
+            raise HTTPException(409, "Video already unlocked")
         conversation = required(db, Conversation, item.conversation_id)
         payment = SimulatedPayment(
             chat_video_id=item.id,
@@ -794,9 +794,9 @@ def unlock_chat_image(image_id: str):
     with Session.begin() as db:
         item = required(db, ChatImage, image_id)
         if item.price_cents <= 0:
-            raise HTTPException(409, "Questa immagine non è a pagamento")
+            raise HTTPException(409, "This image is not paywalled")
         if item.unlocked_at is not None:
-            raise HTTPException(409, "Immagine già sbloccata")
+            raise HTTPException(409, "Image already unlocked")
         conversation = required(db, Conversation, item.conversation_id)
         payment = SimulatedPayment(
             chat_image_id=item.id,
@@ -866,7 +866,7 @@ def enhance_character(body: EnhanceInput):
         return {"profile": profile.model_dump(), "model": body.model, "seconds": time.perf_counter() - start}
     except (OllamaNotAvailable, ValidationError, KeyError) as error:
         raise HTTPException(
-            502, "Il modello non ha restituito una descrizione valida. Prova un altro modello."
+            502, "The model did not return a valid description. Try another model."
         ) from error
 
 
@@ -895,7 +895,7 @@ def update_fan(fan_id: str, body: FanInput):
 
 def check_busy(db, query):
     if db.scalar(query.where(Conversation.busy_until > now()).limit(1)):
-        raise HTTPException(409, "Una risposta è in corso. Attendi prima di modificare o eliminare la chat.")
+        raise HTTPException(409, "A reply is in progress. Wait before changing or deleting the chat.")
 
 
 def purge_conversations(db, ids):
@@ -1012,7 +1012,7 @@ def run_turn(
             .values(busy_until=lease)
         )
         if changed.rowcount != 1:
-            raise HTTPException(409, "Il personaggio sta già rispondendo in questa conversazione")
+            raise HTTPException(409, "The character is already replying in this conversation")
         conv = required(db, Conversation, conversation_id)
     try:
         answer, metrics = generate_reply(conv, content or "", kind, absence_hours)
@@ -1289,9 +1289,9 @@ def initiate(conversation_id: str, body: InitiateInput, background_tasks: Backgr
 def send_photo(conversation_id: str, body: PhotoInput):
     """Manual photo: the operator generates a photo without asking the chat model."""
     if not settings.chat_image_enabled:
-        raise HTTPException(409, "Le foto in chat sono disattivate")
+        raise HTTPException(409, "Chat photos are disabled")
     if not comfyui_available():
-        raise HTTPException(503, "ComfyUI non è raggiungibile: avvia il servizio immagini")
+        raise HTTPException(503, "ComfyUI is unreachable: start the image service")
     lease = now() + timedelta(seconds=settings.generation_timeout + 60)
     with Session.begin() as db:
         changed = db.execute(
@@ -1303,7 +1303,7 @@ def send_photo(conversation_id: str, body: PhotoInput):
             .values(busy_until=lease)
         )
         if changed.rowcount != 1:
-            raise HTTPException(409, "Il personaggio sta già rispondendo in questa conversazione")
+            raise HTTPException(409, "The character is already replying in this conversation")
         conv = required(db, Conversation, conversation_id)
         character = required(db, Influencer, conv.character_id)
         reference = settings.media_dir / character.avatar_filename if character.avatar_filename else None
@@ -1315,12 +1315,12 @@ def send_photo(conversation_id: str, body: PhotoInput):
             locked_price = body.price_cents or character.ppv_price_cents or 500
         chosen = required(db, ImageLibrary, body.library_id) if body.library_id else None
         if chosen is not None and chosen.character_id != conv.character_id:
-            raise HTTPException(404, "Immagine non disponibile")
+            raise HTTPException(404, "Image unavailable")
     try:
         if chosen is not None:
             source = (settings.media_dir / chosen.filename).resolve()
             if not source.is_file() or not source.is_relative_to(settings.media_dir.resolve()):
-                raise HTTPException(404, "Immagine non disponibile")
+                raise HTTPException(404, "Image unavailable")
             image_data = source.read_bytes()
             image_meta = {"provider": "library", "seed": chosen.seed, "reference": False}
             prompt, negative, style, seconds = chosen.prompt, chosen.negative_prompt, chosen.style, 0.0
@@ -1339,14 +1339,14 @@ def send_photo(conversation_id: str, body: PhotoInput):
                     family=family,
                 )
             except ComfyUIError as error:
-                raise HTTPException(502, f"Generazione foto non riuscita: {error}") from error
+                raise HTTPException(502, f"Photo generation failed: {error}") from error
             seconds = time.perf_counter() - image_start
         settings.media_dir.mkdir(parents=True, exist_ok=True)
         filename = f"{identifier()}.png"
         try:
             (settings.media_dir / filename).write_bytes(image_data)
         except OSError as error:
-            raise HTTPException(500, "Impossibile salvare la foto") from error
+            raise HTTPException(500, "Could not save the photo") from error
         metrics = {
             "kind": "photo",
             "manual": True,
@@ -1518,13 +1518,13 @@ def delete_character(character_id: str):
         if db.scalar(
             select(Job.id).where(Job.influencer_id == character_id, Job.status.in_(["queued", "running"]))
         ):
-            raise HTTPException(409, "Il personaggio ha generazioni in corso")
+            raise HTTPException(409, "The character has generations in progress")
         if db.scalar(
             select(TrainingJob.id).where(
                 TrainingJob.character_id == character_id, TrainingJob.status.in_(["queued", "running"])
             )
         ):
-            raise HTTPException(409, "Il personaggio ha un training LoRA in corso")
+            raise HTTPException(409, "The character has a LoRA training in progress")
         dataset_ids = list(db.scalars(select(LoraDataset.id).where(LoraDataset.character_id == character_id)))
         if dataset_ids:
             db.execute(delete(LoraDatasetItem).where(LoraDatasetItem.dataset_id.in_(dataset_ids)))

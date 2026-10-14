@@ -36,7 +36,7 @@ class PosePatch(StrictModel):
 def required(db, model, item_id):
     item = db.get(model, item_id)
     if item is None:
-        raise HTTPException(404, "Elemento non trovato")
+        raise HTTPException(404, "Item not found")
     return item
 
 
@@ -59,15 +59,15 @@ def _source_path(db, source: str, image_id: str) -> Path:
     if source == "dataset":
         item = required(db, DatasetImage, image_id)
         if item.kind != "image":
-            raise HTTPException(400, "I video non hanno ancora una posa estraibile")
+            raise HTTPException(400, "Videos do not have an extractable pose yet")
         path = (settings.dataset_dir / item.source_id / item.filename).resolve()
         if not path.is_file() or not path.is_relative_to(settings.dataset_dir.resolve()):
-            raise HTTPException(404, "File immagine non trovato")
+            raise HTTPException(404, "Image file not found")
         return path
     item = required(db, ImageLibrary, image_id)
     path = (settings.media_dir / item.filename).resolve()
     if not path.is_file() or not path.is_relative_to(settings.media_dir.resolve()):
-        raise HTTPException(404, "File immagine non trovato")
+        raise HTTPException(404, "Image file not found")
     return path
 
 
@@ -96,13 +96,13 @@ def extract_pose_from_image(body: PoseExtractInput):
     try:
         data = extract_pose(path, resolution=body.resolution)
     except ComfyUIError as error:
-        raise HTTPException(502, f"Estrazione posa non riuscita: {error}") from error
+        raise HTTPException(502, f"Pose extraction failed: {error}") from error
     settings.pose_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{identifier()}.png"
     try:
         (settings.pose_dir / filename).write_bytes(data)
     except OSError as error:
-        raise HTTPException(500, "Impossibile salvare lo skeleton") from error
+        raise HTTPException(500, "Could not save the skeleton") from error
     with Session.begin() as db:
         count = db.scalar(select(func.count()).select_from(PoseReference)) or 0
         item = PoseReference(
@@ -132,7 +132,7 @@ def pose_skeleton(pose_id: str):
         item = required(db, PoseReference, pose_id)
     path = (settings.pose_dir / (item.skeleton_filename or "")).resolve()
     if not path.is_file() or not path.is_relative_to(settings.pose_dir.resolve()):
-        raise HTTPException(404, "Skeleton non disponibile")
+        raise HTTPException(404, "Skeleton unavailable")
     return FileResponse(path, media_type="image/png")
 
 

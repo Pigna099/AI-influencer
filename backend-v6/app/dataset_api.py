@@ -58,7 +58,7 @@ class DatasetImagePatch(StrictModel):
 def required(db, model, item_id):
     item = db.get(model, item_id)
     if item is None:
-        raise HTTPException(404, "Elemento non trovato")
+        raise HTTPException(404, "Item not found")
     return item
 
 
@@ -172,7 +172,7 @@ def download_dataset_thumb(image_id: str):
         source_id = item.source_id
     path = (settings.dataset_dir / source_id / filename).resolve()
     if not path.is_relative_to(settings.dataset_dir.resolve()) or not path.is_file():
-        raise HTTPException(404, "Anteprima non disponibile")
+        raise HTTPException(404, "Preview unavailable")
     media_type = MEDIA_TYPES.get(path.suffix.lower(), "application/octet-stream")
     return FileResponse(path, media_type=media_type, filename=filename)
 
@@ -185,7 +185,7 @@ def download_dataset_image(image_id: str):
         source_id = item.source_id
     path = (settings.dataset_dir / source_id / filename).resolve()
     if not path.is_relative_to(settings.dataset_dir.resolve()) or not path.is_file():
-        raise HTTPException(404, "Immagine non disponibile")
+        raise HTTPException(404, "Image unavailable")
     media_type = MEDIA_TYPES.get(path.suffix.lower(), "application/octet-stream")
     return FileResponse(path, media_type=media_type, filename=filename)
 

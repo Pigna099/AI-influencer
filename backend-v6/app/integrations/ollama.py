@@ -116,7 +116,7 @@ def vision_json(
     try:
         return json.loads(content)
     except ValueError as error:
-        raise OllamaNotAvailable(f"Risposta vision non valida da Ollama: {content[:160]}") from error
+        raise OllamaNotAvailable(f"Invalid vision response from Ollama: {content[:160]}") from error
 
 
 def get_models() -> list[dict[str, Any]]:

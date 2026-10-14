@@ -52,7 +52,7 @@ def patch_preset(preset_id: str, body: PresetPatch):
     with Session.begin() as db:
         item = db.get(GenerationPreset, preset_id)
         if item is None:
-            raise HTTPException(404, "Elemento non trovato")
+            raise HTTPException(404, "Item not found")
         if body.name is not None:
             item.name = body.name
         if body.payload is not None:
@@ -67,6 +67,6 @@ def delete_preset(preset_id: str):
     with Session.begin() as db:
         item = db.get(GenerationPreset, preset_id)
         if item is None:
-            raise HTTPException(404, "Elemento non trovato")
+            raise HTTPException(404, "Item not found")
         db.delete(item)
     return {"deleted": True, "id": preset_id}

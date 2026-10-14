@@ -23,7 +23,7 @@ def chat(
         try:
             return vllm.chat(model, messages, temperature, format_schema=format_schema, max_tokens=max_tokens)
         except vllm.VllmNotAvailable as error:
-            logger.warning("vLLM non disponibile, fallback su Ollama: %s", error)
+            logger.warning("vLLM unavailable, falling back to Ollama: %s", error)
     return ollama.chat(model, messages, temperature, format_schema=format_schema, max_tokens=max_tokens)
 
 
@@ -34,7 +34,7 @@ def get_models() -> list[dict]:
             if models:
                 return models
         except Exception as error:  # noqa: BLE001 - fall back to the Ollama list when vLLM is down
-            logger.warning("Lista modelli vLLM non disponibile, fallback su Ollama: %s", error)
+            logger.warning("vLLM model list unavailable, falling back to Ollama: %s", error)
     return ollama.get_models()
 
 
@@ -44,7 +44,7 @@ def validate_model(model_name: str) -> bool:
             if any(item["name"] == model_name for item in vllm.get_models()):
                 return True
         except Exception as error:  # noqa: BLE001 - validation must not raise when vLLM is down
-            logger.warning("Validazione modello vLLM non disponibile: %s", error)
+            logger.warning("vLLM model validation unavailable: %s", error)
     return ollama.validate_model(model_name)
 
 
@@ -54,5 +54,5 @@ def vision_json(model: str, prompt: str, images: list[str], *, schema: dict | No
         try:
             return vllm.vision_json(model, prompt, images, schema=schema, max_tokens=max_tokens)
         except vllm.VllmNotAvailable as error:
-            logger.warning("vLLM vision non disponibile, fallback su Ollama: %s", error)
+            logger.warning("vLLM vision unavailable, falling back to Ollama: %s", error)
     return ollama.vision_json(model if model != settings.vllm_chat_model else settings.image_tag_model, prompt, images, schema=schema, max_tokens=max_tokens)

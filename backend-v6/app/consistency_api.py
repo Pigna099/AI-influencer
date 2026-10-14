@@ -47,7 +47,7 @@ class ConsistencyInput(StrictModel):
 def _required(db, model, item_id):
     item = db.get(model, item_id)
     if item is None:
-        raise HTTPException(404, "Elemento non trovato")
+        raise HTTPException(404, "Item not found")
     return item
 
 
@@ -78,7 +78,7 @@ def _reference_image(db, character: Influencer, dataset: LoraDataset | None) -> 
         path = settings.media_dir / character.avatar_filename
         if path.is_file():
             return resize_jpeg(path.read_bytes()), "profile picture"
-    raise HTTPException(400, "Serve una foto profilo o una reference canonica per il confronto")
+    raise HTTPException(400, "A profile picture or a canonical reference is required for the comparison")
 
 
 def _candidates(db, character: Influencer, dataset: LoraDataset | None, limit: int):
@@ -110,11 +110,11 @@ def consistency_check(character_id: str, body: ConsistencyInput):
         if body.dataset_id:
             dataset = _required(db, LoraDataset, body.dataset_id)
             if dataset.character_id != character_id:
-                raise HTTPException(400, "Il dataset appartiene a un altro personaggio")
+                raise HTTPException(400, "The dataset belongs to another character")
         reference_b64, reference_label = _reference_image(db, character, dataset)
         candidates = _candidates(db, character, dataset, body.limit)
         if not candidates:
-            raise HTTPException(400, "Nessuna immagine da controllare")
+            raise HTTPException(400, "No images to check")
 
     model = settings.consistency_model
     results: list[dict] = []

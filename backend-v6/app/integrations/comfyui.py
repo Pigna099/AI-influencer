@@ -151,7 +151,7 @@ def _submit_and_wait(workflow: dict, timeout: int, base_url: str | None = None) 
             if "rifiutato" not in str(error):
                 raise
             logger.warning("Workflow rejected by %s, retrying on another instance", target)
-    raise last_error or ComfyUIError("Nessuna istanza ComfyUI disponibile")
+    raise last_error or ComfyUIError("No ComfyUI instance available")
 
 
 def _submit_all_on(workflow: dict, timeout: int, base_url: str) -> list[tuple[str, bytes]]:
@@ -161,11 +161,11 @@ def _submit_all_on(workflow: dict, timeout: int, base_url: str) -> list[tuple[st
         with httpx.Client(base_url=base_url, timeout=30) as client:
             response = client.post("/prompt", json={"prompt": workflow})
             if response.status_code >= 400:
-                raise ComfyUIError(f"ComfyUI ha rifiutato il workflow: {_prompt_error(response)}")
+                raise ComfyUIError(f"ComfyUI rejected the workflow: {_prompt_error(response)}")
             response.raise_for_status()
             data = response.json()
             if data.get("node_errors") or "prompt_id" not in data:
-                raise ComfyUIError(f"ComfyUI ha rifiutato il workflow: {json.dumps(data.get('node_errors'))[:400]}")
+                raise ComfyUIError(f"ComfyUI rejected the workflow: {json.dumps(data.get('node_errors'))[:400]}")
             prompt_id = data["prompt_id"]
             while time.monotonic() < deadline:
                 response = client.get(f"/history/{prompt_id}")
@@ -173,7 +173,7 @@ def _submit_all_on(workflow: dict, timeout: int, base_url: str) -> list[tuple[st
                 history = response.json().get(prompt_id)
                 if history:
                     if history.get("status", {}).get("status_str") == "error":
-                        raise ComfyUIError(_interrupted_message(history) or "Generazione ComfyUI non riuscita")
+                        raise ComfyUIError(_interrupted_message(history) or "ComfyUI generation failed")
                     results: list[tuple[str, bytes]] = []
                     for node in history.get("outputs", {}).values():
                         for key in ("images", "gifs", "videos", "audio"):
@@ -191,12 +191,12 @@ def _submit_all_on(workflow: dict, timeout: int, base_url: str) -> list[tuple[st
                                 response.raise_for_status()
                                 results.append((str(asset.get("filename") or ""), response.content))
                     if not results:
-                        raise ComfyUIError("Nessun output prodotto")
+                        raise ComfyUIError("No output produced")
                     return results
                 time.sleep(0.5)
     except httpx.HTTPError as error:
         raise ComfyUIError(f"ComfyUI error: {error}") from error
-    raise ComfyUIError("Timeout durante la generazione")
+    raise ComfyUIError("Timed out during generation")
 
 
 def _submit_on(workflow: dict, timeout: int, base_url: str) -> bytes:
@@ -221,7 +221,7 @@ def _submit_all(workflow: dict, timeout: int, base_url: str | None = None) -> li
             if "rifiutato" not in str(error):
                 raise
             logger.warning("Workflow rejected by %s, retrying on another instance", target)
-    raise last_error or ComfyUIError("Nessuna istanza ComfyUI disponibile")
+    raise last_error or ComfyUIError("No ComfyUI instance available")
 
 
 def _split_video_outputs(outputs: list[tuple[str, bytes]]) -> tuple[bytes, bytes | None]:
@@ -667,7 +667,7 @@ def qwen_image_edit(
         image.save(output, format="PNG")
         return output.getvalue(), {"provider": "mock", "seed": seed, "model": "qwen_image_edit", "steps": steps, "cfg": cfg}
     if not comfyui_available():
-        raise ComfyUIError("ComfyUI non è raggiungibile: avvia il servizio immagini")
+        raise ComfyUIError("ComfyUI is unreachable: start the image service")
     with Image.open(reference_path) as source:
         width, height = source.size
     scale = (1024 * 1024 / max(1, width * height)) ** 0.5
@@ -734,7 +734,7 @@ def extract_pose(
 ) -> bytes:
     """Run DWPose through ComfyUI and return the skeleton PNG."""
     if not comfyui_available():
-        raise ComfyUIError("ComfyUI non è raggiungibile: avvia il servizio immagini")
+        raise ComfyUIError("ComfyUI is unreachable: start the image service")
     base_url = base_url or pick_target()
     uploaded = upload_reference(image_path, base_url=base_url)
     workflow = {
@@ -764,7 +764,7 @@ def extract_pose(
             response.raise_for_status()
             data = response.json()
             if data.get("node_errors") or "prompt_id" not in data:
-                raise ComfyUIError("ComfyUI ha rifiutato il workflow posa")
+                raise ComfyUIError("ComfyUI rejected the pose workflow")
             prompt_id = data["prompt_id"]
             while time.monotonic() < deadline:
                 response = client.get(f"/history/{prompt_id}")
@@ -772,7 +772,7 @@ def extract_pose(
                 history = response.json().get(prompt_id)
                 if history:
                     if history.get("status", {}).get("status_str") == "error":
-                        raise ComfyUIError(_interrupted_message(history) or "Estrazione posa non riuscita")
+                        raise ComfyUIError(_interrupted_message(history) or "Pose extraction failed")
                     for node in history.get("outputs", {}).values():
                         for asset in node.get("images", []):
                             if asset.get("type") != "output":
@@ -788,7 +788,7 @@ def extract_pose(
                             response.raise_for_status()
                             image = Image.open(io.BytesIO(response.content)).convert("RGB")
                             if all(high <= 8 for _, high in image.getextrema()):
-                                raise ComfyUIError("Nessuna persona rilevata nella foto")
+                                raise ComfyUIError("No person detected in the photo")
                             output = io.BytesIO()
                             image.save(output, format="PNG")
                             return output.getvalue()
@@ -796,7 +796,7 @@ def extract_pose(
                 time.sleep(0.5)
     except httpx.HTTPError as error:
         raise ComfyUIError(f"ComfyUI error: {error}") from error
-    raise ComfyUIError("Timeout durante l'estrazione della posa")
+    raise ComfyUIError("Timed out during pose extraction")
 
 
 def lora_family(name: str) -> str:
@@ -941,7 +941,7 @@ def apply_checkpoint(workflow: dict, checkpoint: str | None) -> dict:
             node.setdefault("inputs", {})["ckpt_name"] = checkpoint
             found = True
     if not found:
-        raise ComfyUIError("Il workflow non contiene un nodo CheckpointLoaderSimple")
+        raise ComfyUIError("The workflow has no CheckpointLoaderSimple node")
     return patched
 
 
@@ -983,11 +983,11 @@ def _run_workflow(
         with httpx.Client(base_url=base_url or pick_target(), timeout=30) as client:
             response = client.post("/prompt", json={"prompt": prompt})
             if response.status_code >= 400:
-                raise ComfyUIError(f"ComfyUI ha rifiutato il workflow: {_prompt_error(response)}")
+                raise ComfyUIError(f"ComfyUI rejected the workflow: {_prompt_error(response)}")
             response.raise_for_status()
             data = response.json()
             if data.get("node_errors") or "prompt_id" not in data:
-                raise ComfyUIError(f"ComfyUI ha rifiutato il workflow: {json.dumps(data.get('node_errors'))[:400]}")
+                raise ComfyUIError(f"ComfyUI rejected the workflow: {json.dumps(data.get('node_errors'))[:400]}")
             prompt_id = data["prompt_id"]
             while time.monotonic() < deadline:
                 response = client.get(f"/history/{prompt_id}")
@@ -1332,7 +1332,7 @@ def generate_image(
                 reference_name = upload_reference(reference_path, base_url=base_url)
             if pose_path is not None:
                 if not pose_path.is_file():
-                    raise ComfyUIError("Skeleton di posa non trovato")
+                    raise ComfyUIError("Pose skeleton not found")
                 pose_name = upload_reference(pose_path, base_url=base_url)
         workflow = _diffusion_graph(
             family, checkpoint or "", prompt, negative_prompt, seed, loras=loras,
@@ -1358,17 +1358,17 @@ def generate_image(
         workflow_path = reference_setting
     use_pose = pose_path is not None
     if use_pose and not pose_path.is_file():
-        raise ComfyUIError("Skeleton di posa non trovato")
+        raise ComfyUIError("Pose skeleton not found")
     if use_pose:
         if (family or style) != "real":
-            raise ComfyUIError("Il controllo posa è disponibile solo per la famiglia real")
+            raise ComfyUIError("Pose control is only available for the real family")
         workflow_path = (
             settings.chat_real_pose_reference_workflow_path
             if has_reference
             else settings.chat_real_pose_workflow_path
         )
         if not workflow_path.is_file():
-            raise ComfyUIError("Workflow posa non trovato")
+            raise ComfyUIError("Pose workflow not found")
     workflow = json.loads(workflow_path.read_text())
     replacements = {
         "{{positive_prompt}}": prompt,

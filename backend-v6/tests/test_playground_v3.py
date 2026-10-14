@@ -510,12 +510,12 @@ def test_checkpoint_family_and_pony_prompts():
     assert "score_4" in negative and "child" in negative and "underage" in negative
 
 
-def test_english_error_translation():
+def test_error_messages_are_english():
     english = TestClient(app, headers={"X-API-Key": "test-key", "X-Language": "en"})
     missing = english.get("/api/characters/does-not-exist")
     assert missing.status_code == 404 and missing.json()["detail"] == "Item not found"
-    italian = client.get("/api/characters/does-not-exist")
-    assert italian.json()["detail"] == "Elemento non trovato"
+    no_header = client.get("/api/characters/does-not-exist")
+    assert no_header.json()["detail"] == "Item not found"
     assert english.post("/api/fans", json={"name": "x"}).status_code == 201
     auth = TestClient(app, headers={"X-Language": "en"}).post("/api/fans", json={"name": "x"})
     assert auth.status_code == 401 and auth.json()["detail"] == "Invalid access key"
@@ -713,7 +713,7 @@ def test_dataset_folder_import_and_invalid_path(tmp_path):
         json={"name": "Bad", "kind": "folder", "reference": "/tmp", "limit": 1, "classify": False},
     ).json()
     bad = client.get(f"/api/dataset/sources/{outside['id']}").json()
-    assert bad["status"] == "failed" and "Cartella non valida" in (bad["error"] or "")
+    assert bad["status"] == "failed" and "Invalid folder" in (bad["error"] or "")
     assert client.delete(f"/api/dataset/sources/{outside['id']}").json()["deleted"] is True
     assert client.delete(f"/api/dataset/sources/{created['id']}").json()["deleted"] is True
 

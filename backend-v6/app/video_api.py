@@ -51,7 +51,7 @@ class VideoGenerateInput(StrictModel):
 def required(db, model, item_id):
     item = db.get(model, item_id)
     if item is None:
-        raise HTTPException(404, "Elemento non trovato")
+        raise HTTPException(404, "Item not found")
     return item
 
 
@@ -72,13 +72,13 @@ def validate_video_loras(loras: list[VideoLora], model: str) -> list[dict]:
     for lora in loras:
         name = lora.name.strip()
         if ".." in name or name.startswith("/"):
-            raise HTTPException(400, f"Nome LoRA non valido: {name}")
+            raise HTTPException(400, f"Invalid LoRA name: {name}")
         if any(marker in name.lower() for marker in AUTO_LORAS):
-            raise HTTPException(400, "Questa LoRA è già applicata automaticamente dal modello")
+            raise HTTPException(400, "This LoRA is already applied automatically by the model")
         if lora_family(name) != family:
-            raise HTTPException(400, f"LoRA non compatibile con il modello video: {name}")
+            raise HTTPException(400, f"LoRA not compatible with the video model: {name}")
         if name not in available:
-            raise HTTPException(400, f"LoRA non disponibile: {name}")
+            raise HTTPException(400, f"LoRA unavailable: {name}")
         result.append({"name": name, "weight": lora.weight})
     return result
 
@@ -119,9 +119,9 @@ def list_videos(character_id: str, limit: int = 100, offset: int = 0):
 def generate_video(character_id: str, body: VideoGenerateInput):
     """Image-to-video: the selected library image is the first frame."""
     if not comfyui_available():
-        raise HTTPException(503, "ComfyUI non è raggiungibile: avvia il servizio immagini")
+        raise HTTPException(503, "ComfyUI is unreachable: start the image service")
     if body.mode == "image" and not body.image_id:
-        raise HTTPException(400, "Serve un'immagine di partenza dalla libreria del personaggio")
+        raise HTTPException(400, "A starting image from the character library is required")
     loras = validate_video_loras(body.loras, body.model)
     width = body.width
     height = body.height
@@ -140,10 +140,10 @@ def generate_video(character_id: str, body: VideoGenerateInput):
         source = required(db, ImageLibrary, body.image_id) if body.image_id else None
         if source is not None:
             if source.character_id != character_id:
-                raise HTTPException(400, "L'immagine appartiene a un altro personaggio")
+                raise HTTPException(400, "The image belongs to another character")
             candidate = (settings.media_dir / source.filename).resolve()
             if not candidate.is_file() or not candidate.is_relative_to(settings.media_dir.resolve()):
-                raise HTTPException(404, "File immagine non trovato")
+                raise HTTPException(404, "Image file not found")
             image_path = candidate
     try:
         if body.model == "wan":
@@ -187,7 +187,7 @@ def generate_video(character_id: str, body: VideoGenerateInput):
                 base_url=pick_target(),
             )
     except ComfyUIError as error:
-        raise HTTPException(502, f"Generazione video non riuscita: {error}") from error
+        raise HTTPException(502, f"Video generation failed: {error}") from error
     suffix = ".webm"
     base = identifier()
     filename = f"{base}{suffix}"
@@ -225,7 +225,7 @@ def video_file(video_id: str):
         filename = item.filename
     path = (settings.media_dir / filename).resolve()
     if not path.is_file() or not path.is_relative_to(settings.media_dir.resolve()):
-        raise HTTPException(404, "Video non trovato")
+        raise HTTPException(404, "Video not found")
     media_type = VIDEO_MEDIA_TYPES.get(path.suffix.lower(), "application/octet-stream")
     return FileResponse(path, media_type=media_type, filename=path.name)
 
@@ -236,10 +236,10 @@ def video_thumb(video_id: str):
         item = required(db, VideoClip, video_id)
         thumb = item.thumb_filename
     if not thumb:
-        raise HTTPException(404, "Miniatura non disponibile")
+        raise HTTPException(404, "Thumbnail unavailable")
     path = (settings.media_dir / thumb).resolve()
     if not path.is_file() or not path.is_relative_to(settings.media_dir.resolve()):
-        raise HTTPException(404, "Miniatura non trovata")
+        raise HTTPException(404, "Thumbnail not found")
     return FileResponse(path, media_type="image/png", filename=path.name)
 
 

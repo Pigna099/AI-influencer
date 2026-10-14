@@ -87,7 +87,7 @@ def schedule_reply(
     with Session.begin() as db:
         conversation = db.get(Conversation, conversation_id)
         if conversation is None:
-            raise ValueError("Conversazione non trovata")
+            raise ValueError("Conversation not found")
         character = db.get(Influencer, conversation.character_id)
         item = ScheduledReply(
             conversation_id=conversation_id,

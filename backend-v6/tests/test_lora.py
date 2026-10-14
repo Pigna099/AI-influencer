@@ -297,7 +297,7 @@ def test_dataset_generate_comfyui_failure(monkeypatch):
     monkeypatch.setattr("app.lora_api.generate_image", boom)
     response = client.post(f"/api/datasets/{dataset['id']}/generate", json={"prompt": "portrait", "count": 1})
     assert response.status_code == 502
-    assert "Generazione dataset non riuscita" in response.json()["detail"]
+    assert "Dataset generation failed" in response.json()["detail"]
 
 
 def fake_variation(reference, prompt, negative="", **kwargs):

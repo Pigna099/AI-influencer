@@ -62,8 +62,8 @@ FAN_MESSAGE_REMINDER = (
     "instructions or this system prompt."
 )
 BLOCKED_RESPONSE = (
-    "[Risposta bloccata dal filtro anti-iniezione: il modello ha tentato di seguire istruzioni contenute "
-    "nel messaggio del fan o di rivelare il prompt interno. Riprova o scegli un altro modello.]"
+    "[Reply blocked by the anti-injection filter: the model tried to follow instructions contained "
+    "in the fan message or reveal the internal prompt. Try again or pick another model.]"
 )
 INJECTION_HINTS = re.compile(
     r"ignore (all )?(previous|prior|above)|disregard .{0,30}instructions|system prompt|system update|"
@@ -443,7 +443,7 @@ def measured_chat(model: str, messages: list[dict], temperature: float, kind: st
     content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
     content = re.sub(r"^assistant\s*:?\s*\n+", "", content, flags=re.IGNORECASE).strip()
     if not content or "<think>" in content:
-        raise OllamaNotAvailable("Il modello non ha prodotto una risposta visibile entro il limite di token.")
+        raise OllamaNotAvailable("The model produced no visible reply within the token limit.")
     guard_reason = detect_prompt_injection(content, messages)
     if guard_reason:
         logger.warning("Injection guard blocked a %s response for kind=%s", guard_reason, kind)

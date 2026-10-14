@@ -250,6 +250,10 @@ Done (second block):
   zone with explicit consequence copy (chats, memories, LoRAs, datasets, jobs, artifacts).
 - **Regression test for structured errors**: LoraPlayground renders code summary + remediation +
   model-management link and keeps raw log paths behind the details disclosure (mocked api).
+- **Backend messages are English at the source** (~100 user-facing strings across `app/` and the
+  trainer worker translated; the legacy it/en shim stays as a compatibility passthrough). Tests
+  updated to the English copy; live-verified `/api/characters/does-not-exist` -> "Item not found"
+  without any language header.
 
 Remaining in Phase 1: no false zeros/placeholders left in the audited set — kept under watch;
 component-test coverage to grow beyond the shell primitives.

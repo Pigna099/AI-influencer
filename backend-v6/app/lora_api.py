@@ -91,7 +91,7 @@ class CompleteInput(StrictModel):
 def required(db, model, item_id):
     item = db.get(model, item_id)
     if item is None:
-        raise HTTPException(404, "Elemento non trovato")
+        raise HTTPException(404, "Item not found")
     return item
 
 
@@ -106,7 +106,7 @@ def resolve_data_dir(value: str) -> Path:
         candidate = Path.cwd() / candidate
     path = candidate.resolve()
     if not path.is_relative_to(root) or not path.is_dir():
-        raise HTTPException(400, "Cartella immagini non valida: indicare una cartella dentro data/")
+        raise HTTPException(400, "Invalid image folder: provide a folder inside data/")
     return path
 
 
@@ -200,7 +200,7 @@ def create_lora(character_id: str, body: LoraCreate):
             .limit(1)
         ).first()
         if duplicate is not None:
-            raise HTTPException(409, "Trigger già usato da un'altra LoRA del personaggio")
+            raise HTTPException(409, "Trigger already used by another LoRA of this character")
         item = CharacterLora(
             character_id=character_id,
             name=body.name,
@@ -226,7 +226,7 @@ def patch_lora(lora_id: str, body: LoraPatch):
     with Session.begin() as db:
         item = required(db, CharacterLora, lora_id)
         if item.status in LORA_BUSY:
-            raise HTTPException(409, "LoRA in training: attendere la fine o annullare il job")
+            raise HTTPException(409, "LoRA is training: wait for it to finish or cancel the job")
         if body.name is not None:
             item.name = body.name
         if body.family is not None:
@@ -243,7 +243,7 @@ def patch_lora(lora_id: str, body: LoraPatch):
                 .limit(1)
             ).first()
             if duplicate is not None:
-                raise HTTPException(409, "Trigger già usato da un'altra LoRA del personaggio")
+                raise HTTPException(409, "Trigger already used by another LoRA of this character")
             item.trigger = trigger
         if body.rank is not None:
             item.rank = body.rank
@@ -260,7 +260,7 @@ def delete_lora(lora_id: str):
     with Session.begin() as db:
         item = required(db, CharacterLora, lora_id)
         if item.status in LORA_BUSY:
-            raise HTTPException(409, "LoRA in training: annullare prima il job")
+            raise HTTPException(409, "LoRA is training: cancel the job first")
         if item.artifact_filename:
             candidate = (settings.lora_dir / item.artifact_filename).resolve()
             if candidate.is_relative_to(settings.lora_dir.resolve()) and candidate.is_file():
@@ -283,7 +283,7 @@ def activate_lora(lora_id: str):
     with Session.begin() as db:
         item = required(db, CharacterLora, lora_id)
         if item.status != "ready":
-            raise HTTPException(409, "Solo una LoRA pronta può essere attivata")
+            raise HTTPException(409, "Only a ready LoRA can be activated")
         db.execute(
             update(CharacterLora)
             .where(
@@ -301,14 +301,14 @@ def activate_lora(lora_id: str):
 @router.post("/loras/{lora_id}/training-jobs", status_code=201)
 def queue_training(lora_id: str, body: TrainingJobCreate):
     if not body.images_dir and not body.dataset_id:
-        raise HTTPException(400, "Indica una cartella immagini o un dataset")
+        raise HTTPException(400, "Provide an image folder or a dataset")
     with Session.begin() as db:
         lora = required(db, CharacterLora, lora_id)
         if lora.status in LORA_BUSY:
-            raise HTTPException(409, "Training già in corso per questa LoRA")
+            raise HTTPException(409, "Training already in progress for this LoRA")
         dataset = required(db, LoraDataset, body.dataset_id) if body.dataset_id else None
         if dataset is not None and dataset.character_id != lora.character_id:
-            raise HTTPException(400, "Il dataset appartiene a un altro personaggio")
+            raise HTTPException(400, "The dataset belongs to another character")
         base_checkpoint = body.base_checkpoint or lora.base_checkpoint
         rank = body.rank or lora.rank
         if base_checkpoint:
@@ -405,7 +405,7 @@ def claim_training_job(job_id: str, body: ClaimInput):
     with Session.begin() as db:
         job = required(db, TrainingJob, job_id)
         if job.status != "queued":
-            raise HTTPException(409, "Job non disponibile in coda")
+            raise HTTPException(409, "Job not available in the queue")
         job.status = "running"
         job.worker = body.worker.strip() or None
         job.started_at = now()
@@ -427,7 +427,7 @@ def update_training_progress(job_id: str, body: ProgressInput):
                 lora = db.get(CharacterLora, job.lora_id) if job.lora_id else None
                 character = db.get(Influencer, job.character_id)
                 return job_out(job, lora, character)
-            raise HTTPException(409, "Job già concluso")
+            raise HTTPException(409, "Job already finished")
         job.progress = body.progress
         job.heartbeat_at = now()
         if body.log_path is not None:
@@ -442,7 +442,7 @@ def complete_training_job(job_id: str, body: CompleteInput):
     with Session.begin() as db:
         job = required(db, TrainingJob, job_id)
         if job.status in JOB_FINISHED:
-            raise HTTPException(409, "Job già concluso")
+            raise HTTPException(409, "Job already finished")
         lora = db.get(CharacterLora, job.lora_id) if job.lora_id else None
         job.finished_at = now()
         if body.success:
@@ -450,7 +450,7 @@ def complete_training_job(job_id: str, body: CompleteInput):
                 raise HTTPException(400, "filename e artifact_filename sono richiesti")
             artifact = (settings.lora_dir / body.artifact_filename).resolve()
             if not artifact.is_relative_to(settings.lora_dir.resolve()) or not artifact.is_file():
-                raise HTTPException(400, "Artefatto non trovato nella cartella LoRA del server")
+                raise HTTPException(400, "Artifact not found in the server LoRA folder")
             job.status = "succeeded"
             if lora is not None:
                 lora.status = "ready"
@@ -473,7 +473,7 @@ def complete_training_job(job_id: str, body: CompleteInput):
         else:
             job.status = "failed"
             job.error = body.error
-            job.error_info = body.error_info or "Training fallito"
+            job.error_info = body.error_info or "Training failed"
             if lora is not None:
                 lora.status = "failed"
                 lora.error = job.error
@@ -487,7 +487,7 @@ def cancel_training_job(job_id: str):
     with Session.begin() as db:
         job = required(db, TrainingJob, job_id)
         if job.status in JOB_FINISHED:
-            raise HTTPException(409, "Job già concluso")
+            raise HTTPException(409, "Job already finished")
         job.status = "canceled"
         job.finished_at = now()
         lora = db.get(CharacterLora, job.lora_id) if job.lora_id else None
@@ -527,7 +527,7 @@ def materialize_dataset(db, dataset: LoraDataset, stem: str) -> Path:
         (folder / f"{name}.txt").write_text(caption or trigger)
     if copied < 4:
         shutil.rmtree(folder, ignore_errors=True)
-        raise HTTPException(400, "Servono almeno 4 immagini selezionate e disponibili nel dataset")
+        raise HTTPException(400, "At least 4 selected and available images are required in the dataset")
     return folder
 
 
@@ -677,7 +677,7 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
         if body.pose_ids:
             poses = list(db.scalars(select(PoseReference).where(PoseReference.id.in_(body.pose_ids))))
             if len(poses) != len(set(body.pose_ids)):
-                raise HTTPException(404, "Una o più pose non sono state trovate")
+                raise HTTPException(404, "One or more poses were not found")
         checkpoint = body.checkpoint or dataset.base_checkpoint or character.image_checkpoint
         style = character.image_style or "real"
         character_id = dataset.character_id
@@ -735,7 +735,7 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
                 errors.append(error)
     if not rendered:
         raise HTTPException(
-            502, f"Generazione dataset non riuscita: {errors[0] if errors else 'errore sconosciuto'}"
+            502, f"Dataset generation failed: {errors[0] if errors else 'unknown error'}"
         )
     created: list[dict] = []
     for pose, seed, data, meta in rendered:
@@ -744,7 +744,7 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
         try:
             (settings.media_dir / filename).write_bytes(data)
         except OSError as error:
-            raise HTTPException(500, "Impossibile salvare l'immagine") from error
+            raise HTTPException(500, "Could not save the image") from error
         with Session.begin() as db:
             required(db, LoraDataset, dataset_id)
             library = ImageLibrary(
@@ -877,7 +877,7 @@ def generate_dataset_variations(dataset_id: str, body: DatasetVariations):
                 errors.append(error)
     if not rendered:
         raise HTTPException(
-            502, f"Generazione variazioni non riuscita: {errors[0] if errors else 'errore sconosciuto'}"
+            502, f"Variations generation failed: {errors[0] if errors else 'unknown error'}"
         )
     created: list[dict] = []
     for prompt, seed, data, meta in rendered:
@@ -887,7 +887,7 @@ def generate_dataset_variations(dataset_id: str, body: DatasetVariations):
         try:
             (settings.media_dir / filename).write_bytes(data)
         except OSError as error:
-            raise HTTPException(500, "Impossibile salvare l'immagine") from error
+            raise HTTPException(500, "Could not save the image") from error
         with Session.begin() as db:
             library = ImageLibrary(
                 character_id=character_id,
@@ -1063,7 +1063,7 @@ def patch_dataset_item(item_id: str, body: DatasetItemPatch):
         if body.reference_role is not None:
             role = body.reference_role or None
             if role is not None and role not in REFERENCE_ROLES:
-                raise HTTPException(400, "Ruolo di reference non valido")
+                raise HTTPException(400, "Invalid reference role")
             item.reference_role = role
         library = db.get(ImageLibrary, item.image_id) if item.image_id else None
         db.flush()

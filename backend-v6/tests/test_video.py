@@ -73,7 +73,7 @@ def test_video_lora_validation():
         json={"prompt": "x", "mode": "text", "loras": [{"name": "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors"}]},
     )
     assert response.status_code == 400
-    assert "automaticamente" in response.json()["detail"]
+    assert "automatically" in response.json()["detail"]
     response = client.post(
         f"/api/characters/{character_id}/videos",
         json={"prompt": "x", "mode": "text", "loras": [{"name": "missing_style.safetensors"}]},
@@ -84,7 +84,7 @@ def test_video_lora_validation():
         json={"prompt": "x", "mode": "text", "loras": [{"name": "ai_influencer/char.safetensors"}]},
     )
     assert response.status_code == 400
-    assert "compatibile" in response.json()["detail"]
+    assert "compatible" in response.json()["detail"]
 
 
 def test_wan_video_graph_modes():
@@ -139,7 +139,7 @@ def test_ltx_model_select_and_lora_family():
         json={"prompt": "x", "mode": "text", "model": "ltx-distilled", "loras": [{"name": "wan_style.safetensors"}]},
     )
     assert response.status_code == 400
-    assert "compatibile" in response.json()["detail"]
+    assert "compatible" in response.json()["detail"]
 
 
 def test_hunyuan_video_graph_modes():
@@ -177,4 +177,4 @@ def test_hunyuan_model_via_api():
         json={"prompt": "x", "mode": "text", "model": "hunyuan", "loras": [{"name": "wan_style.safetensors"}]},
     )
     assert response.status_code == 400
-    assert "compatibile" in response.json()["detail"]
+    assert "compatible" in response.json()["detail"]

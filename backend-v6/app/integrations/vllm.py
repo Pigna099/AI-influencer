@@ -84,9 +84,9 @@ def chat(
             timeout=settings.vllm_timeout_seconds,
         )
     except httpx.HTTPError as error:
-        raise VllmNotAvailable(f"vLLM non raggiungibile: {error}") from error
+        raise VllmNotAvailable(f"vLLM unreachable: {error}") from error
     if response.status_code == 404:
-        raise VllmNotAvailable(f"Modello non servito da vLLM: {model}")
+        raise VllmNotAvailable(f"Model not served by vLLM: {model}")
     if response.status_code >= 400:
         raise VllmNotAvailable(f"vLLM error {response.status_code}: {response.text[:300]}")
     data = response.json()
@@ -141,11 +141,11 @@ def vision_json(
             timeout=settings.vllm_timeout_seconds,
         )
     except httpx.HTTPError as error:
-        raise VllmNotAvailable(f"vLLM non raggiungibile: {error}") from error
+        raise VllmNotAvailable(f"vLLM unreachable: {error}") from error
     if response.status_code >= 400:
         raise VllmNotAvailable(f"vLLM error {response.status_code}: {response.text[:200]}")
     text_content = ((response.json().get("choices") or [{}])[0].get("message") or {}).get("content") or ""
     try:
         return jsonlib.loads(text_content)
     except ValueError as error:
-        raise VllmNotAvailable(f"Risposta vision non valida: {text_content[:160]}") from error
+        raise VllmNotAvailable(f"Invalid vision response: {text_content[:160]}") from error
