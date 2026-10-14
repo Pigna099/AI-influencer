@@ -79,6 +79,9 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
 
   const source = sources.find(item => item.id === sourceId) || null;
   const active = source && ["pending", "importing", "classifying"].includes(source.status);
+  const readyCount = images.filter(item => item.status === "ready").length;
+  const waitingCount = images.filter(item => item.status === "pending").length;
+  const failedCount = images.filter(item => item.status === "failed" || item.status === "blocked").length;
 
   const loadSources = useCallback(async () => {
     const listing = await api.getDatasetSources();
@@ -242,6 +245,8 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
           subtitle={t("ds.subtitle")}
           aside={images.length ? <span className="library-count">{t("ip.imagesCount", { count: images.length })}</span> : undefined}
         />
+        {active && <p className="memory-status" role="status"><span className="spinner" />{source.status === "importing" ? t("ds.queueImporting", { imported: source.imported, total: source.total || "?" }) : source.status === "classifying" ? t("ds.queueClassifying", { classified: source.classified, total: source.imported || "?" }) : t("ds.queuePending")}</p>}
+        {!active && !!images.length && (waitingCount > 0 || failedCount > 0) && <p className="readiness-line">{t("ds.queueReady", { count: readyCount })}{waitingCount > 0 ? ` · ${t("ds.queueWaiting", { count: waitingCount })}` : ""}{failedCount > 0 ? ` · ${t("ds.queueFailed", { count: failedCount })}` : ""}</p>}
         <div className="library-toolbar">
           <button disabled={!!busy || !source} onClick={classifySource}>{t("ds.classifyPending")}</button>
           <button disabled={!!busy || !source} onClick={exportSource}>{t("ds.export")}</button>

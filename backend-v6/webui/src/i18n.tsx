@@ -670,6 +670,12 @@ const en = {
   "home.attention.failedJobs": "{count} failed training jobs",
   "home.attention.runningJobs": "{count} training jobs running",
   "home.attention.empty": "Nothing needs review right now.",
+  "ds.queuePending": "Import queued\u2026",
+  "ds.queueImporting": "Importing {imported}/{total}\u2026",
+  "ds.queueClassifying": "Classifying {classified}/{imported}\u2026",
+  "ds.queueReady": "{count} ready",
+  "ds.queueWaiting": "{count} pending",
+  "ds.queueFailed": "{count} failed",
 } as const;
 
 type Catalog = typeof en;
