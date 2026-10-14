@@ -221,8 +221,23 @@ Done:
   "Training jobs"); one-caption invariant (captions normalized to a single line on save).
 - Tests: 148 passing (caption invariant + job-name fallbacks added); ruff clean; frontend tsc/lint/build clean.
 
-Remaining in Phase 1: skeleton components per page, structured trainer errors (code/summary/remediation),
-checkpoint-missing remediation action, cursor pagination, larger component tests.
+Done (second block):
+- **Structured trainer errors** (Phase 1 item): migration `0021_job_error_info`; worker `classify_failure`
+  maps failures to `{code, summary, remediation, technical_details}` (`checkpoint_missing`, `gpu_oom`,
+  `trainer_assets_missing`, `dataset_too_small`, `trainer_failed`); API stores/returns `error_info`;
+  LoRA UI renders code + summary + remediation + collapsible technical details, hides raw log paths;
+  `checkpoint_missing` shows an action link to model management. Live-verified (checkpoint deleted
+  after QA job → `checkpoint_missing` shown).
+- **Pagination** (Phase 1 item): `limit`/`offset` on library items, training jobs, videos, dataset
+  images; "Load more" buttons in Images, Dataset, Video and LoRA job list (dedup + auto-hide).
+- **UI primitives** (Phase 2 start): `components/ui/AsyncBoundary.tsx` (loading/empty/skeleton-grid
+  boundary) and `components/ui/StatusBadge.tsx`; adopted in Images, Video, Dataset grids and LoRA
+  job badges; skeleton-card CSS.
+- **API smoke test** for every tab (`tests/test_smoke_tabs.py`); suite now **149 passing**; ruff,
+  tsc, lint, build clean; deployed and verified.
+
+Remaining in Phase 1: no false zeros/placeholders left in the audited set — kept under watch;
+larger component tests (no frontend test runner yet, needs vitest setup decision).
 
 ### Acceptance criteria
 

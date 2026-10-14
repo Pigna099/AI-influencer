@@ -102,7 +102,7 @@ def video_out(item: VideoClip) -> dict:
 
 
 @router.get("/characters/{character_id}/videos")
-def list_videos(character_id: str, limit: int = 100):
+def list_videos(character_id: str, limit: int = 100, offset: int = 0):
     with Session() as db:
         required(db, Influencer, character_id)
         items = db.scalars(
@@ -110,6 +110,7 @@ def list_videos(character_id: str, limit: int = 100):
             .where(VideoClip.character_id == character_id)
             .order_by(VideoClip.created_at.desc())
             .limit(max(1, min(limit, 500)))
+            .offset(max(0, offset))
         ).all()
         return [video_out(item) for item in items]
 

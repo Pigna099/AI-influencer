@@ -359,9 +359,17 @@ export interface TrainingParams {
   gpu?: number | null;
 }
 
+export interface TrainingJobErrorInfo {
+  code: string;
+  summary: string;
+  remediation: string;
+  technical_details?: string;
+}
+
 export interface TrainingJob {
   id: string;
   name?: string;
+  error_info?: TrainingJobErrorInfo | null;
   character_id: string;
   lora_id: string | null;
   dataset_id: string | null;
@@ -587,8 +595,12 @@ export class ApiClient {
     return this.request("/api/settings/defaults", { method: "PUT", body: JSON.stringify(data) });
   }
 
-  async getVideos(characterId: string): Promise<VideoClip[]> {
-    return this.request(`/api/characters/${characterId}/videos`);
+  async getVideos(characterId: string, params: { limit?: number; offset?: number } = {}): Promise<VideoClip[]> {
+    const query = new URLSearchParams();
+    if (params.limit != null) query.set("limit", String(params.limit));
+    if (params.offset) query.set("offset", String(params.offset));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return this.request(`/api/characters/${characterId}/videos${suffix}`);
   }
 
   async generateVideo(characterId: string, data: VideoGenerateInput): Promise<VideoClip> {
@@ -599,11 +611,12 @@ export class ApiClient {
     return this.request(`/api/videos/${id}`, { method: "DELETE" });
   }
 
-  async getLibrary(characterId: string, params: {status?: string; style?: string; limit?: number} = {}): Promise<LibraryImage[]> {
+  async getLibrary(characterId: string, params: {status?: string; style?: string; limit?: number; offset?: number} = {}): Promise<LibraryImage[]> {
     const query = new URLSearchParams();
     if (params.status) query.set("status", params.status);
     if (params.style) query.set("style", params.style);
     query.set("limit", String(params.limit ?? 60));
+    if (params.offset) query.set("offset", String(params.offset));
     return this.request(`/api/characters/${characterId}/library?${query.toString()}`);
   }
 
@@ -665,7 +678,7 @@ export class ApiClient {
     return this.fetchBlob(`/api/dataset/sources/${id}/export`);
   }
 
-  async getDatasetImages(sourceId: string, params: {status?: string; limit?: number} = {}): Promise<DatasetImage[]> {
+  async getDatasetImages(sourceId: string, params: {status?: string; limit?: number; offset?: number} = {}): Promise<DatasetImage[]> {
     const query = new URLSearchParams({ source_id: sourceId });
     if (params.status) query.set("status", params.status);
     query.set("limit", String(params.limit ?? 200));
@@ -777,11 +790,12 @@ export class ApiClient {
     return this.request(`/api/loras/${loraId}/training-jobs`, {method: "POST", body: JSON.stringify(data)});
   }
 
-  async getTrainingJobs(params: {status?: string; character_id?: string; limit?: number} = {}): Promise<TrainingJob[]> {
+  async getTrainingJobs(params: {status?: string; character_id?: string; limit?: number; offset?: number} = {}): Promise<TrainingJob[]> {
     const query = new URLSearchParams();
     if (params.status) query.set("status", params.status);
     if (params.character_id) query.set("character_id", params.character_id);
     query.set("limit", String(params.limit ?? 50));
+    if (params.offset) query.set("offset", String(params.offset));
     return this.request(`/api/training-jobs?${query.toString()}`);
   }
 

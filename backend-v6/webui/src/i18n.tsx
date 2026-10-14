@@ -654,6 +654,9 @@ const en = {
   "vd.clip": "{seconds}s clip",
   "common.loadingData": "Loading\u2026",
   "ds.noImages": "No images in this source yet.",
+  "lp.errorDetails": "Technical details",
+  "common.loadMore": "Load more",
+  "lp.manageModels": "Open model management (Home)",
 } as const;
 
 type Catalog = typeof en;

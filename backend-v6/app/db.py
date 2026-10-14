@@ -378,6 +378,7 @@ class TrainingJob(Base):
     progress: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     log_path: Mapped[str | None] = mapped_column(String(300), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_info: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     worker: Mapped[str | None] = mapped_column(String(120), nullable=True)
     heartbeat_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now)

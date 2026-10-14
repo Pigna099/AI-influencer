@@ -1,5 +1,13 @@
 # Stato installazione — 13 settembre 2026
 
+## Milestone A "v6.1 trustworthy" (14 ottobre 2026, in corso)
+
+- Fix P0 dal report di audit: titolo v6, placeholder letterali (`{{count}}`), `NaN GB`, filtro stato Immagini, contraddizione LoRA, icone Open/Select, durata clip vs tempo generazione, sorgente video solo approvata + anteprima, stati di caricamento (non più "vuoto" falso) in Immagini/Video/Dataset/LoRA, hint sui pulsanti disabilitati, nomi job leggibili (`<nome> (<famiglia>)`), invariant caption a riga singola. 148 test.
+- **Errori trainer strutturati** (migrazione `0021_job_error_info`): il worker classifica i fallimenti (`checkpoint_missing`, `gpu_oom`, `trainer_assets_missing`, `dataset_too_small`, `trainer_failed`) e salva `error_info` {code, summary, remediation, technical_details} sul job; la UI mostra codice+spiegazione+rimedi con dettaglio tecnico a scomparsa (percorso log grezzo nascosto); per `checkpoint_missing` link alla gestione modelli in Home. Verificato dal vivo.
+- **Paginazione**: `limit`/`offset` su libreria, job, video, immagini dataset; pulsanti **Carica altri** in Immagini, Dataset, Video e job LoRA.
+- **Primitive UI** (`webui/src/components/ui/`): `AsyncBoundary` (stati loading/empty/skeleton grid) e `StatusBadge`, adottate in Immagini, Video, Dataset e job LoRA.
+- Smoke test API di tutte le schede (`tests/test_smoke_tabs.py`); suite a **149 test**.
+
 ## Passaggio a backend-v6 (14 ottobre 2026)
 
 - Cartella attiva rinominata `backend-v5p0/` -> **`backend-v6/`**; immagine `ai-influencer-playground:v6`, versione app **0.6.0**, brand WebUI "v6". Snapshot pre-passaggio in `../backups/v5p0/source.tgz`. Novita incluse: scheda Video (Wan 2.2, LTX-2.3, HunyuanVideo 1.5), thumbnail e PPV video in chat, Qwen-Image 2.1, FLUX.2 Klein, LoRA Qwen/stile, **vLLM** per il testo con Ollama di backup, modelli predefiniti e piano GPU nella Home.

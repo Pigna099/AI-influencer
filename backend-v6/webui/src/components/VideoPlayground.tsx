@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, Character, LibraryImage, VideoClip } from "../api";
 import {useI18n} from "../i18n";
+import AsyncBoundary from "./ui/AsyncBoundary";
 
 function VideoCard({ item, sourceImage, busy, onDelete, onError }: {
   item: VideoClip;
@@ -109,6 +110,8 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   const [negative, setNegative] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [videosHasMore, setVideosHasMore] = useState(false);
+  const VIDEOS_PAGE = 50;
   const [mode, setMode] = useState<"image" | "text">("image");
   const [model, setModel] = useState<"wan" | "ltx-distilled" | "ltx-dev" | "hunyuan">("wan");
   const [allLoras, setAllLoras] = useState<{ name: string; family: string }[]>([]);
@@ -121,8 +124,9 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   const load = useCallback(async (id: string) => {
     if (!id) { setVideos([]); setLibrary([]); setLoaded(true); return; }
     try {
-      const [clips, images] = await Promise.all([api.getVideos(id), api.getLibrary(id, { limit: 200, status: "approved" })]);
+      const [clips, images] = await Promise.all([api.getVideos(id, { limit: VIDEOS_PAGE }), api.getLibrary(id, { limit: 200, status: "approved" })]);
       setVideos(clips);
+      setVideosHasMore(clips.length === VIDEOS_PAGE);
       setLibrary(images);
       setSourceId(prev => prev && images.some(image => image.id === prev) ? prev : (images[0]?.id || ""));
     } finally {
@@ -177,6 +181,15 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
     setSteps(presets[family].steps);
     setLoraSel({});
   }, [family]);
+
+  const loadMoreVideos = () => {
+    if (!characterId) return;
+    void (async () => {
+      const clips = await api.getVideos(characterId, { limit: VIDEOS_PAGE, offset: videos.length });
+      setVideos(prev => [...prev, ...clips.filter(clip => !prev.some(entry => entry.id === clip.id))]);
+      setVideosHasMore(clips.length === VIDEOS_PAGE);
+    })();
+  };
 
   const generate = () => {
     if (!characterId || !prompt.trim() || (mode === "image" && !sourceId)) return;
@@ -237,8 +250,16 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
           <span className="library-count">{t("vd.count", { count: videos.length })}</span>
         </div>
         <div className="library-scroll">
-          {!videos.length && (loaded ? <div className="empty-memory"><span>▶</span><p>{t("vd.empty")}</p></div> : <div className="empty-memory"><span className="spinner" /><p>{t("common.loadingData")}</p></div>)}
+          <AsyncBoundary
+            loading={!loaded}
+            empty={!videos.length}
+            skeleton="grid"
+            loadingText={t("common.loadingData")}
+            emptyState={<div className="empty-memory"><span>▶</span><p>{t("vd.empty")}</p></div>}
+          >
           <div className="video-grid">{videos.map(item => <VideoCard key={item.id} item={item} sourceImage={library.find(image => image.id === item.source_image_id)} busy={!!busy} onDelete={removeVideo} onError={setError} />)}</div>
+          {videosHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreVideos}>{t("common.loadMore")}</button></div>}
+          </AsyncBoundary>
         </div>
       </main>
       <aside className="inspector image-inspector">

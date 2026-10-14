@@ -4,6 +4,7 @@ import { api, Character, CharacterLora, CheckpointInfo, GenerationPreset, Librar
 import {useI18n} from "../i18n";
 import CharacterAvatar from "./CharacterAvatar";
 import Lightbox from "./Lightbox";
+import AsyncBoundary from "./ui/AsyncBoundary";
 import PoseLibrary from "./PoseLibrary";
 
 type LoraSelection = { on: boolean; weight: number; clip?: number | null; category?: string };
@@ -147,18 +148,32 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   }, [characterId, checkpointFamily, checkpoint, activeCharacterLora]);
 
   const [libraryLoaded, setLibraryLoaded] = useState(false);
+  const [libraryHasMore, setLibraryHasMore] = useState(false);
+  const LIBRARY_PAGE = 60;
 
   const refresh = useCallback(async (id: string) => {
-    if (!id) { setLibrary([]); setLibraryLoaded(true); return; }
+    if (!id) { setLibrary([]); setLibraryLoaded(true); setLibraryHasMore(false); return; }
     setSelectedIds([]);
     const epoch = generation.current;
     try {
-      const items = await api.getLibrary(id, { status: statusFilter, style: styleFilter });
-      if (epoch === generation.current) setLibrary(items);
+      const items = await api.getLibrary(id, { status: statusFilter, style: styleFilter, limit: LIBRARY_PAGE });
+      if (epoch === generation.current) {
+        setLibrary(items);
+        setLibraryHasMore(items.length === LIBRARY_PAGE);
+      }
     } finally {
       if (epoch === generation.current) setLibraryLoaded(true);
     }
   }, [statusFilter, styleFilter]);
+
+  const loadMoreLibrary = () => {
+    if (!characterId) return;
+    void perform("", async () => {
+      const items = await api.getLibrary(characterId, { status: statusFilter, style: styleFilter, limit: LIBRARY_PAGE, offset: library.length });
+      setLibrary(prev => [...prev, ...items.filter(item => !prev.some(entry => entry.id === item.id))]);
+      setLibraryHasMore(items.length === LIBRARY_PAGE);
+    });
+  };
 
   useEffect(() => {
     void refresh(characterId).catch(() => undefined);
@@ -341,7 +356,13 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
             <label><input type="checkbox" disabled={!!busy || !library.length} checked={selectedIds.length > 0 && selectedIds.length === library.length} onChange={e => setSelectedIds(e.target.checked ? library.map(entry => entry.id) : [])} /> {t("bulk.selectAll")}</label>
             <button className="danger" disabled={!!busy || !selectedIds.length} onClick={removeSelected}>{t("bulk.deleteSelected", { count: selectedIds.length })}</button>
           </div>
-          {!library.length && (libraryLoaded ? <div className="empty-memory"><span>◎</span><p>{t("ip.empty")}</p></div> : <div className="empty-memory"><span className="spinner" /><p>{t("common.loadingData")}</p></div>)}
+          <AsyncBoundary
+            loading={!libraryLoaded}
+            empty={!library.length}
+            skeleton="grid"
+            loadingText={t("common.loadingData")}
+            emptyState={<div className="empty-memory"><span>◎</span><p>{t("ip.empty")}</p></div>}
+          >
           <div className="library-grid">{library.map(item => <article className={`library-card status-${item.status}`} key={item.id}>
             <div className="library-thumb">
               <LibraryThumb item={item} onView={(url, alt) => setViewer({ url, alt })} alt={item.caption || item.prompt} />
@@ -361,6 +382,8 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
               </div>
             </div>
           </article>)}</div>
+          {libraryHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreLibrary}>{t("common.loadMore")}</button></div>}
+          </AsyncBoundary>
         </div>
       </main>
       <div className="panel-resizer" role="separator" aria-orientation="vertical" title={t("ip.resizePanel")} onMouseDown={startResize} />

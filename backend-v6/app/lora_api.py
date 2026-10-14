@@ -82,6 +82,7 @@ class ProgressInput(StrictModel):
 class CompleteInput(StrictModel):
     success: bool = True
     error: str | None = Field(default=None, max_length=4000)
+    error_info: dict | None = None
     filename: str | None = Field(default=None, max_length=300)
     artifact_filename: str | None = Field(default=None, max_length=300)
     metrics: dict = Field(default_factory=dict)
@@ -153,6 +154,7 @@ def job_out(job: TrainingJob, lora: CharacterLora | None = None, character: Infl
         "progress": job.progress,
         "log_path": job.log_path,
         "error": job.error,
+        "error_info": job.error_info,
         "worker": job.worker,
         "heartbeat_at": job.heartbeat_at.isoformat() if job.heartbeat_at else None,
         "created_at": job.created_at.isoformat(),
@@ -470,7 +472,8 @@ def complete_training_job(job_id: str, body: CompleteInput):
                     lora.is_active = True
         else:
             job.status = "failed"
-            job.error = body.error or "Training fallito"
+            job.error = body.error
+            job.error_info = body.error_info or "Training fallito"
             if lora is not None:
                 lora.status = "failed"
                 lora.error = job.error

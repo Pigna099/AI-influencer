@@ -428,7 +428,7 @@ def run_job(job, args, api):
                 continue
             api.call(
                 "POST", f"/api/training-jobs/{job_id}/complete",
-                {"success": False, "error": f"{label} exit {code}: {tail[-1500:]}"},
+                {"success": False, "error": f"{label} exit {code}: {tail[-1500:]}", "error_info": classify_failure(tail)},
             )
             log(f"job {job_id}: failed during {label} (exit {code})")
             return
@@ -474,6 +474,32 @@ def cleanup_pending_deletes(args):
             marker.unlink(missing_ok=True)
         except OSError as exc:
             log(f"pending delete failed for {marker.name}: {exc}")
+
+
+def classify_failure(message: str) -> dict:
+    """Structured error for the UI: code, summary, remediation, technical details."""
+    text = message.lower()
+    if "checkpoint not found" in text or "checkpoint non trovato" in text or "richiede i pesi bf16" in text:
+        code = "checkpoint_missing"
+        summary = "The base checkpoint is not available on the server"
+        remediation = "Install the checkpoint in the ComfyUI models folder (or choose another base checkpoint) and queue the job again."
+    elif "out of memory" in text:
+        code = "gpu_oom"
+        summary = "The GPU ran out of memory during training"
+        remediation = "Free VRAM from Home, lower resolution/rank, or pick a different GPU."
+    elif "file mancante per il training" in text or ("non trovato in" in text and "text_encoder" in text):
+        code = "trainer_assets_missing"
+        summary = "The trainer is missing required model files"
+        remediation = "Download the required weights (diffusion_models / text_encoders) and retry."
+    elif "need at least 4 images" in text:
+        code = "dataset_too_small"
+        summary = "The dataset has fewer than 4 usable images"
+        remediation = "Select at least 4 dataset images (aim for 50-70) before queueing training."
+    else:
+        code = "trainer_failed"
+        summary = "Training failed"
+        remediation = "Open the technical details and the trainer log, fix the reported issue and retry."
+    return {"code": code, "summary": summary, "remediation": remediation, "technical_details": message[-1500:]}
 
 
 def apply_gpu_plan(args):
@@ -575,7 +601,7 @@ def main():
             log(f"job {job['id']} crashed: {exc}")
             try:
                 api.call("POST", f"/api/training-jobs/{job['id']}/complete",
-                         {"success": False, "error": str(exc)[:1500]})
+                         {"success": False, "error": str(exc)[:1500], "error_info": classify_failure(str(exc))})
             except RuntimeError:
                 pass
         if args.once:

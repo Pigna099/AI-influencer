@@ -7,6 +7,7 @@ import CharacterForm from "./CharacterForm";
 
 const NO_OLLAMA_MODELS: never[] = [];
 import DatasetPanel from "./DatasetPanel";
+import StatusBadge from "./ui/StatusBadge";
 import Lightbox from "./Lightbox";
 
 const FAMILIES: Array<"real" | "pony" | "anime" | "qwen-image"> = ["real", "pony", "anime", "qwen-image"];
@@ -154,22 +155,34 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   }, []);
 
   const [loaded, setLoaded] = useState(false);
+  const [jobsHasMore, setJobsHasMore] = useState(false);
+  const JOBS_PAGE = 30;
 
   const refresh = useCallback(async (id: string) => {
     if (!id) { setLoras([]); setJobs([]); setDatasets([]); setLoaded(true); return; }
     try {
       const [loraItems, jobItems, datasetItems] = await Promise.all([
         api.getCharacterLoras(id),
-        api.getTrainingJobs({ character_id: id }),
+        api.getTrainingJobs({ character_id: id, limit: JOBS_PAGE }),
         api.getDatasets(id),
       ]);
       setLoras(loraItems);
       setJobs(jobItems);
       setDatasets(datasetItems);
+      setJobsHasMore(jobItems.length === JOBS_PAGE);
     } finally {
       setLoaded(true);
     }
   }, []);
+
+  const loadMoreJobs = () => {
+    if (!characterId) return;
+    void perform("", async () => {
+      const items = await api.getTrainingJobs({ character_id: characterId, limit: JOBS_PAGE, offset: jobs.length });
+      setJobs(prev => [...prev, ...items.filter(job => !prev.some(entry => entry.id === job.id))]);
+      setJobsHasMore(items.length === JOBS_PAGE);
+    });
+  };
 
   useEffect(() => { void refresh(characterId).catch(() => undefined); }, [characterId, refresh]);
 
@@ -360,14 +373,20 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
             <div className="section-title"><h2>{t("lp.jobs")}</h2><button disabled={!!busy} onClick={() => void refresh(characterId)}>{t("lp.refresh")}</button></div>
             {!jobs.length && (loaded ? <p className="muted">{t("lp.noJobs")}</p> : <p className="muted"><span className="spinner" /> {t("common.loadingData")}</p>)}
             <div className="job-list">{jobs.map(job => <div key={job.id} className={`job-row status-${job.status}`}>
-              <header><strong>{job.name || job.lora?.name || job.lora_id || t("lp.jobs")}</strong><span className={`lora-badge ${job.status}`}>{t(`lp.jobStatus.${job.status}`)}</span><small>{new Date(job.created_at).toLocaleString()}</small></header>
+              <header><strong>{job.name || job.lora?.name || job.lora_id || t("lp.jobs")}</strong><StatusBadge status={job.status} label={t(`lp.jobStatus.${job.status}`)} /><small>{new Date(job.created_at).toLocaleString()}</small></header>
               {job.status === "running" && <div className="job-bar"><i style={{ width: `${progressPercent(job)}%` }} /></div>}
               {job.status === "running" && <small>{job.progress?.total ? t("lp.progressStep", { step: job.progress.step ?? 0, total: job.progress.total }) : ""}{job.progress?.loss != null ? ` · ${t("lp.loss")} ${job.progress.loss.toFixed(4)}` : ""}</small>}
               {job.worker && <small>{t("lp.worker")}: {job.worker}</small>}
-              {job.error && <small className="lora-error">{job.error}</small>}
-              {job.log_path && <small>{t("lp.logPath")}: <code>{job.log_path}</code></small>}
+              {job.error_info ? <div className="lora-error">
+                <b>{job.error_info.summary}</b>
+                {job.error_info.remediation && <small>{job.error_info.remediation}</small>}
+                {job.error_info.code === "checkpoint_missing" && <Link className="text-button" to="/">{t("lp.manageModels")}</Link>}
+                <details><summary>{t("lp.errorDetails")}</summary><pre>{(job.error_info.technical_details || job.error || "").slice(-1200)}</pre></details>
+              </div> : job.error && <small className="lora-error">{job.error.slice(0, 300)}</small>}
+              {job.log_path && <details className="job-log"><summary>{t("lp.logPath")}</summary><pre>{job.log_path}</pre></details>}
               {(job.status === "queued" || job.status === "running") && <div className="lora-actions"><button disabled={!!busy} onClick={() => cancel(job)}>{t("lp.cancelJob")}</button></div>}
             </div>)}</div>
+            {jobsHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreJobs}>{t("common.loadMore")}</button></div>}
           </section>
           </section>
         </div>

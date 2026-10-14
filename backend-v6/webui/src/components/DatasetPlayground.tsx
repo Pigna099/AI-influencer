@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, CharacterProfile, DatasetImage, DatasetSource } from "../api";
 import {useI18n} from "../i18n";
+import AsyncBoundary from "./ui/AsyncBoundary";
+import StatusBadge from "./ui/StatusBadge";
 import Lightbox from "./Lightbox";
 
 const detailFields = ["pose", "setting", "lighting", "scene", "outfit", "body", "skin", "camera", "mood", "art_style"] as const;
@@ -37,7 +39,7 @@ function DatasetThumb({ item, onView, select, videoLabel, openLabel, selectLabel
   return <div className="dataset-thumb">
     {url ? <img src={url} alt={item.caption || item.filename} loading="lazy" /> : <span className="spinner" />}
     {item.kind === "video" && <span className="badge video">▶ {videoLabel}</span>}
-    <span className={`badge ${item.status}`}>{item.status}</span>
+    <StatusBadge status={item.status} />
     <div className="dataset-thumb-actions">
       <button type="button" disabled={!url} onClick={() => void openMedia()}>{openLabel}</button>
       <button type="button" onClick={select}>{selectLabel}</button>
@@ -64,6 +66,15 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
   const [viewer, setViewer] = useState<{ url: string; alt: string; video?: boolean } | null>(null);
   const generation = useRef(0);
   const [sourcesLoaded, setSourcesLoaded] = useState(false);
+  const loadMoreImages = () => {
+    if (!sourceId) return;
+    void perform("", async () => {
+      const items = await api.getDatasetImages(sourceId, { limit: IMAGES_PAGE, offset: images.length });
+      setImages(prev => [...prev, ...items.filter(item => !prev.some(entry => entry.id === item.id))]);
+      setImagesHasMore(items.length === IMAGES_PAGE);
+    });
+  };
+
   const source = sources.find(item => item.id === sourceId) || null;
   const active = source && ["pending", "importing", "classifying"].includes(source.status);
 
@@ -74,11 +85,14 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
     return listing;
   }, []);
 
+  const [imagesHasMore, setImagesHasMore] = useState(false);
+  const IMAGES_PAGE = 100;
+
   const loadImages = useCallback(async (id: string) => {
-    if (!id) { setImages([]); return; }
+    if (!id) { setImages([]); setImagesHasMore(false); return; }
     const epoch = generation.current;
-    const items = await api.getDatasetImages(id);
-    if (epoch === generation.current) setImages(items);
+    const items = await api.getDatasetImages(id, { limit: IMAGES_PAGE });
+    if (epoch === generation.current) { setImages(items); setImagesHasMore(items.length === IMAGES_PAGE); }
   }, []);
 
   useEffect(() => {
@@ -235,7 +249,13 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
           {busy && <span className="memory-status" role="status"><span className="spinner" />{busy}</span>}
         </div>
         <div className="library-scroll">
-          {!images.length && (sourcesLoaded ? <div className="empty-memory"><span>◎</span><p>{t("ds.noImages")}</p></div> : <div className="empty-memory"><span className="spinner" /><p>{t("common.loadingData")}</p></div>)}
+          <AsyncBoundary
+            loading={!sourcesLoaded}
+            empty={!images.length}
+            skeleton="grid"
+            loadingText={t("common.loadingData")}
+            emptyState={<div className="empty-memory"><span>◎</span><p>{t("ds.noImages")}</p></div>}
+          >
           <div className="library-grid">{images.map(item => <article className={`library-card status-${item.status === "ready" ? "approved" : item.status === "failed" || item.status === "blocked" ? "rejected" : ""}`} key={item.id}>
             <DatasetThumb item={item} onView={(url, alt, video) => setViewer({ url, alt, video })} select={() => setSelected(item)} videoLabel={t("ds.video")} openLabel={t("ds.openMedia")} selectLabel={t("ds.selectItem")} />
             <div className="library-meta">
@@ -244,6 +264,8 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
               <div className="library-actions"><button onClick={() => setSelected(item)}>{t("ds.details")}</button><button className="danger" disabled={!!busy} onClick={() => removeImage(item)}>{t("common.delete")}</button></div>
             </div>
           </article>)}</div>
+          {imagesHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreImages}>{t("common.loadMore")}</button></div>}
+          </AsyncBoundary>
         </div>
       </main>
       <aside className="inspector dataset-inspector">

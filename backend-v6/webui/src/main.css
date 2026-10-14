@@ -260,3 +260,23 @@
 .hint { display: block; color: #8ba0bd; font-size: .72rem; margin-top: 4px; }
 .source-preview { margin: 6px 0; max-width: 180px; border-radius: 8px; overflow: hidden; background: #0b1423; }
 .source-preview img { width: 100%; display: block; }
+
+.lora-error { display: grid; gap: 3px; }
+.lora-error b { font-size: .74rem; color: #f0a3b1; }
+.lora-error small { color: #c3d2e6; font-size: .7rem; }
+.lora-error details summary { cursor: pointer; font-size: .68rem; color: #8ba0bd; }
+.lora-error pre { max-height: 160px; overflow: auto; font-size: .62rem; background: #0b1423; padding: 6px; border-radius: 6px; white-space: pre-wrap; }
+
+.load-more { display: flex; justify-content: center; padding: 12px 0; }
+.job-log { font-size: .68rem; }
+.job-log summary { cursor: pointer; color: #8ba0bd; }
+.job-log pre { max-height: 120px; overflow: auto; font-size: .62rem; background: #0b1423; padding: 6px; border-radius: 6px; }
+
+.skeleton-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.skeleton-card { aspect-ratio: 2 / 3; border-radius: 10px; background: linear-gradient(100deg, #142238 40%, #1b2d47 50%, #142238 60%); background-size: 200% 100%; animation: skeleton 1.4s ease-in-out infinite; }
+@keyframes skeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.status-badge { font-size: .62rem; padding: 2px 7px; border-radius: 6px; text-transform: uppercase; letter-spacing: .04em; }
+.status-badge.ok { background: #1f5c4d; color: #a9f0dd; }
+.status-badge.busy { background: #4a3c1c; color: #f3d78b; }
+.status-badge.bad { background: #5c2430; color: #f5b6c1; }
+.status-badge.neutral { background: #3a4661; color: #ccd9ef; }
