@@ -285,3 +285,5 @@
 .danger-zone h3 { font-size: .8rem; color: var(--st-bad-fg); }
 .danger-zone .muted { font-size: .78rem; margin-top: 4px; }
 .danger-zone-actions { margin-top: 10px; display: flex; gap: 6px; }
+
+.ip-form details summary .summary-hint { color: #6f86a8; font-weight: 400; margin-left: 6px; }

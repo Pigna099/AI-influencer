@@ -275,7 +275,13 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
           {mode === "image" && <SourcePreview image={library.find(image => image.id === sourceId)} />}
           <label>{t("vd.prompt")}<textarea rows={3} value={prompt} disabled={!!busy} onChange={e => setPrompt(e.target.value)} placeholder={t("vd.promptPlaceholder")} maxLength={2000} /></label>
           <details>
-            <summary>{t("ip.details")}</summary>
+            <summary>{t("ip.details")} <small className="summary-hint">{[
+              resolution.replace("x", "×"),
+              t("vd.frames", { count: length }),
+              `${steps} steps`,
+              Object.keys(loraSel).length ? `${Object.keys(loraSel).length} LoRA` : null,
+              seed ? `${t("vd.seed")} ${seed}` : null,
+            ].filter(Boolean).join(" · ")}</small></summary>
             <label>{t("vd.negative")}<textarea rows={2} value={negative} disabled={!!busy} onChange={e => setNegative(e.target.value)} maxLength={2000} /></label>
             <label>{t("vd.resolution")}<select value={resolution} disabled={!!busy} onChange={e => setResolution(e.target.value)}>{resolutionOptions.map(option => <option key={option} value={option}>{option.replace("x", "×")}</option>)}</select></label>
             <label>{t("vd.length")}<select value={length} disabled={!!busy} onChange={e => setLength(Number(e.target.value))}>{lengthOptions.map(option => <option key={option} value={option}>{t("vd.frames", { count: option })}</option>)}</select></label>

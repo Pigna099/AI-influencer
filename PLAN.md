@@ -250,6 +250,8 @@ Done (second block):
   zone with explicit consequence copy (chats, memories, LoRAs, datasets, jobs, artifacts).
 - **Regression test for structured errors**: LoraPlayground renders code summary + remediation +
   model-management link and keeps raw log paths behind the details disclosure (mocked api).
+- **Effective-recipe summaries**: the collapsed Advanced sections in Images and Video now show
+  style/checkpoint/LoRA count/pose count/seed (Images) and resolution/frames/steps/LoRA/seed (Video).
 - **Backend messages are English at the source** (~100 user-facing strings across `app/` and the
   trainer worker translated; the legacy it/en shim stays as a compatibility passthrough). Tests
   updated to the English copy; live-verified `/api/characters/does-not-exist` -> "Item not found"
