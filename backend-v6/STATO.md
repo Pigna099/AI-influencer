@@ -8,6 +8,7 @@
 - **Primitive UI** (`webui/src/components/ui/`): `AsyncBoundary` (stati loading/empty/skeleton grid) e `StatusBadge`, adottate in Immagini, Video, Dataset e job LoRA.
 - Smoke test API di tutte le schede (`tests/test_smoke_tabs.py`); suite a **149 test**.
 - **Shell condivisa** (fase 2): `ui/AppHeader` unico e sticky (nav con `aria-current`, sostituisce le sei copie in Chat/Immagini/Video/Dataset/LoRA/Home), `ui/Banner`, token CSS di design (spazi/tipografia/superfici/stati) usati dalle nuove primitive.
+- **Test frontend**: runner **vitest + Testing Library** (`cd webui && npm test`, jsdom); primi test dei componenti condivisi (11 test: AsyncBoundary, StatusBadge, JobProgress, AppHeader, Banner). Testi di conferma delle eliminazioni più precisi.
 
 ## Passaggio a backend-v6 (14 ottobre 2026)
 

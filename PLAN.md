@@ -241,9 +241,12 @@ Done (second block):
   primitives.
 - **Phase 2 primitives**: `ui/EmptyState` (adopted in Images/Video/Dataset/chat memories) and
   `ui/JobProgress` (ARIA progressbar for running training jobs).
+- **Frontend test runner**: vitest + Testing Library (`npm test`, jsdom); first component tests for
+  AsyncBoundary/StatusBadge/JobProgress/AppHeader/Banner (11 tests). Destructive confirmation copy
+  sharpened (character delete lists LoRA/datasets/jobs/artifacts; dataset delete notes published LoRAs).
 
 Remaining in Phase 1: no false zeros/placeholders left in the audited set — kept under watch;
-larger component tests (no frontend test runner yet, needs vitest setup decision).
+component-test coverage to grow beyond the shell primitives.
 
 ### Acceptance criteria
 
