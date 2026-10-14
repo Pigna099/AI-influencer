@@ -333,6 +333,9 @@ Progress log — 14 October 2026 (first slice):
 
 Remaining in Phase 3: wire image/dataset/pose/consistency producers, SSE or bounded polling for
 detail views, concurrency limits per GPU/family, orphan-file reconciliation task.
+- **SPA fallback**: direct loads/refreshes of `/images`, `/video`, `/dataset`, `/loras`, `/jobs` now
+  serve the SPA (registered after all API routes so endpoints keep returning JSON) — refreshing a
+  page no longer 404s.
 
 ### Why first
 

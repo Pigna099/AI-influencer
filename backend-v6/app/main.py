@@ -64,13 +64,20 @@ WEBUI_DIR = Path(__file__).parent.parent / "webui_dist"
 app.mount("/ui-assets", StaticFiles(directory=WEBUI_DIR / "ui-assets", check_dir=False), name="webui_assets")
 
 
-@app.get("/", response_class=HTMLResponse, include_in_schema=False, dependencies=[])
-def root():
+def _index_response():
     webui_dir = Path(__file__).parent.parent / "webui_dist"
     index_file = webui_dir / "index.html"
     if index_file.exists():
         return FileResponse(index_file)
     raise HTTPException(status_code=404)
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False, dependencies=[])
+def root():
+    return _index_response()
+
+
+
 
 
 def required(db, model, item_id):
@@ -248,3 +255,14 @@ app.include_router(video_router)
 app.include_router(settings_router)
 app.include_router(consistency_router)
 app.include_router(jobs_router)
+
+
+@app.get("/{spa_path:path}", response_class=HTMLResponse, include_in_schema=False, dependencies=[])
+def spa_fallback(spa_path: str):
+    """Serve the SPA for client-side routes so refreshing /images, /jobs, ... keeps working.
+
+    Registered after every API route so real endpoints always win.
+    """
+    if spa_path.startswith(("api/", "assets/", "ui-assets/")) or "." in spa_path.rsplit("/", 1)[-1]:
+        raise HTTPException(status_code=404)
+    return _index_response()
