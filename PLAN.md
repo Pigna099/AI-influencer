@@ -1,400 +1,922 @@
-# PLAN — Da playground a influencer autonoma
+# AI Influencer Platform — Detailed Product, UI, Backend, and Workflow Plan
 
-Piano di lavoro per trasformare il playground (`backend-v6`) in una piattaforma che genera contenuti, pubblica su Instagram e gestisce i fan su Fanvue con vendita di foto/video.
+**Prepared:** 14 October 2026  
+**Implementation baseline:** `/data/data_ssd/pigni/ai-influencer/backend-v6`  
+**Companion document:** `report.md`
 
-Documento vivo: aggiornare quando una decisione cambia.
+## 1. Goal
 
-## 1. Obiettivo
+Evolve the current single-user playground into a reliable local-first production system for fully synthetic adult AI characters. The system should guide an operator through:
 
-- Generare contenuti (foto e video) coerenti per uno o più personaggi AI.
-- Pubblicare in automatico su Instagram.
-- Gestire conversazioni e vendite su Fanvue.
-- Aumentare l'autonomia in modo graduale, con controllo umano dove serve.
+1. character definition;
+2. identity creation from one approved synthetic or consented adult reference;
+3. multi-angle identity selection;
+4. a diverse, curated 50–70 image training dataset;
+5. family-specific LoRA training and validation;
+6. repeatable image and video production using a pose/style reference library;
+7. simulated conversation testing;
+8. later, controlled Instagram and Fanvue publishing and inbox workflows.
 
-Vincolo di identità: **personaggi completamente sintetici**, nessuna likeness di persone reali. Un link a un profilo Instagram pubblico è solo un riferimento di stile/pose, non un volto da replicare.
+All model inference should remain compatible with open-source models running locally. External platform integrations should be adapters around the local core, not dependencies of generation or training.
 
-## 2. Decisioni prese
+## 2. Non-negotiable product principles
 
-| Tema | Decisione |
-|---|---|
-| Playground | Resta sandbox interna. Non si fonde col prodotto. |
-| Identità personaggio | Sintetica, fissata con **LoRA dedicata per personaggio**. |
-| Reference IG | Solo moodboard/stile: pose, outfit, luce, composizione, cadenza, tono caption. |
-| Modelli base | SDXL-family (Pony/Illustrious) come cavallo di battaglia; Flux fp8/GGUF per gli shot hero. |
-| Video | i2v da immagine già approvata (Wan 2.x / LTX-Video / HunyuanVideo / SVD). |
-| Local vs cloud | Locale di default; cloud solo per burst, training lunghi o modelli oltre i 24GB. Routing nell'orchestratore. |
-| Autonomia | Human-in-the-loop iniziale, autonomia crescente guidata dai dati. |
-| Deployment | Server GPU = generazione. Publisher/scheduler/chat su VPS separato. |
-| Compliance | Disclosure AI, niente likeness reale, solo adulti, moderazione, audit. |
+1. **Character-first context.** A selected character remains active across all creative tabs and is encoded in the URL.
+2. **Workflow before model controls.** Show the next useful action first; put expert model settings behind an Advanced section.
+3. **One job model.** Import, classification, generation, consistency checks, captioning, video, and training share the same job states and monitoring UI.
+4. **Review gates.** Generated identity, training, publishing, PPV, and outbound messages require explicit review until separately enabled by policy.
+5. **Reproducibility.** Every asset records prompt, negative prompt, seed, model, checkpoint, adapters, weights, pose, source/reference IDs, workflow version, and software version.
+6. **Local-first privacy.** Raw media, face embeddings, chat history, and model artifacts stay local by default.
+7. **Adult and synthetic by construction.** Character age must be explicitly adult; real-person likeness requires documented consent and rights.
+8. **Progressive disclosure.** The normal path is simple; expert settings remain available without dominating the page.
+9. **No false states.** Loading, empty, partial, failed, and stale are distinct UI states.
+10. **Safe failure.** A failed model call never silently produces an empty item or publishes an unreviewed result.
 
-## 3. Cosa è riusabile oggi
+## 3. Target information architecture
 
-| Componente | File (backend-v6) | Riuso |
-|---|---|---|
-| Client ComfyUI (parameterize, checkpoint, upload reference/IPAdapter) | `app/integrations/comfyui.py` | Alto — base del workflow selector |
-| Client Ollama (chat, embed, metrics) | `app/integrations/ollama.py` | Alto |
-| Prompt/injection guard, memoria, estrazione | `app/chat_service.py` | Alto — motore del chatbot fan |
-| Modelli `Influencer/Fan/Conversation/Memory/ChatImage` | `app/db.py` | Medio — da estendere |
-| Job + worker (DB queue) | `app/main.py`, `app/worker.py` | Medio — pattern corretto, da irrobustire |
-| Adapter Fanvue | `app/integrations/fanvue.py` | Da scrivere (API Fanvue esiste, vedi §9) |
-| WebUI playground | `webui/` | No come prodotto: resta sandbox |
-| Pipeline legacy `/content-jobs` | `app/main.py` | Bassa |
+Replace the current flat, implementation-oriented navigation with a workflow-oriented shell.
 
-Azione: estrarre le parti riusabili in un package `core/` condiviso (`comfyui`, `ollama`, `chat_service`) e costruire i servizi di prodotto sopra.
+### 3.1 Primary navigation
 
-## 4. Architettura target
+1. **Overview** — character readiness, active jobs, review queue, service warnings.
+2. **Character** — bible, identity anchor, style, voice, monetization policy, platform profile.
+3. **Identity & LoRA** — reference intake, multi-view candidates, canonical set, dataset, training, evaluation.
+4. **Studio**
+   - Images
+   - Video
+   - Asset Library
+5. **References** — external datasets, pose library, style/moodboards, provenance.
+6. **Conversations** — simulation first; connected inboxes later.
+7. **Publishing** — content calendar, Instagram/Fanvue adapters, approval queue, analytics.
+8. **Jobs & System** — queue, services, GPUs, installed models, logs, settings.
 
+If a full navigation migration is too risky, retain the existing routes initially and add a persistent workflow rail above them. Migrate routes after state and job handling are stable.
+
+### 3.2 Global character context
+
+Add a persistent context bar below the header:
+
+- avatar and character name;
+- readiness stage;
+- active image LoRA and family;
+- current default image/video/chat model;
+- warnings;
+- quick switcher;
+- “Continue setup” or “Next action.”
+
+Use character-scoped routes such as:
+
+- `/characters/:characterId/overview`
+- `/characters/:characterId/chat`
+- `/characters/:characterId/studio/images`
+- `/characters/:characterId/studio/video`
+- `/characters/:characterId/identity`
+
+Persist the most recent character, but treat the URL as the source of truth. Never allow independent tabs to silently select different characters.
+
+### 3.3 Three interface modes
+
+Separate three jobs that are currently mixed:
+
+- **Create:** configure and generate.
+- **Review:** compare, rate, approve, reject, tag, select.
+- **Operate:** jobs, publishing, conversations, system health.
+
+Each page should have one primary mode and link to the others.
+
+## 4. Target system architecture
+
+Keep the current React/FastAPI/PostgreSQL/ComfyUI/vLLM/Ollama foundation. Refactor around four explicit layers:
+
+```text
+React workflow UI
+        |
+FastAPI domain services and typed API contracts
+        |
+Unified persistent job orchestrator + asset/provenance registry
+        |
+Adapters: vLLM, Ollama, ComfyUI, trainer, Instagram, Fanvue
 ```
-[VPS economico]                              [Server GPU 4x3090, dietro WireGuard/Tailscale]
- orchestratore / API  <---- job queue ---->   gpu-worker (poll)
- scheduler (cron/beat)                        |- ComfyUI (1 processo per GPU)
- publisher (IG, Fanvue)                       |- trainer LoRA (kohya / diffusion-pipe)
- chat-agent (fan)                             |- video i2v + TTS + lipsync
- PostgreSQL + Redis + MinIO/S3                |- face-QC / tagger / upscaler
-```
-
-Regole:
-- Il server GPU non è mai esposto: solo il worker esce in polling.
-- Publisher/chat/scheduler sul VPS: la pubblicazione non dipende dall'uptime dei 3090.
-- Media su object storage (MinIO/S3), non su disco locale: l'API Instagram fa il cURL del file, l'URL deve essere pubblico.
-- Coda: partire dalla tabella `jobs`, poi Redis + RQ/Celery per scheduling e autonomia.
-- CPU (Xeon E5-2650v4) è il collo di bottiglia per ffmpeg e prep del dataset: tenere i file su NVMe.
-- Assegnare le GPU per ruolo (es. GPU0 ComfyUI, GPU1 training, GPU2/3 video/Ollama) per evitare contesa.
-
-## 5. Dati (estensioni al database)
-
-Oltre ai modelli attuali (`Influencer`, `Fan`, `Conversation`, `Memory`, `ChatImage`) servono:
-
-- `CharacterLora` — versione LoRA, base checkpoint, trigger word, stato training, metrica.
-- `ReferenceSet` — moodboard di input e metadati di stile estratti (Character DNA).
-- `ContentItem` — bozza/contenuto generato (tipo, prompt, provider, workflow, stato, QC).
-- `AssetVersion` — varianti di un contenuto, similarità volto, classificazione.
-- `Approval` — decisione umana su contenuto/messaggio, note, attore, timestamp.
-- `Schedule` / `Post` — pianificazione, piattaforma, stato pubblicazione, id esterni, disclosure.
-- `SocialAccount` — credenziali/token (IG, Fanvue), scope, scadenza, refresh.
-- `FanMessageDraft` — bozza risposta, stato approvazione, invio.
-- `Pricing` / `Offer` — prezzo PPV, regole promozionali.
-- `AuditEvent` — log immutabile di ogni pubblicazione/invio/decisione.
-- `CostEntry` — costo per job/personaggio/provider.
-
-## 6. Personaggio: reference -> DNA -> LoRA
-
-1. Moodboard manuale (niente scraping automatico: viola i ToS e rischia la likeness).
-2. Auto-tagging/VLM (Florence-2, WD14): pose, outfit, luce, composizione, palette.
-3. `Character DNA`: attributi fisici sintetici, pillar di contenuto, libreria pose, voce per le caption.
-4. Generazione reference identitarie (base SDXL + IPAdapter dal seed scelto) e curatela.
-5. Captioning + trigger word per personaggio.
-6. Training LoRA (kohya_ss / diffusion-pipe); SDXL comodo in 24GB, Flux fp8/GGUF al limite.
-7. QC automatico con InsightFace/ArcFace per scartare asset fuori personaggio.
-8. La LoRA è legata al base checkpoint: una LoRA SDXL non è portabile senza test.
-
-## 7. Workflow ComfyUI: registry e routing
-
-- Workflow come JSON template versionati, con i placeholder già in uso (`{{positive_prompt}}`, `{{negative_prompt}}`, `{{seed}}`, `{{image_count}}`, `{{reference_image}}`).
-- Chiave di registry: `(content_type, model_family, has_reference, lora)`.
-- L'orchestratore seleziona con regole, non l'utente:
-  - `photo_feed` -> SDXL/Pony + LoRA personaggio
-  - `hero_shot` -> Flux fp8/GGUF
-  - `reel_i2v` -> Wan/LTX da immagine approvata
-- Checkpoint e LoRA sono proprietà del personaggio; il workflow è regola di sistema con override espliciti.
-- Multi-GPU: 4 istanze ComfyUI su porte 8188-8191 con `CUDA_VISIBLE_DEVICES`, dispatcher che bilancia; oppure job tipo "device" già assegnato.
-
-## 8. Instagram
-
-- Via ufficiale: **Instagram Graph API Content Publishing**. Niente browser automation (ban).
-- Requisiti: account IG Business/Creator + Pagina FB collegata + Meta App con `instagram_business_content_publish` (o `instagram_content_publish`) + App Review. Un token per account/personaggio.
-- Limiti: ~50-100 post/24h, no Stories via API, scheduling non nativo (coda + cron).
-- Il media deve essere su URL pubblico al momento del publish.
-- Disclosure AI obbligatoria: `is_ai_generated=true` alla creazione del container (solo sul container padre nei caroselli).
-- DM Instagram limitati (API user-initiated): l'interazione commerciale si sposta su Fanvue.
-
-## 9. Fanvue
-
-API OAuth 2.0 (nessuna API key; Bearer token con scope, access token ~1h con refresh). Endpoint rilevanti:
-
-- Chat: `GET /chats?filter=unread`, `GET /chats/{userUuid}/messages`, `POST /chats/{userUuid}/message`.
-- Mass messaging con liste (subscribers, expired, spent_more_than_50, ecc.) e `scheduledAt`.
-- Post programmati con `publishAt`, prezzo PPV (`price`, min. 300 cent), media.
-- Automated messages su trigger (new_subscriber, renewed, first_message_reply, ...).
-- Upload media e insights.
-
-Il `chat_service` esistente genera le bozze; `fanvue.py` diventa l'adapter OAuth con refresh e storage sicuro dei token per creator.
-
-## 10. Autonomia
-
-- Macchina a stati con gate di approvazione.
-- Livelli: bozza -> approvata -> pubblicata, con escalation all'umano su incertezza o rischio.
-- QC automatico (volto, NSFW/adult-only, similarity) come pre-condizione alla pubblicazione.
-- Autonomia piena solo per categorie a basso rischio e dopo metriche che la giustificano.
-- Kill switch per personaggio/piattaforma.
-
-## 11. Compliance
-
-- Disclosure AI su Instagram (`is_ai_generated`) e su Fanvue.
-- Age verification delegata alla piattaforma; contenuti solo adulti (i negativi attuali con `child, minor, teen, underage` restano).
-- Moderazione chat; nessuna likeness di persone reali.
-- Audit log di pubblicazioni, invii e decisioni.
-- Verificare le policy aggiornate di Meta e Fanvue prima del go-live.
-
-## 12. Roadmap
 
-### Fase 0 — Fondamenta
-- Estrarre `core/`; object storage (MinIO/S3); coda; registry workflow/modelli; migrazioni per i nuovi modelli DB; audit e cost tracking base.
-- Deliverable: playground intatto + struttura servizi condivisa.
+Do not move business rules into React components. Components render state and submit commands; backend services decide eligibility, compatibility, transitions, and policy.
 
-### Fase 1 — Personaggi
-- Moodboard -> Character DNA -> LoRA per personaggio + QC volto.
-- Deliverable: creazione personaggio riproducibile con coerenza misurata.
+## 5. Target domain model
 
-### Fase 2 — Contenuti
-- Pipeline foto/video con bozza, approvazione umana, content bank, caption.
-- Deliverable: contenuti approvabili e archiviati.
+Extend existing tables instead of replacing them in one migration.
 
-### Fase 3 — Instagram
-- Publisher Graph API, scheduler, disclosure, rate limiting, media pubblico.
-- Deliverable: pubblicazione automatica con approvazione.
+### 5.1 Core entities
 
-### Fase 4 — Fanvue
-- Adapter OAuth, chat-agent in bozza, mass message e post PPV programmati, automated messages.
-- Deliverable: gestione fan e vendita con controllo umano.
+- `workspaces`: owner/security boundary, even if only one exists initially.
+- `characters`: name, adult age, synthetic/consented status, lifecycle state.
+- `character_versions`: immutable personality/bible snapshots.
+- `identity_profiles`: anchor asset, embedding version, canonical set, readiness.
+- `source_collections`: imported source plus rights/provenance and intended use.
+- `source_assets`: imported image/video and structured classification.
+- `poses`: source, skeleton, crop, quality, intended use.
+- `datasets`: purpose, family, target distribution, version, freeze state.
+- `dataset_items`: asset, caption, role, selected state, quality metrics, provenance.
+- `lora_artifacts`: family, base model, trigger, rank, hashes, status, metrics, active state.
+- `generation_recipes`: versioned model/checkpoint/LoRA/pose/prompt settings.
+- `assets`: unified image/video metadata, review state, origin, recipe, derivatives.
+- `jobs`: one normalized job table.
+- `job_events`: progress, warnings, structured errors, logs.
+- `campaigns` and `content_items`: briefs, platform variants, schedule, approval.
+- `channel_accounts`: encrypted connector configuration and capabilities.
+- `fans`, `conversations`, `messages`, `memories`: retain and extend current chat entities.
+- `offers` and `unlocks`: simulated first; real external IDs only through connectors.
+- `audit_events`: who/what changed state and why.
+- `policy_decisions`: age, provenance, platform, content, and publication checks.
 
-### Fase 5 — Autonomia
-- Loop analytics -> prompt/pricing; autonomia crescente; kill switch.
-- Deliverable: operatività semi-autonoma misurata.
+### 5.2 Unified state conventions
 
-### Trasversale
-- Compliance, osservabilità, backup, controllo costi.
+Use common enums wherever possible.
 
-## 13. Rischi
+**Job:** `queued -> claimed -> running -> awaiting_review | succeeded | failed | canceled`
 
-| Rischio | Mitigazione |
-|---|---|
-| Instagram: ToS/ban | Solo Graph API ufficiale; niente automazione browser |
-| Likeness persone reali | Solo identità sintetiche; reference solo di stile |
-| LoRA incoerente | QC volto (ArcFace) come gate prima della pubblicazione |
-| Server GPU esposto | Solo worker in polling, dietro WireGuard/Tailscale |
-| Publisher dipende dal server GPU | Publisher e scheduler sul VPS |
-| Costi cloud fuori controllo | Budget e limiti nel router local/cloud |
-| Contesa GPU | Assegnazione GPU per ruolo, code separate |
+**Asset:** `draft -> approved | rejected -> archived`
 
-## 14. Backlog prodotto richiesto (NON in esecuzione)
+**Dataset:** `building -> curating -> frozen -> training -> validated`
 
-Queste voci sono richieste esplicite, da pianificare e implementare in passi successivi. Non sono ancora state realizzate.
+**LoRA:** `draft -> training -> ready -> validated -> active | retired`
 
-### 14.1 Pagamenti simulati e PPV — FATTO (13 settembre 2026)
+**Content:** `idea -> generating -> review -> approved -> scheduled -> published | failed`
 
-- Metodo di pagamento fittizio per simulare transazioni dentro la chat (nessun processore reale).
-- Il personaggio può inviare immagini **bloccate/sfocate**; il fan "paga" per sbloccarle.
-- Modello dati: `Payment`/`Unlock` (importo, stato simulato, riferimento immagine/messaggio, timestamp) + prezzo per immagine nella libreria.
-- UI: badge "locked" sull'immagine, pulsante "Sblocca (simulato)" con conferma, effetto blur lato client, traccia nella chat e nelle metriche.
-- Vincoli: nessun dato di pagamento reale, nessuna integrazione con circuiti; solo simulazione per testare tono, prezzo e flusso.
-- Implementato: colonne PPV su personaggio e chat, marcatore `[PPV:]` nel prompt, anteprima sfocata servita dal backend, sblocco con pagamento simulato registrato in `simulated_payments`, toggle+prezzo per personaggio e invio manuale bloccato.
-
-### 14.2 Notifiche e realismo temporale — FATTO (13 settembre 2026)
-
-- Risposte non immediate: ritardo casuale configurabile per personaggio/fan (min-max, distribuzione realistica, "sta scrivendo…").
-- Orari di attività del personaggio (fasce orarie, giorni), con coda dei messaggi generati da consegnare al momento giusto.
-- Notifiche interne al playground (badge conversazione non letta, suono opzionale); niente notifiche esterne.
-- Backend: job programmati (stesso pattern della coda `jobs`) con `deliver_at`, stato `scheduled/sent`.
-- Implementato: ritardo casuale per personaggio (min/max), orari di attività con giorni, coda `scheduled_replies` consegnata dallo scheduler nell'API, "sta per rispondere…" in chat, badge non letti per conversazione e segna-come-letto all'apertura. Niente notifiche esterne.
-
-### 14.3 Playground video
-
-- Terza/quarta scheda per generazione video con i modelli già installati (LTX-Video, Wan 2.x).
-- Flusso i2v da immagine approvata della libreria, più text-to-video per test.
-- Cura dei risultati (approva/scarta/elimina), libreria video per personaggio, stesso pattern della libreria immagini.
-- Prerequisito già pronto: il dataset Telegram scarica anche i video e li marca `kind=video` con anteprima, da usare per le pose.
-- Metriche GPU e tempi dedicati (i video sono molto più pesanti).
-- **Nota (18 settembre 2026)**: modelli LTX 2.3 riscaricati e completati (dev fp8 29.1 GB, distilled fp8 29.5 GB, distilled LoRA); resta mancante solo la LoRA Gemma abliterated citata dai workflow LTX dell'utente (da reinserire a mano o rimuovere dal grafo). Wan 2.2 i2v + LoRA lightx2v restano installati come via pronta. Generazione ora parallela su 4 GPU (4 istanze ComfyUI, porte 8188-8191).
-
-### 14.4 Filtro modelli nelle UI — FATTO (13 settembre 2026)
-
-- Chat: mostrare solo LLM conversazionali; escludere modelli di coding, embedding e generazione video.
-- Immagini: mostrare solo checkpoint SDXL/SD1.5 fotografici o anime; escludere modelli video (LTX/Wan) e pipeline non compatibili.
-- Implementato: `kind` (chat/coding/embedding) per i modelli Ollama; metadati `{name, family, usable}` per i checkpoint ComfyUI (Pony/Anime/Reale/Video), con i modelli video esclusi dal selettore.
-
-### 14.5 Temi colore per playground — FATTO (13 settembre 2026)
-
-- Palette distinta per Chat, Immagini, Dataset (e futuro Video) per orientarsi a colpo d'occhio.
-- Implementato: accenti diversi per Chat (teal), Immagini (viola) e Dataset (verde) tramite variabili CSS `--accent`.
-
-### 14.6 Flusso Image Playground: personaggio -> dataset -> LoRA
-
-Idea dell'utente. Decisioni prese (13 settembre 2026): famiglia primaria **real** (PornMaster/LUSTIFY), trainer **kohya sd-scripts** su venv dedicato host, pose via **ControlNet OpenPose**, ranking identità con **ArcFace (InsightFace)**, una famiglia primaria per personaggio + retrain on-demand per le altre, fallback IPAdapter quando manca la LoRA.
-
-**Fase A — registry e training (FATTO 13 settembre 2026)**:
-1. Migrazione `0012_lora_pipeline`: `character_loras`, `lora_datasets`, `lora_dataset_items`, `pose_references`, `training_jobs`.
-2. API `/api/characters/{id}/loras`, `/api/loras/*`, `/api/training-jobs` (claim/progress/complete/cancel) + scheda **LoRA** (ambra) con stato e avanzamento live.
-3. Trainer host: `scripts/trainer/setup.sh` (venv 3.12 + torch cu124 + kohya) e `scripts/trainer/train_worker.py` (poll coda, GPU libera, log, copia artefatti, recovery job stale); unit systemd pronta in `scripts/trainer/ai-influencer-trainer.service`.
-4. Verifica end-to-end completata (15 settembre 2026): LoRA "Nikita real v1" (20 immagini, rank 16, 1000 step, loss finale 0.0738, ~41 min su GPU 1) addestrata dal worker, copiata in ComfyUI e in `data/loras/`, attivata; generazione di validazione con LoRA (peso 0.85) che conferma il trasferimento dell'identità in una scena nuova. Il worker ora sopravvive ai riavvii dell'API (errori di rete gestiti).
-
-**Fase B — dataset builder**: pose extraction (OpenPose → `pose_references`), batch di candidati con anchor IPAdapter + ControlNet, ranking ArcFace, selezione, caption editabili, gate ≥20.
-
-**Fase C — wizard 14.6**: creazione personaggio → 5 candidati → anchor → loop pose → dataset → training → validazione → attivazione. Il flusso richiesto è dettagliato in **§14.16**, che diventa il riferimento operativo per le Fasi B e C.
-
-**Fase D — uso**: `resolve(character, checkpoint)` in playground immagini/chat/avatar, peso LoRA e versioni.
-
-I punti 1-4 originali restano validi; le questioni aperte (GPU, export, soglia QC, versioni) sono risolte dalle decisioni sopra.
-
-### 14.7 Fix classificazione dataset — FATTO (15 settembre 2026)
-
-Premendo **Classifica non classificate** la classificazione riparte per tutte le foto senza descrizione (`pending` + `failed`); le già pronte non vengono toccate e un run interrotto riparte dopo 10 minuti.
-
-### 14.8 Checkbox dopo il testo — FATTO (15 settembre 2026)
-
-Casella a destra del testo (inline) per "Classify with AI after import", "PPV photos", "Activity hours" e tutte le checkbox `.auto-label` (regola CSS globale: checkbox larghezza automatica).
-
-### 14.9 Eliminare le conversazioni — FATTO (15 settembre 2026)
-
-Pulsante × su ogni riga della lista conversazioni (con conferma); elimina messaggi, foto e risposte in coda. L'endpoint `DELETE /api/conversations/{id}` esisteva già (era nascosto nelle Opzioni della chat aperta).
-
-### 14.10 Liberare la VRAM delle GPU — FATTO (15 settembre 2026)
-
-Pulsante **Libera VRAM** sotto il pannello GPU: `POST /api/system/free-vram` scarica i modelli Ollama (`keep_alive=0`) e chiama `/free` su ComfyUI (`unload_models` + `free_memory`).
-
-### 14.11 Human mode nella chat — FATTO (15 settembre 2026)
-
-Checkbox **Human mode** nella barra chat (a sinistra del testo, per conversazione):
-
-- risposte multiple in sequenza (2-3 messaggi brevi) con refusi occasionali e correzione (`*parola`);
-- messaggi spontanei: dopo una risposta viene programmato un follow-up casuale (15-60 min, dentro gli orari di attività), uno solo finché il fan non risponde;
-- la UI aggiorna la chat ogni 15 s quando Human mode è attivo, per mostrare i messaggi spontanei in arrivo.
-
-### 14.12 Fix pulsante "Classifica" per dataset incompleti — FATTO (15 settembre 2026)
-
-Il pulsante ora **forza il riavvio**: le immagini senza descrizione (`pending`+`failed`) vengono riprocessate anche se la fonte è bloccata in `classifying` (nessuna attesa di 10 minuti); una guardia in-process evita doppi lavori e la UI avvisa "Classificazione già in corso" se si preme durante un run attivo. Verificato sul dataset `EvaElfie` bloccato (173/297): ripartito e ripreso in background.
-
-### 14.13 Spostare "Foto profilo" nella scheda LoRA — FATTO (15 settembre 2026)
-
-La generazione della foto profilo è ora nella scheda **LoRA** (anteprima del personaggio, pulsante Genera/Rigenera, visore a schermo intero); nel pannello chat resta solo la visualizzazione.
-
-### 14.14 Supporto checkpoint e LoRA FLUX.2 e Qwen Image — FATTO (15 settembre 2026)
-
-- Discovery modelli estesa: `GET /api/images/checkpoints` unisce `CheckpointLoaderSimple` e `UNETLoader` con famiglia `qwen-image`, `z-image`, `flux2` (oltre a real/pony/anime/video) e `usable`.
-- Workflow programmatici per famiglia (niente JSON SDXL): **Qwen-Image** (UNETLoader + qwen_2.5_vl + vae, AuraFlow shift 3, CFGNorm, 20 step cfg 2.5), **Z-Image** (turbo 4 step cfg 1 / base 30 step cfg 4, sampler `res_multistep`, CLIP type `lumina2`), **FLUX.2 dev** (Mistral fp8, flux2 VAE, turbo LoRA, `SamplerCustomAdvanced` + `Flux2Scheduler`, 8 step cfg 1).
-- IPAdapter/ControlNet/LoRA personaggio restano solo SDXL (le famiglie nuove generano testo→immagine; Qwen-Image-Edit resta dedicato alle variazioni dataset).
-- Validato con generazioni reali: Z-Image turbo 41 s, FLUX.2 183 s (primo caricamento 53 GB). Selettori Immagini/LoRA/chat mostrano le nuove famiglie; la LoRA automatica del personaggio non si applica a queste famiglie.
-
-### 14.15 Scheda "Home" — FATTO (15 settembre 2026)
-
-Al posto della scheda "Models" c'è una scheda **Home** (pagina iniziale su `/`; la chat si sposta su `/chat`) con:
-
-- **flag di stato** verde/giallo/rosso per i punti che possono rompersi: API+database, ComfyUI, Ollama, telemetria GPU, worker di training (heartbeat) — per il debug rapido;
-- **GPU in tempo reale** (memoria, utilizzo, potenza, temperatura, processi; aggiornate ogni 5 s);
-- **personaggi** con foto profilo, stile e numero di LoRA, link diretto alla chat;
-- **modelli disponibili**: checkpoint ComfyUI (famiglia, compatibilità), LoRA ComfyUI, modelli Ollama (tipo, dimensione);
-- aggiornamento manuale + timestamp.
-
-Nota: la "mappa combinazioni checkpoint ↔ LoRA" prevista in origine resta da fare e si aggiungerà alla Home o alla scheda LoRA (vedi 14.14 compatibilità).
-
-### 14.16 Pipeline LoRA completa nella scheda LoRA (spec integrata, 15 settembre 2026)
-
-Estende/sostituisce Fase B e C di 14.6. Regola: **estendere l'esistente, niente riscritture**; solo personaggi adulti sintetici, nessuna likeness reale.
-
-**Principio di separazione**: Identità, Posa, Stile, Outfit, Scena, Camera e Luce sono concetti indipendenti; la generazione è `identità + posa (ControlNet) + stile + outfit + scena/camera/luce`. La posa non si controlla con img2img né con pose-LoRA come sistema primario.
-
-**Stato (prima slice, 15 settembre 2026)**: estrazione posa con **DWPose** e **Pose Library** implementate — API `/api/poses` (extract/list/patch/delete/skeleton/source), pulsante **Estrai posa** nel dettaglio immagine della scheda Dataset, griglia **Pose Library** nella scheda LoRA (rinomina/attiva/elimina), guardia "nessuna persona rilevata". Modelli di posa installati (ControlNet OpenPose SDXL + DWPose); checkpoint immagine ridotti al solo PornMaster (110 GB liberati).
-
-**Stato (seconda slice, 15 settembre 2026)**: generazione dataset guidata dalla posa — workflow `chat_real_pose.json` / `chat_real_pose_reference.json` (ControlNet OpenPose + IPAdapter), API `/api/datasets` (create/list/detail/generate/patch/delete item), training **da dataset** (`dataset_id` → materializzazione automatica in `data/lora_datasets/<stem>` con caption+trigger), UI **Dataset** nella scheda LoRA (crea dataset, genera candidati con pose, cura con selezione/caption/eliminazione, scelta dataset nel form di training). Verificato con una generazione reale identità+posa.
-
-**Stato (terza slice, 15 settembre 2026)**: riorganizzazione secondo il modello di lavoro dell'utente — **la posa è conditioning di generazione (ControlNet), non un dato di training**: la **Pose Library** e la selezione posa sono nella scheda **Immagini** (la generazione libreria accetta `pose_ids`/`pose_strength` e cicla le pose scelte), mentre la scheda **LoRA** resta creazione personaggio + dataset + training. Flusso obiettivo LoRA: reference (`Qwen`/`Z-Image`/`SDXL`) → variazioni con **Qwen-Image-Edit** ("same person, …") → filtro manuale → **LoRA SDXL**. Download avviati in background: **LUSTIFY** (SDXL realistic), **Qwen-Image** base, **FLUX.2** (diffusion + text encoder Mistral + VAE + turbo LoRA); **Qwen-Image-Edit 2509**, **Z-Image** e turbo sono già installati.
-Da fare per completare il flusso: workflow/endpoint **Qwen-Image-Edit** per le variazioni del dataset ("stessa persona, ..."), supporto modelli **Qwen-Image / Z-Image / FLUX.2** nella scheda Immagini (famiglie, workflow, selettori) e rimozione dei marker `unsupported` sui nuovi modelli.
-
-**Stato (quarta slice, 15 settembre 2026)**: **variazioni Qwen-Image-Edit** implementate — `qwen_image_edit()` (Qwen-Image-Edit 2509 fp8 + Lightning 4-step, TextEncodeQwenImageEditPlus + ModelSamplingAuraFlow + CFGNorm), endpoint `POST /api/datasets/{id}/variations` (una scena per riga, count 1-4, seed/steps/cfg/lora_weight), blocco **Variazioni** nella scheda LoRA → Dataset. Validato con una generazione reale: stessa identità, scena nuova, 4 step. Download in corso: FLUX.2 (diffusion ~33 GB + text encoder + VAE + turbo LoRA); Qwen-Image base e LUSTIFY completati; LoRA 2511 Lightning ripristinata.
-
-
-**Stato (quinta slice, 15 settembre 2026)**: **annullamento generazione** (`POST /api/images/interrupt` → ComfyUI `/interrupt` + coda pulita, con errore "Generazione annullata" riconosciuto dal backend) disponibile in tutte le UI di generazione (immagini, dataset/variazioni, foto in chat, avatar LoRA); brand WebUI **v5**; scheda **LoRA** riorganizzata in tre step — **1 Personaggio** (foto profilo, duplica/elimina, "+" nuovo personaggio con form qui), **2 Dataset LoRA** (variazioni + curatela), **3 Training** (crea LoRA + accoda con dataset, job con avanzamento). Il "+" di creazione personaggio è stato tolto dalla chat.
-
-**Stato (sesta slice, 15 settembre 2026)**: foto profilo con **scelta del modello** (`POST /api/characters/{id}/avatar` con `checkpoint`), **modifica con Qwen-Image-Edit** (`POST /api/characters/{id}/avatar/edit`) o **rigenerazione da zero**; il "+" nuovo personaggio è nella **barra sinistra** della scheda LoRA; aggiunti hint UI che spiegano **candidati (SDXL+IPAdapter)** vs **variazioni (Qwen-Edit)** e il significato del **rank**.
-
-**Stato (settima slice, 15 settembre 2026)**: **analisi qualità dataset** (`GET /api/datasets/{id}/analysis`): progresso verso 20 selezionate, duplicati via phash, copertura pose, keyword (full body, profilo, frontale, standing/sitting/lying, outdoor/indoor, giorno/notte) e avvisi localizzati nella UI; **LoRA personaggio automatica** nella scheda Immagini (all'apertura si attiva la LoRA attiva della famiglia del checkpoint con peso 0.85 e la UI lo segnala).
-
-**Stato (ottava slice, 15 settembre 2026)**: **multi-LoRA** con categorie (Personaggio/Stile/Outfit/Composizione/Altro) e **CLIP weight** per riga (`apply_loras` imposta `strength_clip`); **preset di generazione** persistenti (`generation_presets`, CRUD API + UI: applica/salva/elimina nella scheda Immagini); **filtro compatibilità** LoRA nel selettore (famiglie dedotte da nome/cartella: le LoRA incompatibili col checkpoint vengono nascoste e conteggiate). Fatto anche: scelta del modello per step (variazioni/candidati), pose nei candidati SDXL, obiettivo dataset 40, guida utente nella scheda LoRA, generazione parallela su 4 GPU. Restano dai punti §14.16: rigenera/stesso seed per item, carica impostazioni dall'immagine, reference canonical/face/full-body.
-
-**Stato (nona slice, 18 settembre 2026)**: pipeline dataset **a reference canoniche** — flusso: (1) 20-50 candidati identità con **Qwen-Image-2512**, (2) cura e scelta di **4-8 reference** con ruoli (`close_face`, `three_quarter_face`, `profile`, `upper_body`, `front_full_body`, `three_quarter_full_body`, `side_full_body`), (3) due **rami indipendenti** — variazioni **Qwen-Image-Edit** e candidati **SDXL + IPAdapter + DWPose/ControlNet** — entrambi nella stessa griglia di cura fino a 50-70 immagini finali (target 60). Migrazione `0015`; le reference alimentano entrambi i rami (rotazione sulle reference, fallback alla foto profilo).
-
-**Da riusare (già presente)**: scheda LoRA con registry e coda training; worker kohya; tabelle `character_loras`, `lora_datasets`, `lora_dataset_items`, `pose_references`, `training_jobs`; `image_library` con metadati (prompt, seed, checkpoint, loras, tag, phash); IPAdapter; workflow JSON parametrizzati per famiglia; modello `Influencer` (niente nuovo modello Character: si estende).
-
-**Funzionalità da implementare**
-
-1. **Gestione personaggio (estesa)**: trigger word, reference multiple (canonical/face/full-body), checkpoint preferito, LoRA associate, dataset collegati; duplica/elimina già spostati nella scheda LoRA.
-2. **Creazione personaggio**: checkpoint, prompt/negative, dimensioni, seed/random, sampler, scheduler, steps, CFG, batch; candidati selezionabili come reference. Riusare i controlli del playground immagini.
-3. **Workflow template**: i JSON in `workflows/` restano il registry; aggiungere varianti *character_reference*, *pose_generation*, *dataset_generation*, *multi_lora*; parametri iniettati dal backend (`checkpoint`, prompt, seed, sampler, steps, CFG, risoluzione, LoRA+pesi, pose image, ControlNet strength, identity reference+strength). Nessun node ID nel frontend.
-4. **Posa**: upload immagine o scelta dalla libreria, estrazione skeleton con DWPose/OpenPose (`comfyui_controlnet_aux` già installato; serve il ControlNet SDXL), preview skeleton, forza/start/end, enable. Se i nodi mancano, messaggio chiaro e fallback su skeleton esistente.
-5. **Pose library**: usa `pose_references` (nome, thumbnail, skeleton, tag, data); salva/rinomina/tagga/elimina/seleziona; niente file duplicati.
-6. **Identity reference**: IPAdapter oggi; FaceID/InstantID opzionali con capability detection; controlli separati dalla posa; opzionale quando esiste la LoRA.
-7. **Dataset generation**: ricette/preset di variazione (Portrait, Full-body, Profile, Outdoor, Indoor, Night, Pose-library): inquadratura, angolo, posa, ambiente, luce, outfit, espressione, altezza/distanza camera, focale. Niente combinazioni casuali cieche.
-8. **Metadata dataset item**: estendere `lora_dataset_items` con prompt, negative, seed, checkpoint, loras, pose, identity reference, sampler, scheduler, steps, cfg, dimensioni, workflow JSON, tag; percorsi relativi; nessuna immagine duplicata in DB.
-9. **Curation**: approva/rifiuta/preferito/elimina/apri/vedi metadata/rigenera/**stesso seed**/carica impostazioni; filtri per stato, posa, angolo, full-body/portrait, outfit, scena, batch; scorciatoie tastiera; obiettivo 40–80 immagini curate (qualità > quantità).
-10. **Quality warnings**: statistiche deterministiche (troppi frontali, pochi profili/full-body, outfit/sfondo/posa ripetuti, poca diversità luce/camera, duplicati via `average_hash` già esistente).
-11. **Training**: riuso del worker kohya; job creato **da dataset curato** (`dataset_id`, oggi serve `images_dir`); parametri base/avanzati (rank/alpha/lr/optimizer/steps/risoluzione/batch/caption/output name), default sensati; output tipo `nakita_character_v1.safetensors`; QC volto ArcFace prima di attivare.
-12. **Training job management**: già presente (stati queued/running/completed/failed/cancelled, progress, log, errori); aggiungere epoch/step/loss nel progress e consultazione log.
-13. **Multi-LoRA generation**: stack con enable/disable, selezione, categoria (Character/Style/Outfit/Composition/Other), weight modello e CLIP, rimozione e riordino; pesi liberi (es. character 0.85 + style 0.35 + outfit 0.45 + ControlNet 0.80 + identity 0.50).
-14. **Compatibilità modello/LoRA**: validazione per famiglia con metadata safetensors (header), convenzioni di cartella e `object_info`; warning soft quando non determinabile, blocco solo se certamente incompatibile (SDXL↔FLUX, ecc.).
-15. **Preset di generazione**: CRUD (checkpoint, character, LoRA+pesi, posa/strength, identity, sampler, scheduler, steps, CFG, risoluzione, frammenti prompt, negative).
-16. **Riproducibilità**: per ogni immagine salvare workflow JSON completo + tutti i parametri; "carica impostazioni dall'immagine"; riusare i metadati PNG di ComfyUI; non rimuovere metadata utili.
-17. **ComfyUI client**: resta centralizzato in `app/integrations/comfyui.py` (già fa discovery modelli/LoRA e submit); aggiungere se serve history/cancel/queue; niente secondo client.
-18. **Capability detection**: ControlNet/DWPose/IPAdapter/FaceID/training → available/unavailable/parziale con messaggi tipo "DWPose non rilevato: estrazione posa non disponibile, puoi comunque usare uno skeleton esistente".
-19. **UI**: la scheda LoRA si organizza in sub-sezioni **Characters, Dataset, Pose Library, Training, Generate** (la panoramica modelli resta nella scheda Home, 14.15); dentro Generate separare visivamente CHARACTER/POSE/STYLE/OUTFIT/SCENE/CAMERA/ADVANCED (collassabili). Form niente monoliti.
-20. **Stato**: usare lo stato React esistente; nessuna nuova libreria.
-
-**Ordine di implementazione (vertical slices)**: 1) discovery modelli/worker (fatto) → 2) estensione character (trigger/reference/checkpoint) → 3) generazione reference + selezione → 4) posa (ControlNet+DWPose) → 5) identity reference → 6) dataset generation + metadata → 7) curation + warning → 8) multi-LoRA → 9) riproducibilità/load settings → 10) training da dataset → 11) preset → 12) compatibilità → 13) capability detection/UX → 14) test end-to-end.
-
-**Definition of done (flusso minimo)**: crea personaggio → genera/scegli reference canonical → scegli posa → genera più immagini dello stesso personaggio in configurazioni diverse → rivedi e approva i candidati → avvia training dal dataset curato → LoRA rilevata → seleziona Character LoRA + Style + Outfit + posa + identity opzionale → genera l'immagine finale → salva metadata → ricarica le impostazioni dall'immagine.
-
-**Errori/UX/sicurezza/performance**: messaggi utili (checkpoint/LoRA/nodo mancante, incompatibilità), logging tracciabile delle azioni backend, upload validati (tipo/estensione/percorso, anti path traversal), galleria con thumbnail/lazy loading e cache della discovery modelli.
-
-## 15. Domande aperte
-
-1. Numero di personaggi contemporanei e modello multi-account (agenzia?).
-2. Provider di object storage preferito (MinIO locale vs cloud).
-3. Qualità video attesa per partire (LTX veloce vs Wan/Hunyuan di qualità).
-4. Modello LLM per caption/chat definitivo (locale grande vs più modelli specializzati).
-5. Politica di prezzo e gestione refund/chargeback su Fanvue.
-
-## 16. Backlog corrente (3 ottobre 2026)
-
-### 16.1 Video — cosa resta
-- [x] **Miniature**: poster dal primo frame generato da ComfyUI (`ImageFromBatch` + `SaveImage`), salvato come `thumb_filename` (migrazione 0018) e servito da `/api/videos/{id}/thumb`; fallback immagine di partenza.
-- [ ] **Segnalibri/rating video**: preferiti, filtro per modello, ordinamento.
-- [x] **Clip in chat come PPV**: implementato con tabella dedicata `chat_videos` + `simulated_payments.chat_video_id`; il personaggio invia `[PPV-VIDEO: ...]`, sceglie una clip pronta non ripetuta, unlock simulato e player in chat.
-- [ ] **Verifica Wan T2V**: i modelli `wan2.2_t2v_high/low_noise_14B_fp8_scaled` sono in download (~26 GB); al termine provare la modalità testo e tarare eventualmente i passi.
-- [ ] **LTX-2.3 due stadi (opzionale)**: aggiungere `ltx-2.3-spatial-upscaler-x2-1.1.safetensors` + seconda passata con `LTXVLatentUpsampler` per qualità superiore; audio di output (oggi silenzioso) con `LTXVAudioVAEDecode` + `CreateVideo`.
-- [ ] **LoRA video reali**: provare una LoRA di stile Wan/LTX dalla picker (oggi vuota: esistono solo lightx2v/distilled, escluse perché automatiche).
-- [ ] **Video da candidati/dataset**: generare clip dalle reference canoniche (bottone nella scheda Video o nel dataset).
-- [ ] **HunyuanVideo 1.5 (dopo il download)**: modelli scaricati in `models/` (480p T2V/I2V cfg-distilled fp8, SR 720p, VAE fp16, ByT5-GlyphXL, SigCLIP vision, upsampler 720p, LoRA lightx2v 4-step). Integrare come terza famiglia video (TE `qwen_2.5_vl_7b_fp8_scaled` già presente; grafo con doppio text encoder Qwen2.5-VL + ByT5-GlyphXL, VAE dedicata, eventuale secondo stadio SR con latent upsampler).
-
-### 16.2 vLLM — sostituire Ollama per la velocità (Ollama resta come backup)
-Requisiti aggiuntivi (richiesti esplicitamente):
-- [ ] **Pannello GPU nella Home**: scegliere quali GPU riservare a **video/foto** (istanze ComfyUI) e quali a **testo/chat** (vLLM); il dispatcher ComfyUI e il worker devono rispettare la ripartizione.
-- [ ] **vLLM sul modello `qwen3.8`** (quello da 27B già in Ollama): deve girare su **due GPU** (tensor parallel = 2); verificare VRAM (27B in FP8/AWQ ~27-30 GB → 2×24 GB ok), misurare tok/s e confrontare con Ollama.
-- [ ] **Modelli di default nella Home**: scegliere una volta il modello per **chat**, per **generazione foto** e per **generazione video**; i playground non devono più chiedere il modello a ogni generazione (solo le LoRA restano selezionabili).
-- [ ] **Worker e piano GPU**: il trainer preferisce le GPU x16 (2,3) ora occupate da vLLM: se non ci sono GPU libere, liberare ComfyUI sulle GPU media e/o mettere vLLM in pausa (sleep mode) durante il training.
-- [ ] **Benchmark vLLM vs Ollama**: misurare tok/s e latenza primo token sullo stesso prompt nelle stesse condizioni e documentare in STATO.
-- [x] **UI solo inglese** (14 ottobre 2026): catalogo italiano rimosso, selettore lingua eliminato.
-- [x] **Home piu leggera**: elenchi (personaggi, checkpoint, LoRA, modelli) in sezioni richiudibili.
-- [ ] **UI più pulita ovunque**: resta la scheda LoRA (riorganizzare formazione/queue), le altre schede e la rimozione di chiavi i18n non usate.
-- [x] **Dataset: import Nextcloud** (link pubblico, sottocartelle) e **X migliorato** (link a post singoli, errori chiari); Instagram resta best-effort/scraping e il percorso consigliato e' il bot dell'utente + link Nextcloud.
-- [x] **Controllo coerenza personaggio** con modello vision (endpoint + UI nella scheda Immagini).: revisione di tutte le schede (Home, Chat, Immagini, Video, Dataset, LoRA) — meno pulsanti dominanti, sezioni richiudibili, gerarchia chiara, coerenza tra pagine.
-
-Obiettivo: text generation più veloce (chat, ampliamento prompt/personalità, descrizioni) con API OpenAI-compatible; Ollama resta installato e selezionabile.
-- [x] **Install**: venv dedicato in `/data/data_ssd/pigni/vllm-venv`, vLLM 0.30.0, `vllm serve` verificato con qwen3.8 (startup ~6-8 min con compile, poi cache).
-- [x] **GPU dedicate**: vLLM su GPU 2,3 (x16, TP=2), ComfyUI ridotto a GPU 0,1 (porte 8188/8189); boot script aggiornato.
-- [x] **Pesi HF**: scaricati `Qwen/Qwen3.8-27B-FP8` (29,5 GB) e serviti; misurare ancora tok/s vs Ollama Q4 nello stesso scenario.
-- [x] **Provider astratto**: `app/integrations/vllm.py` + `app/integrations/text.py` con `TEXT_PROVIDER=ollama|vllm` e fallback automatico; chat e lista modelli passano da lì.
-- [ ] **Modelli per task**: mappa per compito (chat, umanizzazione, ampliamento prompt, descrizioni vision) con modelli diversi; vision: valutare Qwen2.5-VL AWQ su vLLM oppure continuare a usare Ollama/Gemma3 per le descrizioni.
-- [ ] **Embedding**: restano su Ollama (`nomic-embed-text`, 274 MB) — vLLM non è pensato per gli embedding; nessuna modifica.
-- [ ] **Benchmark**: estendere la scheda Benchmark per confrontare Ollama vs vLLM sullo stesso prompt (tok/s, latenza primo token, RAM/VRAM) e documentare in STATO i risultati.
-- [ ] **Boot**: aggiornare `start-ai-influencer.sh` per avviare/fermare vLLM (flag `VLLM_ENABLED`), health-check e log dedicato.
-- [ ] **Rollback**: con `TEXT_PROVIDER=ollama` tutto deve funzionare come oggi; non rimuovere i modelli Ollama.
-
-### 16.3 Altro lavoro pendente
-- [x] **Qwen-Image-2.1**: file scaricati (`qwen_image_2.1_bf16`, TE `qwen3vl_8b_bf16`, VAE dedicata) ma il grafo `qwen-image` usa il TE/VAE vecchi: aggiungere la variante 2.1 (CLIPLoader/VAE dedicati, shift/step da tarare).
-- [x] **FLUX.2 Klein 4B**: integrato (base 20 step cfg 5 / distilled 4 step cfg 1, TE `qwen_3_4b`, LoRA utente applicate); verificato live.
-- [x] **Qwen-Edit 2511 come default**: `qwen_image_edit_2511_fp8mixed` presente; passare `qwen_edit_unet_name` da 2509 a 2511 dopo un test di qualità su una reference.
-- [ ] **Docker data-root** in `pigni/docker`: script pronto (`scripts/move-docker-data-root.sh`), richiede `sudo` dell'utente + `sudo rm -rf /data/data_ssd/docker`.
-- [ ] **`/etc/environment`**: aggiornare `HF_HOME` a `/data/data_ssd/pigni/huggingface` (richiede sudo).
-- [ ] **Chat image archive/PPV**: valutare archiviazione delle immagini chat e pulizia periodica dei file orfani (video inclusi).
-
-- [x] **ComfyUI aggiornato** (4 ottobre 2026) a master b87fe48b (rollback 225c52f6): abilita Qwen-Image 2.1 e il nuovo asset system; istanze con DB dedicati.
-- [x] **HunyuanVideo 1.5**: integrato come terza famiglia video (480p distilled single-stage, t2v+i2v verificati live); resta opzionale lo stadio **SR 720p** (`HunyuanVideo15SuperResolution` + latent upsampler, file già scaricati) e la LoRA lightx2v 4-step.
+All transitions must be validated server-side, idempotent, timestamped, and written to `audit_events`.
+
+## 6. Phase 0 — Establish a safe implementation baseline
+
+### Objective
+
+Make future changes reversible and ensure the agent works against the actual v6 source.
+
+### Steps
+
+1. Treat `/data/data_ssd/pigni/ai-influencer/backend-v6` as the only active server codebase.
+2. Read the server `AGENTS.md`, README, current Alembic head, Compose file, and startup scripts before editing.
+3. Create a branch with the required `codex/` prefix.
+4. Back up together:
+   - PostgreSQL database;
+   - `data/media`, datasets, LoRAs, presets, and workflows;
+   - private environment configuration;
+   - current ComfyUI workflow files.
+5. Record current service, model, and GPU-plan state without storing secrets in Git.
+6. Run the existing Python tests, Ruff checks, TypeScript build, and frontend lint.
+7. Add a browser smoke test for login and every top-level route.
+8. Add a feature flag mechanism for navigation and job-system migrations.
+
+### Acceptance criteria
+
+- A documented backup/restore drill succeeds on a staging copy.
+- Baseline tests and build results are recorded.
+- No production data is modified by automated tests.
+- Existing routes remain usable while new work is feature-flagged.
+
+## 7. Phase 1 — Fix correctness and trust defects
+
+Complete this phase before redesigning the layout.
+
+### Frontend fixes
+
+1. Replace initial empty states with skeleton/loading states on every page.
+2. Do not render “0 items” until the relevant request has completed successfully.
+3. Fix the v5 browser title/v6 header mismatch.
+4. Fix literal `{count}` and `{frames}` placeholders in Video.
+5. Fix `NaN GB` with a nullable, formatted model-size field; hide size when unknown.
+6. Rename the Images “Photo checkpoint” status filter to “Status.”
+7. Resolve the contradictory LoRA availability message in Images.
+8. Add a `disabledReason` pattern to all primary actions and show it as helper text/tooltip.
+9. Replace opaque icons with labelled buttons or accessible tooltips.
+10. Truncate long prompts visually while retaining full text in the inspector.
+11. Distinguish generation time from clip duration.
+12. Show only eligible approved images in the Video source selector.
+
+### Backend/data fixes
+
+1. Validate counts and formatted labels at API boundaries instead of interpolating raw values in components.
+2. Investigate the concatenated-caption dataset item and add a one-item/one-caption invariant.
+3. Return structured trainer errors: `code`, `summary`, `remediation`, `technical_details`.
+4. Map missing checkpoint errors to a model-management remediation action.
+5. Add stable display names to every training job.
+6. Add pagination parameters to image library, source assets, LoRA dataset items, videos, and job history.
+
+### Tests
+
+- loading vs empty vs error component tests;
+- format tests for counts, frames, sizes, and durations;
+- API schema tests for nullable model size;
+- regression test for one caption per dataset item;
+- route smoke test for all six current tabs.
+
+### Progress log — 14 October 2026 (Milestone A, partial)
+
+Done:
+- Frontend: browser title now v6; literal `{count}`/`{frames}` placeholders fixed (double-brace keys);
+  `NaN GB` model size fixed (nullable, formatted, hidden when unknown); Images "Photo checkpoint"
+  filter renamed to "Status"; Images LoRA contradiction fixed; opaque `⌕`/`≡` icons replaced with
+  labelled Open/Select; generation time vs clip duration distinguished in Video cards; Video source
+  picker restricted to approved images with a visual preview; loading states (spinner + "Loading…")
+  instead of false empty states on Images, Video, Dataset and LoRA; helper text under the primary
+  Generate actions explaining why they are disabled.
+- Backend: stable training-job display names (`nikita_qwen_fp8`, `... (qwen-image)` instead of
+  "Training jobs"); one-caption invariant (captions normalized to a single line on save).
+- Tests: 148 passing (caption invariant + job-name fallbacks added); ruff clean; frontend tsc/lint/build clean.
+
+Remaining in Phase 1: skeleton components per page, structured trainer errors (code/summary/remediation),
+checkpoint-missing remediation action, cursor pagination, larger component tests.
+
+### Acceptance criteria
+
+- No known false-zero, placeholder, `NaN`, or contradictory status remains.
+- Every disabled primary action explains the unmet prerequisite.
+- Technical errors have a concise operator-facing summary.
+
+## 8. Phase 2 — Introduce the shared design system and ergonomic shell
+
+### Steps
+
+1. Define tokens for spacing, type, surfaces, borders, focus, status, and tab accents.
+2. Create shared primitives:
+   - `PageHeader`;
+   - `CharacterContextBar`;
+   - `StatusBadge`;
+   - `AsyncBoundary`;
+   - `EmptyState`;
+   - `JobProgress`;
+   - `AssetPicker`;
+   - `AssetGrid`;
+   - `InspectorPanel`;
+   - `DangerZone`;
+   - `FieldHelp`;
+   - `AdvancedSettings`;
+   - `ErrorSummary`.
+3. Make the global header and context bar sticky.
+4. Standardize page structure: navigation rail, workspace, inspector.
+5. Use resizable panels only where state is remembered and keyboard alternatives exist.
+6. Move destructive controls into menus or danger zones and add precise confirmation copy.
+7. Add responsive behavior for 1280, 1440, and ultrawide screens.
+8. Add keyboard navigation, visible focus, and descriptive accessible names.
+9. Preserve the useful color accents but do not use color alone to convey status.
+
+### Acceptance criteria
+
+- All pages use the same async, status, error, and destructive-action patterns.
+- The main action and current character are always visible.
+- The full normal workflow is usable at 1280 px without horizontal page scrolling.
+
+## 9. Phase 3 — Build a unified persistent job system
+
+### Why first
+
+Images, video, imports, classification, consistency checks, and training all have long-running behavior but currently expose different progress models. A common orchestrator is required before further automation.
+
+### Backend steps
+
+1. Add/normalize `jobs` and `job_events` with:
+   - job type;
+   - workspace/character/dataset/asset scope;
+   - state;
+   - progress current/total/unit;
+   - queue position;
+   - worker and GPU;
+   - heartbeat;
+   - request idempotency key;
+   - error code/summary/remediation/detail;
+   - cancellation request;
+   - retry source;
+   - created/started/finished timestamps.
+2. Refactor current worker and trainer updates through a shared job service.
+3. Keep domain tables as the source of domain state, with jobs recording execution state.
+4. Add stale-heartbeat detection and explicit recovery policy per job type.
+5. Add server-sent events or bounded polling for updates.
+6. Add concurrency controls per GPU/model family.
+7. Make retry create a new linked attempt, never overwrite the original.
+8. Add a reconciliation task for orphaned files and incomplete records.
+
+### API
+
+- `GET /api/jobs?state=&type=&character_id=&cursor=`
+- `GET /api/jobs/{id}`
+- `GET /api/jobs/{id}/events`
+- `POST /api/jobs/{id}/cancel`
+- `POST /api/jobs/{id}/retry`
+
+### Frontend
+
+1. Add a global job tray with active count and failures.
+2. Add a Jobs & System page with filters and compact rows.
+3. Show inline progress where a job was started.
+4. Put raw logs behind an explicit “Technical details” disclosure.
+
+### Acceptance criteria
+
+- Every long-running operation appears in one job list.
+- Refreshing or restarting the UI does not lose progress.
+- Cancel/retry behavior is consistent and auditable.
+- Old failed jobs do not dominate normal creative screens.
+
+## 10. Phase 4 — Character foundation and identity intake
+
+### Character schema
+
+Add required fields:
+
+- display name;
+- explicit adult age, minimum 21 for product policy;
+- synthetic/consented-likeness declaration;
+- source/provenance status;
+- physical identity description;
+- personality and voice;
+- boundaries and prohibited topics;
+- image style defaults;
+- chat and monetization policy;
+- platform profile copy;
+- lifecycle state.
+
+### Identity intake workflow
+
+1. The operator creates a character or chooses “Start from one reference.”
+2. The UI requires the source category:
+   - generated synthetic image;
+   - owned self-image;
+   - licensed/consented adult model;
+   - reference-only inspiration.
+3. Store rights notes, source URL/file hash, permitted uses, expiry if any, and reviewer.
+4. Validate image resolution, face count, occlusion, sharpness, and adult-age policy.
+5. Generate a normalized identity crop and face embedding locally.
+6. Display the anchor, crop, quality results, and provenance before continuing.
+7. Reference-only material must never be selectable as an identity anchor.
+
+### Acceptance criteria
+
+- A character cannot enter identity generation without adult-age and provenance decisions.
+- Every anchor has a stable hash and audit record.
+- Face embeddings never leave the local system.
+
+## 11. Phase 5 — One image to multi-angle canonical identity set
+
+This phase implements the first part of the requested LoRA workflow.
+
+### Generation matrix
+
+Create a versioned angle template. Begin with 18–24 candidates:
+
+- front neutral;
+- yaw ±20°, ±40°, ±60°, and profile ±90°;
+- three-quarter left/right;
+- slight pitch up/down;
+- neutral and slight smile;
+- controlled studio light plus one natural-light set.
+
+Keep hair, age, skin features, and identity descriptors fixed. Vary only angle/expression/light according to the template. Use the strongest locally available identity-preserving edit/reference model, with deterministic seed families and recorded recipe versions.
+
+### Candidate scoring
+
+For each output, compute and store:
+
+- face-embedding similarity to the anchor;
+- face detection confidence;
+- landmark/pose estimate;
+- blur and resolution quality;
+- occlusion;
+- artifact/anatomy score where available;
+- perceptual similarity to detect duplicates;
+- requested-angle accuracy.
+
+The AI may rank candidates, but the operator must approve the canonical set.
+
+### Review UI
+
+1. Show the anchor fixed on the left.
+2. Group candidates by requested angle.
+3. Provide side-by-side and overlay/face-crop comparison.
+4. Display identity score and quality warnings, with thresholds explained.
+5. Let the operator Accept, Reject, Regenerate, or Mark uncertain.
+6. Require a balanced canonical set of 6–10 references:
+   - close front;
+   - left/right three-quarter;
+   - left/right profile;
+   - upper body;
+   - at least one full body.
+7. Freeze the canonical set as an immutable version.
+
+### Proposed API
+
+- `POST /api/characters/{id}/identity-runs`
+- `GET /api/identity-runs/{id}`
+- `PATCH /api/identity-candidates/{id}`
+- `POST /api/identity-runs/{id}/regenerate`
+- `POST /api/identity-runs/{id}/freeze`
+
+### Acceptance criteria
+
+- Every candidate can be traced to anchor, template, model, seed, and recipe.
+- The UI prevents freezing an unbalanced set without an explicit override reason.
+- Accepted identities meet configured similarity/quality thresholds or have a recorded human override.
+
+## 12. Phase 6 — Build the 60-image training dataset
+
+### Dataset blueprint
+
+Generate 70–90 candidates and curate to 50–70. Default target: 60 selected items.
+
+Suggested selected distribution:
+
+| Category | Target |
+|---|---:|
+| Close face and head/shoulders | 12 |
+| Three-quarter/profile portraits | 8 |
+| Upper body | 10 |
+| Full body front/side/back | 15 |
+| Seated, walking, leaning, dynamic poses | 8 |
+| Lifestyle/environment diversity | 7 |
+
+Across the set, balance:
+
+- expressions;
+- camera distance and focal feel;
+- indoor/outdoor locations;
+- day/night and light direction;
+- outfits without changing core identity;
+- standing, seated, walking, athletic, candid, and formal poses;
+- SFW and adult content as separate labelled subsets, never mixed invisibly.
+
+### Pose-dataset use
+
+External datasets are pose/style sources, not identity sources by default.
+
+1. Import with provenance and intended-use metadata.
+2. Detect duplicates and low-quality files before classification.
+3. Extract DWPose/OpenPose skeletons and crop/framing metadata.
+4. Remove or block source-person identity features from the generation path.
+5. Store a reusable pose record with source attribution.
+6. Generate the synthetic character using canonical identity references plus the pose skeleton.
+
+### Automated quality control
+
+Run after every candidate batch:
+
+- face identity similarity;
+- duplicate/near-duplicate clustering;
+- requested pose match;
+- caption/image agreement;
+- face/hand/anatomy artifact detection;
+- age-policy check;
+- blur/upscale detection;
+- distribution coverage;
+- train/validation leakage detection.
+
+### Curation UI
+
+1. Replace one giant page with a dedicated dataset route.
+2. Use virtualized grid and keyboard review shortcuts.
+3. Provide filter chips: angle, crop, pose, scene, outfit, subset, score, warning.
+4. Show distribution bars and missing-category warnings.
+5. Make captions editable in a selected-item inspector, not inline on every card.
+6. Provide AI-suggested selection, but require final human freeze.
+7. Hold back 8–12 validation prompts/images that are never used for training.
+
+### Acceptance criteria
+
+- A frozen dataset has 50–70 selected items, a balanced distribution, and no unresolved critical warning.
+- Every item has one caption, one provenance chain, and stored QC metrics.
+- Validation items are separate from the training set.
+
+## 13. Phase 7 — LoRA training, evaluation, and activation
+
+### Preflight
+
+Before Queue training, validate:
+
+- base checkpoint exists in the expected model directory;
+- trainer and dependencies are healthy;
+- dataset is frozen;
+- trigger appears correctly in captions;
+- requested family matches the checkpoint;
+- disk and VRAM estimates fit;
+- no existing active run conflicts.
+
+Show failures as remediation cards, not filesystem exceptions.
+
+### Training
+
+1. Create an immutable training specification.
+2. Auto-recommend rank, alpha, steps, learning rate, resolution, and GPU from family and dataset size.
+3. Preserve Expert override controls.
+4. Stream step, loss, ETA, GPU, and checkpoint events through the unified job system.
+5. Save intermediate samples at configured intervals.
+6. Make cancel terminate the whole process group and mark artifacts incomplete.
+7. Hash and register the final safetensors file.
+
+### Evaluation gate
+
+Do not auto-activate immediately after successful training.
+
+1. Render a fixed validation grid across:
+   - close face;
+   - profile;
+   - upper body;
+   - full body;
+   - two lifestyle scenes;
+   - one difficult pose;
+   - one adult-content prompt if that subset is enabled.
+2. Compare candidate LoRA against the active LoRA and no-LoRA baseline.
+3. Compute identity, prompt adherence, artifact, and diversity metrics.
+4. Present a blind A/B review when possible.
+5. Let the operator Validate & Activate, Keep inactive, or Reject.
+6. Keep rollback to the previous active artifact.
+
+### Acceptance criteria
+
+- Missing models are detected before a job is queued.
+- Successful training always produces a validation report.
+- Activation is explicit and reversible.
+- Raw logs remain accessible but collapsed.
+
+## 14. Phase 8 — Redesign the image studio and asset library
+
+### Page structure
+
+Use three modes under Studio:
+
+1. **Generate** — recipe builder and batch submission.
+2. **Review** — fast approve/reject/compare workflow.
+3. **Library** — search, metadata, usage, collections, archive.
+
+### Generation recipe
+
+The normal form should show:
+
+- campaign/brief or free prompt;
+- character identity version;
+- preset;
+- checkpoint;
+- active character LoRA;
+- pose;
+- count and aspect ratio;
+- Generate.
+
+Advanced controls contain negative prompt, additional LoRAs, CLIP weights, sampler, steps, CFG, seed, ControlNet strength, and model-specific options.
+
+Always show a compact “Effective recipe” before submission.
+
+### Review mode
+
+- one large selected image plus a filmstrip/grid;
+- compare to identity anchor and sibling generations;
+- keyboard shortcuts for approve/reject/rating;
+- AI consistency and artifact warnings;
+- edit caption/tags in inspector;
+- regenerate with one changed parameter;
+- promote to campaign or send to video.
+
+### Library
+
+- cursor pagination and virtualization;
+- saved filters and collections;
+- provenance, recipe, usage history, derivatives;
+- soft-delete to Trash with restore;
+- bulk approve/reject/archive/export;
+- duplicate clustering.
+
+### Acceptance criteria
+
+- A library with 10,000 assets remains responsive.
+- An operator can review a 20-image batch without repeated scrolling.
+- Every approved asset has a complete reproducibility record.
+
+## 15. Phase 9 — Redesign video production
+
+### Steps
+
+1. Replace the HTML select with the shared visual Asset Picker.
+2. Default to approved character assets; allow drafts only through an explicit filter.
+3. Show the selected source frame next to the motion prompt.
+4. Add model capability cards for aspect ratio, FPS, frames, duration, I2V/T2V, and LoRA compatibility.
+5. Express duration primarily in seconds and secondarily in frames.
+6. Add motion presets: subtle portrait, turn to camera, walking, hair/wind, camera push, orbit.
+7. Add first-frame/last-frame support when the selected model can use it.
+8. Use the unified job system for queue, ETA, progress, cancel, retry, and errors.
+9. Add review states and approved-video library collections.
+10. Store poster, recipe, source asset, family, model, seed, FPS, duration, and content policy result.
+
+### Acceptance criteria
+
+- No ineligible asset appears as a disabled wall of options.
+- Source, motion, duration, and model are visible before submission.
+- A generated video must be reviewed before becoming chat/publishing eligible.
+
+## 16. Phase 10 — Conversation simulator and content offers
+
+### UI redesign
+
+1. First rail: fans/inboxes and conversation list.
+2. Center: transcript and composer.
+3. Right inspector: character version, memory, timing, model, policy, and assets.
+4. Move personality editing to Character, with a link from Chat.
+5. Move PPV defaults to Character/Monetization; keep a per-conversation override in the inspector.
+6. Show conversation state clearly: no chat selected, creating, waiting, scheduled reply, failed, active.
+7. Add an asset composer with approved photos/videos and generation requests.
+
+### Backend workflow
+
+1. Normalize inbound events into one conversation schema.
+2. Build prompt context from character version, fan memory, recent messages, policy, and eligible assets.
+3. Produce a structured assistant proposal:
+   - text bubbles;
+   - suggested asset IDs or generation request;
+   - optional offer price;
+   - follow-up schedule;
+   - confidence and policy flags.
+4. Keep the current injection guard and extend it to connector-provided text.
+5. Run policy validation before saving/sending.
+6. In assisted mode, show Draft -> Edit -> Approve & Send.
+7. Keep simulation and real connectors clearly labelled and technically separate.
+
+### Monetization rules
+
+- use configurable price bands and rate limits;
+- never fabricate payment confirmation;
+- do not pressure after refusal;
+- do not repeatedly gate normal conversation behind payment;
+- keep an audit trail of offers and unlocks;
+- make real payment state authoritative only from the platform connector.
+
+### Acceptance criteria
+
+- The simulator remains usable with no external platform connected.
+- Real outbound messages cannot be confused with simulated ones.
+- Every outbound proposal is tied to the exact character version and policy decision.
+
+## 17. Phase 11 — Campaigns, Instagram, and Fanvue adapters
+
+Platform APIs and policies change. Before implementation, the agent must verify current official documentation and supported account capabilities. Do not hard-code assumptions from this plan.
+
+### Common connector interface
+
+Define an adapter contract:
+
+- `connect()` / `refresh_credentials()`;
+- `capabilities()`;
+- `publish_media()`;
+- `schedule_media()` when supported;
+- `list_inbox_events()`;
+- `send_message()`;
+- `list_metrics()`;
+- `webhook_verify()` and `webhook_ingest()`;
+- idempotency and external-ID mapping.
+
+Store secrets encrypted and never return them to the browser.
+
+### Campaign workflow
+
+1. Create a campaign with theme, audience, platforms, date range, tone, and content mix.
+2. Generate a shot list and caption variants locally.
+3. Produce image/video candidates.
+4. Review media, caption, alt text, disclosure, tags, and platform crop.
+5. Run platform and policy checks.
+6. Approve and schedule/publish.
+7. Record external IDs and immutable published snapshots.
+8. Import metrics and link them back to recipe, character, and campaign.
+
+### Rollout
+
+1. Export package only: media + captions, no publishing.
+2. Sandbox/test account connector.
+3. Manual approval for every post/message.
+4. Batch approval with limits.
+5. Optional constrained automation only after monitoring and rollback are proven.
+
+### Acceptance criteria
+
+- Publishing is idempotent and cannot duplicate a post on retry.
+- Connector failure never marks content as published without an external ID.
+- Platform and simulation environments are unmistakable.
+
+## 18. Phase 12 — Policy, provenance, and security
+
+### Required controls
+
+1. Require adult age and synthetic/consented identity status.
+2. Add source rights, license, consent, intended use, and expiry fields.
+3. Block identity training from reference-only collections.
+4. Keep minors and ambiguous-age content out of import promotion, training, generation, and publishing.
+5. Add content labels: SFW, suggestive, explicit; apply separate storage/access/review policies.
+6. Add audit logs for approvals, overrides, publication, deletion, and connector actions.
+7. Encrypt connector credentials and private configuration.
+8. Add user roles before remote or shared access: Admin, Creator, Reviewer, Operator.
+9. Add session expiry and key rotation; stop storing a long-lived shared API key in normal browser storage.
+10. Add rate limits and CSRF/origin protection appropriate to the deployment model.
+11. Add backup, retention, trash, restore, and secure-delete policies.
+12. Add per-platform policy checklists and disclosure settings.
+
+### Acceptance criteria
+
+- Every training and published asset has a complete provenance chain.
+- A policy block cannot be bypassed without an explicit role, reason, and audit event.
+- Secrets and face embeddings are not exposed through normal API responses or logs.
+
+## 19. Phase 13 — Observability, quality, and operations
+
+### Metrics
+
+- queue time and run time by job/model;
+- success/failure/cancel rate;
+- GPU utilization and out-of-memory failures;
+- asset approval rate;
+- identity-consistency distribution;
+- dataset coverage and duplicate rate;
+- LoRA validation scores;
+- content reuse and derivative counts;
+- message latency and intervention rate;
+- connector delivery and publishing failures.
+
+### Operational screens
+
+- service health with actionable remediation;
+- active workload by GPU;
+- stuck jobs;
+- storage usage and orphaned files;
+- model registry and missing dependency checks;
+- recent errors grouped by error code, not raw exception;
+- backup status.
+
+### Acceptance criteria
+
+- An operator can identify the cause and remediation of a failed job without reading a stack trace.
+- Alerts are deduplicated and tied to a domain object.
+- File/database reconciliation can run safely in dry-run mode.
+
+## 20. Frontend implementation map
+
+Refactor incrementally from the current files.
+
+- `App.tsx`: character-scoped routing, feature flags, global job tray.
+- `HomePage.tsx`: Overview first; move deep infrastructure controls to Jobs & System.
+- `Playground.tsx`: split character/fan/conversation concerns.
+- `ChatPanel.tsx`: transcript/composer only; move settings to inspector.
+- `BenchmarkPanel.tsx`: fix metadata formatting; make selection prerequisites explicit.
+- `ImagePlayground.tsx`: split into Generate, Review, Library routes/components.
+- `VideoPlayground.tsx`: shared Asset Picker and job progress.
+- `DatasetPlayground.tsx`: import wizard, provenance, virtualized grid.
+- `LoraPlayground.tsx`: routed wizard; remove giant one-page composition.
+- `PoseLibrary.tsx`: reference provenance, filtering, preview, usage count.
+- `api.ts`: generated or strongly typed API client, structured errors, cursor pagination.
+- `i18n.tsx`: enforce complete keys and test placeholder interpolation.
+
+Add directories:
+
+- `components/ui/` for design-system primitives;
+- `components/jobs/`;
+- `components/assets/`;
+- `features/identity/`;
+- `features/datasets/`;
+- `features/training/`;
+- `features/publishing/`;
+- `hooks/` for character context, jobs, pagination, and async state.
+
+## 21. Backend implementation map
+
+Keep routers thin and introduce services.
+
+- `services/job_service.py`
+- `services/asset_service.py`
+- `services/identity_service.py`
+- `services/dataset_service.py`
+- `services/training_service.py`
+- `services/policy_service.py`
+- `services/provenance_service.py`
+- `services/campaign_service.py`
+- `services/conversation_service.py`
+- `connectors/base.py`
+- `connectors/instagram.py`
+- `connectors/fanvue.py`
+
+Existing adapters under `app/integrations/` should remain low-level model/runtime adapters. Domain services choose adapters and enforce compatibility/policy.
+
+Migration sequence:
+
+1. job/event normalization;
+2. provenance and source intended-use fields;
+3. identity profiles and canonical-set versioning;
+4. unified assets and generation recipes;
+5. dataset QC/evaluation fields;
+6. LoRA validation/activation history;
+7. campaigns/content items;
+8. connectors/external IDs;
+9. audit and policy decisions;
+10. roles/sessions if multi-user access is introduced.
+
+Every migration needs a downgrade path or a documented irreversible step with a verified backup.
+
+## 22. Testing strategy
+
+### Backend
+
+- unit tests for state transitions and compatibility rules;
+- API contract tests for every router;
+- idempotency tests for jobs and connectors;
+- cancellation/retry/heartbeat tests;
+- database migration tests from a copy of the current schema;
+- storage cleanup and reconciliation tests;
+- policy/provenance tests;
+- deterministic fixtures for caption and dataset invariants.
+
+### Model workflows
+
+- small fixed image fixture set;
+- mocked fast path in CI;
+- opt-in real GPU smoke suite;
+- golden metadata assertions rather than pixel-perfect output;
+- identity and duplicate-score threshold regression reports;
+- one validation workflow per supported model family.
+
+### Frontend
+
+- component tests for AsyncBoundary, disabled reasons, error summaries, and placeholders;
+- route tests with loading/empty/error/populated states;
+- keyboard and accessibility checks;
+- Playwright end-to-end flows:
+  1. login and route navigation;
+  2. create character draft;
+  3. create identity run with mocked jobs;
+  4. curate dataset;
+  5. queue and inspect training;
+  6. generate/review asset;
+  7. create video from approved asset;
+  8. simulated conversation and PPV unlock;
+  9. connector dry-run package export.
+
+### Performance
+
+- 10,000-asset library;
+- 2,000-item source collection;
+- 500-job history;
+- four simultaneous GPU jobs with enforced concurrency;
+- slow network and server restart during polling/SSE.
+
+## 23. Delivery order and milestones
+
+### Milestone A — Trustworthy v6.1
+
+- Phase 0 baseline;
+- Phase 1 correctness fixes;
+- cursor pagination;
+- structured errors;
+- basic UI component primitives.
+
+### Milestone B — Coherent operator experience v6.2
+
+- global character context;
+- Overview and Jobs & System split;
+- unified job tray;
+- virtualized asset/source grids;
+- redesigned Chat layout.
+
+### Milestone C — Identity pipeline v7.0
+
+- provenance-aware identity intake;
+- multi-angle identity generation and scoring;
+- canonical set versioning;
+- routed dataset wizard;
+- dataset QC and validation holdout.
+
+### Milestone D — Validated LoRA and Studio v7.1
+
+- training preflight;
+- validation grid and reversible activation;
+- Generate/Review/Library image modes;
+- redesigned Video with asset picker.
+
+### Milestone E — Content operations v8.0
+
+- campaigns and content calendar;
+- export packages;
+- assisted conversation drafts;
+- platform policy checks;
+- analytics schema.
+
+### Milestone F — Controlled integrations v8.1+
+
+- official Instagram adapter if supported for the account type;
+- official Fanvue adapter if supported;
+- manual approval rollout;
+- webhook/event reconciliation;
+- constrained automation only after production validation.
+
+## 24. Definition of done for the product vision
+
+The product vision is achieved when an operator can:
+
+1. create a documented synthetic adult character;
+2. start from one valid identity image;
+3. generate and review a balanced multi-angle canonical set;
+4. build and freeze a quality-controlled 50–70 image dataset;
+5. train, evaluate, activate, and roll back a LoRA;
+6. generate reproducible images from pose references;
+7. turn approved images into reviewed videos;
+8. use only eligible media in a simulated fan conversation;
+9. prepare platform-specific content packages;
+10. connect and operate supported external channels with explicit approval, idempotency, provenance, auditability, and policy enforcement;
+11. understand any failure and recover without reading raw implementation logs or editing database records.
+
+Until those conditions are met, keep the product labelled as a private production playground rather than an autonomous influencer platform.

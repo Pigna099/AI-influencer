@@ -5,7 +5,7 @@ export interface ApiError {
 
 export interface OllamaModel {
   name: string;
-  size: number;
+  size: number | string;
   family: string;
   parameter_size: string;
   quantization: string;
@@ -361,6 +361,7 @@ export interface TrainingParams {
 
 export interface TrainingJob {
   id: string;
+  name?: string;
   character_id: string;
   lora_id: string | null;
   dataset_id: string | null;

@@ -36,6 +36,12 @@ const variantFields: [keyof CharacterProfile, TranslationKey, number][] = [
 ];
 const newId = () => globalThis.crypto?.randomUUID?.() || `variant-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
+function formatModelSize(size: unknown): string {
+  if (typeof size === "number" && Number.isFinite(size) && size > 0) return `${(size / 1e9).toFixed(1)} GB`;
+  if (typeof size === "string" && size && size !== "0") return size;
+  return "";
+}
+
 export default function BenchmarkPanel({ character, fanId, models, onBusy }: { character?: Character; fanId: string; models: OllamaModel[]; onBusy: (value: string) => void }) {
   const { t } = useI18n();
   const [selected, setSelected] = useState<string[]>([]);
@@ -97,7 +103,7 @@ export default function BenchmarkPanel({ character, fanId, models, onBusy }: { c
   });
   const comparePersonalities = variants.length > 0;
   return <section className="benchmark-panel"><div className="benchmark-intro"><h3>{t("bench.title")}</h3><p>{t("bench.intro")}</p></div>
-    <fieldset disabled={running}><legend>{t("bench.models")}</legend><div className="model-checks">{models.map(m => <label key={m.name}><input type="checkbox" checked={selected.includes(m.name)} onChange={e => setSelected(prev => e.target.checked ? [...prev, m.name] : prev.filter(x => x !== m.name))} /><span>{m.name}<small>{m.parameter_size} · {(m.size / 1e9).toFixed(1)} GB</small></span></label>)}</div></fieldset>
+    <fieldset disabled={running}><legend>{t("bench.models")}</legend><div className="model-checks">{models.map(m => <label key={m.name}><input type="checkbox" checked={selected.includes(m.name)} onChange={e => setSelected(prev => e.target.checked ? [...prev, m.name] : prev.filter(x => x !== m.name))} /><span>{m.name}<small>{[m.parameter_size, formatModelSize(m.size)].filter(Boolean).join(" · ")}</small></span></label>)}</div></fieldset>
     <fieldset disabled={running}><legend>{t("bench.variants")}</legend>
       <p className="muted">{t("bench.variants.note")}</p>
       <div className="variant-list">

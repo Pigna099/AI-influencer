@@ -153,16 +153,22 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     return () => { live = false; };
   }, []);
 
+  const [loaded, setLoaded] = useState(false);
+
   const refresh = useCallback(async (id: string) => {
-    if (!id) { setLoras([]); setJobs([]); setDatasets([]); return; }
-    const [loraItems, jobItems, datasetItems] = await Promise.all([
-      api.getCharacterLoras(id),
-      api.getTrainingJobs({ character_id: id }),
-      api.getDatasets(id),
-    ]);
-    setLoras(loraItems);
-    setJobs(jobItems);
-    setDatasets(datasetItems);
+    if (!id) { setLoras([]); setJobs([]); setDatasets([]); setLoaded(true); return; }
+    try {
+      const [loraItems, jobItems, datasetItems] = await Promise.all([
+        api.getCharacterLoras(id),
+        api.getTrainingJobs({ character_id: id }),
+        api.getDatasets(id),
+      ]);
+      setLoras(loraItems);
+      setJobs(jobItems);
+      setDatasets(datasetItems);
+    } finally {
+      setLoaded(true);
+    }
   }, []);
 
   useEffect(() => { void refresh(characterId).catch(() => undefined); }, [characterId, refresh]);
@@ -347,14 +353,14 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
           </details>
           <section>
             <div className="section-title"><h2>{t("lp.title")}</h2><span>{loras.length}</span></div>
-            {!loras.length && <p className="muted">{t("lp.empty")}</p>}
+            {!loras.length && (loaded ? <p className="muted">{t("lp.empty")}</p> : <p className="muted"><span className="spinner" /> {t("common.loadingData")}</p>)}
             <div className="lora-grid">{loras.map(item => <LoraCard key={item.id} item={item} busy={!!busy} queueOpen={queueFor === item.id} onToggleQueue={lora => setQueueFor(current => current === lora.id ? "" : lora.id)} onDelete={remove} onActivate={activate} onQueue={queue} checkpoints={checkpoints} datasets={datasets} />)}</div>
           </section>
           <section>
             <div className="section-title"><h2>{t("lp.jobs")}</h2><button disabled={!!busy} onClick={() => void refresh(characterId)}>{t("lp.refresh")}</button></div>
-            {!jobs.length && <p className="muted">{t("lp.noJobs")}</p>}
+            {!jobs.length && (loaded ? <p className="muted">{t("lp.noJobs")}</p> : <p className="muted"><span className="spinner" /> {t("common.loadingData")}</p>)}
             <div className="job-list">{jobs.map(job => <div key={job.id} className={`job-row status-${job.status}`}>
-              <header><strong>{job.lora?.name || job.lora_id || t("lp.jobs")}</strong><span className={`lora-badge ${job.status}`}>{t(`lp.jobStatus.${job.status}`)}</span><small>{new Date(job.created_at).toLocaleString()}</small></header>
+              <header><strong>{job.name || job.lora?.name || job.lora_id || t("lp.jobs")}</strong><span className={`lora-badge ${job.status}`}>{t(`lp.jobStatus.${job.status}`)}</span><small>{new Date(job.created_at).toLocaleString()}</small></header>
               {job.status === "running" && <div className="job-bar"><i style={{ width: `${progressPercent(job)}%` }} /></div>}
               {job.status === "running" && <small>{job.progress?.total ? t("lp.progressStep", { step: job.progress.step ?? 0, total: job.progress.total }) : ""}{job.progress?.loss != null ? ` · ${t("lp.loss")} ${job.progress.loss.toFixed(4)}` : ""}</small>}
               {job.worker && <small>{t("lp.worker")}: {job.worker}</small>}

@@ -68,10 +68,33 @@ function VideoCard({ item, sourceImage, busy, onDelete, onError }: {
     </div>
     <div className="video-meta">
       <p>{item.prompt}</p>
-      <small>{length ? t("vd.frames", { count: length }) : ""} {seconds ? `· ${seconds}s` : ""} · seed {item.seed}</small>
+      <small>{length ? t("vd.frames", { count: length }) : ""}{length ? ` · ${t("vd.clip", { seconds: (length / (String(item.params?.model || "").includes("wan") ? 16 : 24)).toFixed(1) })}` : ""}{seconds ? ` · gen ${seconds}s` : ""} · seed {item.seed}</small>
       <div className="library-actions"><button className="danger" disabled={busy} onClick={() => onDelete(item)}>{t("common.delete")}</button></div>
     </div>
   </article>;
+}
+
+function SourcePreview({ image }: { image: LibraryImage | undefined }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    let objectUrl = "";
+    let alive = true;
+    setUrl("");
+    if (!image) return;
+    api.fetchBlob(`/api/library/${image.id}/file?v=${encodeURIComponent(image.filename)}`)
+      .then(blob => {
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [image?.id, image?.filename]);
+  if (!image) return null;
+  return <div className="source-preview">{url ? <img src={url} alt={image.filename} /> : <span className="spinner" />}</div>;
 }
 
 export default function VideoPlayground({ onLogout }: { onLogout: () => void }) {
@@ -85,6 +108,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   const [prompt, setPrompt] = useState("");
   const [negative, setNegative] = useState("");
   const [sourceId, setSourceId] = useState("");
+  const [loaded, setLoaded] = useState(false);
   const [mode, setMode] = useState<"image" | "text">("image");
   const [model, setModel] = useState<"wan" | "ltx-distilled" | "ltx-dev" | "hunyuan">("wan");
   const [allLoras, setAllLoras] = useState<{ name: string; family: string }[]>([]);
@@ -95,11 +119,15 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   const [seed, setSeed] = useState("");
 
   const load = useCallback(async (id: string) => {
-    if (!id) { setVideos([]); setLibrary([]); return; }
-    const [clips, images] = await Promise.all([api.getVideos(id), api.getLibrary(id, { limit: 200 })]);
-    setVideos(clips);
-    setLibrary(images);
-    setSourceId(prev => prev && images.some(image => image.id === prev) ? prev : (images.find(image => image.status === "approved")?.id || images[0]?.id || ""));
+    if (!id) { setVideos([]); setLibrary([]); setLoaded(true); return; }
+    try {
+      const [clips, images] = await Promise.all([api.getVideos(id), api.getLibrary(id, { limit: 200, status: "approved" })]);
+      setVideos(clips);
+      setLibrary(images);
+      setSourceId(prev => prev && images.some(image => image.id === prev) ? prev : (images[0]?.id || ""));
+    } finally {
+      setLoaded(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -209,7 +237,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
           <span className="library-count">{t("vd.count", { count: videos.length })}</span>
         </div>
         <div className="library-scroll">
-          {!videos.length && <div className="empty-memory"><span>▶</span><p>{t("vd.empty")}</p></div>}
+          {!videos.length && (loaded ? <div className="empty-memory"><span>▶</span><p>{t("vd.empty")}</p></div> : <div className="empty-memory"><span className="spinner" /><p>{t("common.loadingData")}</p></div>)}
           <div className="video-grid">{videos.map(item => <VideoCard key={item.id} item={item} sourceImage={library.find(image => image.id === item.source_image_id)} busy={!!busy} onDelete={removeVideo} onError={setError} />)}</div>
         </div>
       </main>
@@ -219,9 +247,10 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
         <div className="ip-form">
           <label>{t("vd.mode")}<select value={mode} disabled={!!busy} onChange={e => setMode(e.target.value as "image" | "text")}><option value="image">{t("vd.modeImage")}</option><option value="text">{t("vd.modeText")}</option></select></label>
           {mode === "image" && <label>{t("vd.source")}<select value={sourceId} disabled={!!busy || !library.length} onChange={e => setSourceId(e.target.value)}>
-            {!library.length && <option value="">{t("vd.sourceEmpty")}</option>}
-            {library.map(image => <option key={image.id} value={image.id}>{(image.caption || image.prompt || image.filename).slice(0, 70)} · {image.status}</option>)}
+            {!library.length && <option value="">{loaded ? t("vd.noApproved") : t("common.loadingData")}</option>}
+            {library.map(image => <option key={image.id} value={image.id}>{(image.caption || image.prompt || image.filename).slice(0, 70)}</option>)}
           </select></label>}
+          {mode === "image" && <SourcePreview image={library.find(image => image.id === sourceId)} />}
           <label>{t("vd.prompt")}<textarea rows={3} value={prompt} disabled={!!busy} onChange={e => setPrompt(e.target.value)} placeholder={t("vd.promptPlaceholder")} maxLength={2000} /></label>
           <details>
             <summary>{t("ip.details")}</summary>
@@ -246,6 +275,10 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
             </div>
           </details>
           <button className="primary" disabled={!!busy || !characterId || !prompt.trim() || (mode === "image" && !sourceId)} onClick={generate}>{t("vd.generate")}</button>
+          {!busy && !characterId && <small className="hint">{t("hint.selectCharacter")}</small>}
+          {!busy && characterId && mode === "image" && !library.length && loaded && <small className="hint">{t("vd.noApproved")}</small>}
+          {!busy && characterId && mode === "image" && !!library.length && !sourceId && <small className="hint">{t("hint.selectSource")}</small>}
+          {!busy && characterId && !prompt.trim() && <small className="hint">{t("hint.enterPrompt")}</small>}
         </div>
       </aside>
     </div>

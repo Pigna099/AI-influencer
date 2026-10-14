@@ -160,7 +160,19 @@ def job_out(job: TrainingJob, lora: CharacterLora | None = None, character: Infl
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,
         "lora": lora_out(lora) if lora else None,
         "character": {"id": character.id, "name": character.name} if character else None,
+        "name": job_display_name(job, lora),
     }
+
+
+def job_display_name(job: TrainingJob, lora: CharacterLora | None) -> str:
+    params = job.params or {}
+    stem = str(params.get("output_stem") or "").strip()
+    if lora is not None:
+        return lora.name
+    if stem:
+        family = str(params.get("family") or "").strip()
+        return f"{stem} ({family})" if family else stem
+    return f"job {(job.id or 'pending')[:8]}"
 
 
 @router.get("/characters/{character_id}/loras")
@@ -758,7 +770,7 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
                 dataset_id=dataset_id,
                 image_id=library.id,
                 pose_ref_id=pose.id if pose else None,
-                caption=body.prompt,
+                caption=" ".join(body.prompt.split()),
                 similarity=0.0,
                 selected=False,
                 seed=meta.get("seed", seed),
@@ -900,7 +912,7 @@ def generate_dataset_variations(dataset_id: str, body: DatasetVariations):
                 dataset_id=dataset_id,
                 image_id=library.id,
                 pose_ref_id=None,
-                caption=prompt,
+                caption=" ".join(prompt.split()),
                 similarity=0.0,
                 selected=False,
                 seed=meta.get("seed", seed),

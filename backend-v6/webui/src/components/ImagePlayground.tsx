@@ -146,12 +146,18 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
     setLoraSel(prev => ({ ...prev, [name]: { on: true, weight: prev[name]?.weight ?? 0.85, clip: prev[name]?.clip ?? null, category: "character" } }));
   }, [characterId, checkpointFamily, checkpoint, activeCharacterLora]);
 
+  const [libraryLoaded, setLibraryLoaded] = useState(false);
+
   const refresh = useCallback(async (id: string) => {
-    if (!id) { setLibrary([]); return; }
+    if (!id) { setLibrary([]); setLibraryLoaded(true); return; }
     setSelectedIds([]);
     const epoch = generation.current;
-    const items = await api.getLibrary(id, { status: statusFilter, style: styleFilter });
-    if (epoch === generation.current) setLibrary(items);
+    try {
+      const items = await api.getLibrary(id, { status: statusFilter, style: styleFilter });
+      if (epoch === generation.current) setLibrary(items);
+    } finally {
+      if (epoch === generation.current) setLibraryLoaded(true);
+    }
   }, [statusFilter, styleFilter]);
 
   useEffect(() => {
@@ -315,7 +321,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
           {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}</div>
         <div className="rail-divider" />
         <div className="section-title"><h2>{t("ip.filters")}</h2></div>
-        <label className="image-checkpoint">{t("pg.checkpoint")}
+        <label className="image-checkpoint">{t("ip.statusFilter")}
           <select value={statusFilter} disabled={!!busy} onChange={e => setStatusFilter(e.target.value)}>
             <option value="">{t("ip.statusAll")}</option><option value="draft">{t("ip.statusDraft")}</option><option value="approved">{t("ip.statusApproved")}</option><option value="rejected">{t("ip.statusRejected")}</option>
           </select>
@@ -335,7 +341,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
             <label><input type="checkbox" disabled={!!busy || !library.length} checked={selectedIds.length > 0 && selectedIds.length === library.length} onChange={e => setSelectedIds(e.target.checked ? library.map(entry => entry.id) : [])} /> {t("bulk.selectAll")}</label>
             <button className="danger" disabled={!!busy || !selectedIds.length} onClick={removeSelected}>{t("bulk.deleteSelected", { count: selectedIds.length })}</button>
           </div>
-          {!library.length && <div className="empty-memory"><span>◎</span><p>{t("ip.empty")}</p></div>}
+          {!library.length && (libraryLoaded ? <div className="empty-memory"><span>◎</span><p>{t("ip.empty")}</p></div> : <div className="empty-memory"><span className="spinner" /><p>{t("common.loadingData")}</p></div>)}
           <div className="library-grid">{library.map(item => <article className={`library-card status-${item.status}`} key={item.id}>
             <div className="library-thumb">
               <LibraryThumb item={item} onView={(url, alt) => setViewer({ url, alt })} alt={item.caption || item.prompt} />
@@ -379,7 +385,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
             <label>{t("ip.checkpoint")}<select value={checkpoint} disabled={!!busy} onChange={e => setCheckpoint(e.target.value)}><option value="">{t("ip.default")}</option>{checkpoints.filter(c => c.usable).map(checkpoint => <option key={checkpoint.name} value={checkpoint.name}>{checkpoint.name} · {checkpoint.family}</option>)}</select></label>
           </details>
           <div className="lora-picker"><span>{t("ip.loras")}</span>
-            {!loras.length && <small className="muted">{t("ip.noLoras")}</small>}
+            {!loras.length && !characterLoras.length && <small className="muted">{t("ip.noLoras")}</small>}
             {compatibleLoras.map(name => <div className="lora-row" key={name}>
               <input type="checkbox" checked={loraSel[name]?.on || false} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: e.target.checked, weight: prev[name]?.weight ?? 0.8 } }))} />
               <span className="lora-name" title={name}>{name}</span>
@@ -409,6 +415,8 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
           <label className="auto-label">{t("ip.classify")} <input type="checkbox" checked={classify} disabled={!!busy} onChange={e => setClassify(e.target.checked)} /></label>
           {busy && <p className="memory-status" role="status"><span className="spinner" />{busy} <b>{elapsed.toFixed(0)} s</b> <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
           <button className="primary" disabled={!!busy || !character || !prompt.trim()} onClick={generate}>{t("ip.generate")}</button>
+          {!busy && !prompt.trim() && <small className="hint">{t("hint.enterPrompt")}</small>}
+          {!busy && !character && <small className="hint">{t("hint.selectCharacter")}</small>}
           <details className="consistency-box">
             <summary>{t("ip.consistency")}</summary>
             <p className="muted">{t("ip.consistencyHint")}</p>

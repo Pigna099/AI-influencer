@@ -256,3 +256,7 @@
 .create-details { margin-bottom: 10px; }
 .create-details > summary { cursor: pointer; font-size: .78rem; font-weight: 600; color: #9fb3cd; margin-bottom: 6px; }
 .create-details > summary::-webkit-details-marker { display: none; }
+
+.hint { display: block; color: #8ba0bd; font-size: .72rem; margin-top: 4px; }
+.source-preview { margin: 6px 0; max-width: 180px; border-radius: 8px; overflow: hidden; background: #0b1423; }
+.source-preview img { width: 100%; display: block; }

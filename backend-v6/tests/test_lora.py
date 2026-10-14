@@ -589,3 +589,30 @@ def test_training_rejects_family_checkpoint_mismatch():
     )
     assert response.status_code == 400
     assert "qwen-image" in response.json()["detail"]
+
+
+def test_candidate_captions_are_single_line(monkeypatch):
+    character_id = make_character("Caption Invariant")
+    dataset = make_dataset(character_id, trigger="capt_test")
+    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
+    items = client.post(
+        f"/api/datasets/{dataset['id']}/generate",
+        json={"prompt": "portrait   in studio\nwith warm\nlight", "count": 2},
+    ).json()
+    assert len(items) == 2
+    for item in items:
+        assert "\n" not in item["caption"]
+        assert "  " not in item["caption"]
+        assert item["caption"] == "portrait in studio with warm light"
+
+
+def test_job_display_name_fallbacks():
+    from app.db import TrainingJob
+    from app.lora_api import job_display_name
+
+    lora = type("Lora", (), {"name": "Nikita Qwen"})()
+    job = TrainingJob(character_id="c", params={"output_stem": "nikita_qwen_v2", "family": "qwen-image"})
+    assert job_display_name(job, lora) == "Nikita Qwen"
+    assert job_display_name(job, None) == "nikita_qwen_v2 (qwen-image)"
+    bare = TrainingJob(character_id="c", params={})
+    assert job_display_name(bare, None).startswith("job ")

@@ -6,7 +6,7 @@ import Lightbox from "./Lightbox";
 
 const detailFields = ["pose", "setting", "lighting", "scene", "outfit", "body", "skin", "camera", "mood", "art_style"] as const;
 
-function DatasetThumb({ item, onView, select, videoLabel }: { item: DatasetImage; onView: (url: string, alt: string, video?: boolean) => void; select: () => void; videoLabel: string }) {
+function DatasetThumb({ item, onView, select, videoLabel, openLabel, selectLabel }: { item: DatasetImage; onView: (url: string, alt: string, video?: boolean) => void; select: () => void; videoLabel: string; openLabel: string; selectLabel: string }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
     let objectUrl = "";
@@ -39,8 +39,8 @@ function DatasetThumb({ item, onView, select, videoLabel }: { item: DatasetImage
     {item.kind === "video" && <span className="badge video">▶ {videoLabel}</span>}
     <span className={`badge ${item.status}`}>{item.status}</span>
     <div className="dataset-thumb-actions">
-      <button type="button" disabled={!url} onClick={() => void openMedia()}>⌕</button>
-      <button type="button" onClick={select}>≡</button>
+      <button type="button" disabled={!url} onClick={() => void openMedia()}>{openLabel}</button>
+      <button type="button" onClick={select}>{selectLabel}</button>
     </div>
   </div>;
 }
@@ -63,12 +63,14 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
   const [characterName, setCharacterName] = useState("");
   const [viewer, setViewer] = useState<{ url: string; alt: string; video?: boolean } | null>(null);
   const generation = useRef(0);
+  const [sourcesLoaded, setSourcesLoaded] = useState(false);
   const source = sources.find(item => item.id === sourceId) || null;
   const active = source && ["pending", "importing", "classifying"].includes(source.status);
 
   const loadSources = useCallback(async () => {
     const listing = await api.getDatasetSources();
     setSources(listing);
+    setSourcesLoaded(true);
     return listing;
   }, []);
 
@@ -218,7 +220,7 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
           <strong>{item.name}</strong>
           <small>{item.kind} · {t("ds.mediaCounts", { images: item.images, videos: item.videos })} · {item.status}{item.error ? ` · ${item.error}` : ""}</small>
         </button>)}
-          {!sources.length && <p className="muted">{t("ds.noSources")}</p>}
+          {!sources.length && (sourcesLoaded ? <p className="muted">{t("ds.noSources")}</p> : <p className="muted"><span className="spinner" /> {t("common.loadingData")}</p>)}
         </div>
       </aside>
       <main className="main-panel">
@@ -233,9 +235,9 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
           {busy && <span className="memory-status" role="status"><span className="spinner" />{busy}</span>}
         </div>
         <div className="library-scroll">
-          {!images.length && <div className="empty-memory"><span>◎</span><p>{t("ds.noSources")}</p></div>}
+          {!images.length && (sourcesLoaded ? <div className="empty-memory"><span>◎</span><p>{t("ds.noImages")}</p></div> : <div className="empty-memory"><span className="spinner" /><p>{t("common.loadingData")}</p></div>)}
           <div className="library-grid">{images.map(item => <article className={`library-card status-${item.status === "ready" ? "approved" : item.status === "failed" || item.status === "blocked" ? "rejected" : ""}`} key={item.id}>
-            <DatasetThumb item={item} onView={(url, alt, video) => setViewer({ url, alt, video })} select={() => setSelected(item)} videoLabel={t("ds.video")} />
+            <DatasetThumb item={item} onView={(url, alt, video) => setViewer({ url, alt, video })} select={() => setSelected(item)} videoLabel={t("ds.video")} openLabel={t("ds.openMedia")} selectLabel={t("ds.selectItem")} />
             <div className="library-meta">
               <p>{item.caption || item.filename}</p>
               {!!item.tags.length && <div className="library-tags">{item.tags.slice(0, 8).map(tag => <span key={tag}>{tag}</span>)}</div>}
