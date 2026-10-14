@@ -3,6 +3,7 @@ import { api, CharacterProfile, DatasetImage, DatasetSource } from "../api";
 import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import AsyncBoundary from "./ui/AsyncBoundary";
+import PageHeader from "./ui/PageHeader";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
 import Lightbox from "./Lightbox";
@@ -235,9 +236,12 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
         </div>
       </aside>
       <main className="main-panel">
-        <div className="chat-heading"><div><span className="eyebrow">{t("ds.title")}</span><h2>{source?.name || t("ds.sources")}</h2><p>{t("ds.subtitle")}</p></div>
-          {!!images.length && <span className="library-count">{t("ip.imagesCount", { count: images.length })}</span>}
-        </div>
+        <PageHeader
+          eyebrow={t("ds.title")}
+          title={source?.name || t("ds.sources")}
+          subtitle={t("ds.subtitle")}
+          aside={images.length ? <span className="library-count">{t("ip.imagesCount", { count: images.length })}</span> : undefined}
+        />
         <div className="library-toolbar">
           <button disabled={!!busy || !source} onClick={classifySource}>{t("ds.classifyPending")}</button>
           <button disabled={!!busy || !source} onClick={exportSource}>{t("ds.export")}</button>

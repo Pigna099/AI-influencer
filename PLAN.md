@@ -244,6 +244,8 @@ Done (second block):
 - **Frontend test runner**: vitest + Testing Library (`npm test`, jsdom); first component tests for
   AsyncBoundary/StatusBadge/JobProgress/AppHeader/Banner (11 tests). Destructive confirmation copy
   sharpened (character delete lists LoRA/datasets/jobs/artifacts; dataset delete notes published LoRAs).
+- **`ui/PageHeader`** extracted and adopted in Chat/Images/Video/Dataset/LoRA (eyebrow/title/subtitle
+  + right-hand slot), removing the last duplicated page header markup.
 
 Remaining in Phase 1: no false zeros/placeholders left in the audited set — kept under watch;
 component-test coverage to grow beyond the shell primitives.

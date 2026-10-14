@@ -3,6 +3,7 @@ import { api, Character, LibraryImage, VideoClip } from "../api";
 import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import AsyncBoundary from "./ui/AsyncBoundary";
+import PageHeader from "./ui/PageHeader";
 import EmptyState from "./ui/EmptyState";
 
 function VideoCard({ item, sourceImage, busy, onDelete, onError }: {
@@ -243,9 +244,12 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
         {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}
       </aside>
       <main className="main-panel">
-        <div className="chat-heading"><div><span className="eyebrow">{characterId ? t("vd.subtitle") : t("ip.title")}</span><h2>{characters.find(item => item.id === characterId)?.name || t("vd.selectCharacter")}</h2><p>{t("vd.subtitle")}</p></div>
-          <span className="library-count">{t("vd.count", { count: videos.length })}</span>
-        </div>
+        <PageHeader
+          eyebrow={characterId ? t("vd.subtitle") : t("ip.title")}
+          title={characters.find(item => item.id === characterId)?.name || t("vd.selectCharacter")}
+          subtitle={t("vd.subtitle")}
+          aside={<span className="library-count">{t("vd.count", { count: videos.length })}</span>}
+        />
         <div className="library-scroll">
           <AsyncBoundary
             loading={!loaded}

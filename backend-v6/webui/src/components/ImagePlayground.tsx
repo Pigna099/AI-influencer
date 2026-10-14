@@ -5,6 +5,7 @@ import AppHeader from "./ui/AppHeader";
 import CharacterAvatar from "./CharacterAvatar";
 import Lightbox from "./Lightbox";
 import AsyncBoundary from "./ui/AsyncBoundary";
+import PageHeader from "./ui/PageHeader";
 import EmptyState from "./ui/EmptyState";
 import PoseLibrary from "./PoseLibrary";
 
@@ -345,9 +346,12 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
         </label>
       </aside>
       <main className="main-panel">
-        <div className="chat-heading"><div><span className="eyebrow">{character ? t("pg.personalityVersion", { version: character.version }) : t("ip.title")}</span><h2>{character?.name || t("ip.selectCharacter")}</h2><p>{t("ip.subtitle")}</p></div>
-          <span className="library-count">{t("ip.imagesCount", { count: library.length })}</span>
-        </div>
+        <PageHeader
+          eyebrow={character ? t("pg.personalityVersion", { version: character.version }) : t("ip.title")}
+          title={character?.name || t("ip.selectCharacter")}
+          subtitle={t("ip.subtitle")}
+          aside={<span className="library-count">{t("ip.imagesCount", { count: library.length })}</span>}
+        />
         <div className="library-scroll">
           <div className="bulk-bar">
             <label><input type="checkbox" disabled={!!busy || !library.length} checked={selectedIds.length > 0 && selectedIds.length === library.length} onChange={e => setSelectedIds(e.target.checked ? library.map(entry => entry.id) : [])} /> {t("bulk.selectAll")}</label>

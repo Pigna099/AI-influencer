@@ -3,6 +3,7 @@ import { api, Character, CheckpointInfo, Conversation, Memory, Message, OllamaMo
 import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import EmptyState from "./ui/EmptyState";
+import PageHeader from "./ui/PageHeader";
 import CharacterForm from "./CharacterForm";
 import ChatPanel from "./ChatPanel";
 import BenchmarkPanel from "./BenchmarkPanel";
@@ -331,8 +332,12 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
           {!conversations.length && <p className="muted">{t("pg.noChats")}</p>}</div>
       </aside>
       <main className="main-panel">
-        <div className="chat-heading"><div><span className="eyebrow">{character ? t("pg.personalityVersion", { version: character.version }) : t("pg.lab")}</span><h2>{character?.name || t("pg.chooseCharacter")}</h2><p>{fan ? t("pg.withFan", { name: fan.name }) : t("pg.createFanHint")}</p></div>
-          <div className="view-tabs" role="tablist"><button role="tab" aria-selected={tab === "chat"} onClick={() => setTab("chat")} disabled={!!busy}>{t("pg.tab.chat")}</button><button role="tab" aria-selected={tab === "benchmark"} onClick={() => setTab("benchmark")} disabled={!!busy}>{t("pg.tab.benchmark")}</button></div></div>
+        <PageHeader
+          eyebrow={character ? t("pg.personalityVersion", { version: character.version }) : t("pg.lab")}
+          title={character?.name || t("pg.chooseCharacter")}
+          subtitle={fan ? t("pg.withFan", { name: fan.name }) : t("pg.createFanHint")}
+          aside={<div className="view-tabs" role="tablist"><button role="tab" aria-selected={tab === "chat"} onClick={() => setTab("chat")} disabled={!!busy}>{t("pg.tab.chat")}</button><button role="tab" aria-selected={tab === "benchmark"} onClick={() => setTab("benchmark")} disabled={!!busy}>{t("pg.tab.benchmark")}</button></div>}
+        />
         {tab === "chat" ? <>
           <div className="model-toolbar"><label htmlFor="model-select">{t("pg.model")}</label><select id="model-select" value={model} disabled={!!busy} onChange={e => setModel(e.target.value)}>
             <option value="" disabled>{t("pg.chooseModel")}</option>{chatModels.map(m => <option key={m.name} value={m.name}>{m.name} · {m.parameter_size}</option>)}</select>

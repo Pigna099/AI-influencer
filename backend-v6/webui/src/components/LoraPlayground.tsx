@@ -10,6 +10,7 @@ const NO_OLLAMA_MODELS: never[] = [];
 import DatasetPanel from "./DatasetPanel";
 import StatusBadge from "./ui/StatusBadge";
 import JobProgress from "./ui/JobProgress";
+import PageHeader from "./ui/PageHeader";
 import Lightbox from "./Lightbox";
 
 const FAMILIES: Array<"real" | "pony" | "anime" | "qwen-image"> = ["real", "pony", "anime", "qwen-image"];
@@ -305,8 +306,12 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
           {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}</div>
       </aside>
       <main className="main-panel">
-        <div className="chat-heading"><div><span className="eyebrow">LoRA</span><h2>{character?.name || t("lp.title")}</h2><p>{t("lp.subtitle")}</p></div>
-          <span className="library-count">{loras.length} LoRA</span><button type="button" onClick={toggleGuide}>{guideOpen ? t("lp.guide.hide") : t("lp.guide.show")}</button></div>
+        <PageHeader
+          eyebrow="LoRA"
+          title={character?.name || t("lp.title")}
+          subtitle={t("lp.subtitle")}
+          aside={<><span className="library-count">{loras.length} LoRA</span><button type="button" onClick={toggleGuide}>{guideOpen ? t("lp.guide.hide") : t("lp.guide.show")}</button></>}
+        />
         {busy && <p className="memory-status lora-busy" role="status"><span className="spinner" />{busy} <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
         <div className="lora-content">
           <section className="lora-step">
