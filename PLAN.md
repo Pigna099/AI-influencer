@@ -252,6 +252,8 @@ Done (second block):
   model-management link and keeps raw log paths behind the details disclosure (mocked api).
 - **Effective-recipe summaries**: the collapsed Advanced sections in Images and Video now show
   style/checkpoint/LoRA count/pose count/seed (Images) and resolution/frames/steps/LoRA/seed (Video).
+- **`ui/AdvancedSettings`** primitive adopted by the Images and Video advanced sections (title +
+  live effective-recipe summary).
 - **Dataset queue progress**: spinner banner with imported/classified counters while a source is
   active, plus a ready/pending/failed summary line once it settles.
 - **Home operational overview**: `GET /api/overview` (draft images/videos, running/failed jobs,

@@ -5,6 +5,7 @@ import AppHeader from "./ui/AppHeader";
 import CharacterAvatar from "./CharacterAvatar";
 import Lightbox from "./Lightbox";
 import AsyncBoundary from "./ui/AsyncBoundary";
+import AdvancedSettings from "./ui/AdvancedSettings";
 import PageHeader from "./ui/PageHeader";
 import EmptyState from "./ui/EmptyState";
 import PoseLibrary from "./PoseLibrary";
@@ -403,17 +404,17 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
           <label>{t("ip.prompt")}<textarea rows={4} value={prompt} disabled={!!busy} onChange={e => setPrompt(e.target.value)} placeholder={t("ip.promptPlaceholder")} maxLength={2000} /></label>
           <label>{t("ip.direction")}<input value={direction} disabled={!!busy} onChange={e => setDirection(e.target.value)} placeholder={t("ip.directionPlaceholder")} maxLength={1000} /></label>
           <button type="button" disabled={!!busy || !prompt.trim()} onClick={augment}>{t("ip.augment")}</button>
-          <details><summary>{t("ip.details")} <small className="summary-hint">{[
+          <AdvancedSettings title={t("ip.details")} summary={[
             style === "anime" ? t("pg.style.anime") : t("pg.style.real"),
             checkpoint || t("ip.default"),
             `${Object.values(loraSel).filter(item => item?.on).length} LoRA`,
             poseIds.length ? `${poseIds.length} ${t("lp.poses")}` : null,
             seed ? `${t("ip.seed")} ${seed}` : null,
-          ].filter(Boolean).join(" · ")}</small></summary>
+          ].filter(Boolean).join(" · ")}>
             <label>{t("ip.negative")}<textarea rows={2} value={negative} disabled={!!busy} onChange={e => setNegative(e.target.value)} placeholder={t("ip.negativeHint")} maxLength={4000} /></label>
             <label>{t("ip.style")}<select value={style} disabled={!!busy} onChange={e => setStyle(e.target.value as "real" | "anime")}><option value="real">{t("pg.style.real")}</option><option value="anime">{t("pg.style.anime")}</option></select></label>
             <label>{t("ip.checkpoint")}<select value={checkpoint} disabled={!!busy} onChange={e => setCheckpoint(e.target.value)}><option value="">{t("ip.default")}</option>{checkpoints.filter(c => c.usable).map(checkpoint => <option key={checkpoint.name} value={checkpoint.name}>{checkpoint.name} · {checkpoint.family}</option>)}</select></label>
-          </details>
+          </AdvancedSettings>
           <div className="lora-picker"><span>{t("ip.loras")}</span>
             {!loras.length && !characterLoras.length && <small className="muted">{t("ip.noLoras")}</small>}
             {compatibleLoras.map(name => <div className="lora-row" key={name}>
