@@ -280,3 +280,8 @@
 .status-badge.busy { background: var(--st-busy-bg); color: var(--st-busy-fg); }
 .status-badge.bad { background: var(--st-bad-bg); color: var(--st-bad-fg); }
 .status-badge.neutral { background: var(--st-neutral-bg); color: var(--st-neutral-fg); }
+
+.danger-zone { border: 1px solid #5c2430; background: #241319; border-radius: 10px; padding: 12px; margin-top: 14px; }
+.danger-zone h3 { font-size: .8rem; color: var(--st-bad-fg); }
+.danger-zone .muted { font-size: .78rem; margin-top: 4px; }
+.danger-zone-actions { margin-top: 10px; display: flex; gap: 6px; }

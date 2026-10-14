@@ -246,6 +246,8 @@ Done (second block):
   sharpened (character delete lists LoRA/datasets/jobs/artifacts; dataset delete notes published LoRAs).
 - **`ui/PageHeader`** extracted and adopted in Chat/Images/Video/Dataset/LoRA (eyebrow/title/subtitle
   + right-hand slot), removing the last duplicated page header markup.
+- **`ui/DangerZone`**: character deletion moved out of the avatar action row into a labelled danger
+  zone with explicit consequence copy (chats, memories, LoRAs, datasets, jobs, artifacts).
 
 Remaining in Phase 1: no false zeros/placeholders left in the audited set — kept under watch;
 component-test coverage to grow beyond the shell primitives.

@@ -658,6 +658,8 @@ const en = {
   "common.loadMore": "Load more",
   "lp.manageModels": "Open model management (Home)",
   "pg.navAria": "Main navigation",
+  "lp.dangerTitle": "Danger zone",
+  "lp.dangerHint": "Deleting the character also removes its chats, memories, LoRAs, datasets, jobs and generated artifacts. This cannot be undone.",
 } as const;
 
 type Catalog = typeof en;

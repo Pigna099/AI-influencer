@@ -10,6 +10,7 @@ const NO_OLLAMA_MODELS: never[] = [];
 import DatasetPanel from "./DatasetPanel";
 import StatusBadge from "./ui/StatusBadge";
 import JobProgress from "./ui/JobProgress";
+import DangerZone from "./ui/DangerZone";
 import PageHeader from "./ui/PageHeader";
 import Lightbox from "./Lightbox";
 
@@ -328,12 +329,14 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
                 <div className="lora-actions">
                   <button disabled={!!busy} onClick={generateAvatar}>{character.avatar_filename ? t("lp.avatarRegenerate") : t("lp.avatarGenerate")}</button>
                   <button disabled={!!busy} title={t("pg.duplicateTitle")} onClick={duplicateCharacter}>{t("pg.duplicate")}</button>
-                  <button className="danger" disabled={!!busy} onClick={removeCharacter}>{t("common.delete")}</button>
                 </div>
                 {character.avatar_filename && <div className="avatar-edit">
                   <input value={avatarPrompt} disabled={!!busy} onChange={e => setAvatarPrompt(e.target.value)} placeholder={t("lp.avatarEditPlaceholder")} maxLength={1000} />
                   <button disabled={!!busy || !avatarPrompt.trim()} onClick={editAvatar}>{t("lp.avatarEdit")}</button>
                 </div>}
+                <DangerZone title={t("lp.dangerTitle")} hint={t("lp.dangerHint")}>
+                  <button className="danger" disabled={!!busy} onClick={removeCharacter}>{t("common.delete")}</button>
+                </DangerZone>
               </div>
             </div> : <p className="muted">{t("pg.noCharacters")}</p>}
           </section>
