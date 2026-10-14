@@ -10,4 +10,4 @@ node_modules/
 *.log
 .DS_Store
 ._*
-backend-v5p0/webui_dist/
+backend-v6/webui_dist/
