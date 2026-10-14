@@ -36,8 +36,11 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
   const [gpuPlan, setGpuPlan] = useState<GpuPlan>({ media: [0, 1], text: [2, 3] });
   const [savingPlan, setSavingPlan] = useState(false);
 
+  const [overview, setOverview] = useState<Awaited<ReturnType<typeof api.getOverview>> | null>(null);
+
   useEffect(() => {
     api.getDefaults().then(setDefaults).catch(() => undefined);
+    api.getOverview().then(setOverview).catch(() => undefined);
     api.getGpuPlan().then(setGpuPlan).catch(() => undefined);
   }, []);
 
@@ -220,6 +223,17 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
     <AppHeader current="/" onLogout={onLogout} />
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
     <div className="home-scroll">
+      <section>
+        <div className="section-title"><h2>{t("home.attention.title")}</h2></div>
+        {overview && (overview.draft_images + overview.draft_videos + overview.jobs_failed + overview.jobs_running > 0 ? (
+          <div className="attention-list">
+            {overview.draft_images > 0 && <Link to="/images"><span>{t("home.attention.draftImages", { count: overview.draft_images })}</span><b>{t("home.attention.open")}</b></Link>}
+            {overview.draft_videos > 0 && <Link to="/video"><span>{t("home.attention.draftVideos", { count: overview.draft_videos })}</span><b>{t("home.attention.open")}</b></Link>}
+            {overview.jobs_failed > 0 && <Link to="/loras"><span>{t("home.attention.failedJobs", { count: overview.jobs_failed })}</span><b>{t("home.attention.open")}</b></Link>}
+            {overview.jobs_running > 0 && <Link to="/loras"><span>{t("home.attention.runningJobs", { count: overview.jobs_running })}</span><b>{t("home.attention.open")}</b></Link>}
+          </div>
+        ) : <p className="muted">{t("home.attention.empty")}</p>)}
+      </section>
       <section>
         <div className="section-title"><h2>{t("home.status")}</h2><button disabled={loading} onClick={() => void load()}>{t("lp.refresh")}</button></div>
         <div className="flag-grid">{flags.map(flag => <div className={`flag-card ${flag.state}`} key={flag.key}>

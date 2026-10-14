@@ -27,6 +27,8 @@ def test_every_tab_main_endpoints():
         "/api/dataset/sources", "/api/dataset/images",
         # LoRA
         f"/api/characters/{character_id}/datasets", "/api/training-jobs",
+        # Home
+        "/api/overview",
     ]
     failures = []
     for path in endpoints:

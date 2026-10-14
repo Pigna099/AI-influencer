@@ -5,16 +5,34 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import Field
+from sqlalchemy import func, select
 
 from .auth import authorize
 from .char_schemas import StrictModel
 from .config import settings
-from .db import AppSetting, Session, now
+from .db import AppSetting, CharacterLora, ImageLibrary, Influencer, Session, TrainingJob, VideoClip, now
 
 router = APIRouter(prefix="/api", tags=["Settings"], dependencies=[Depends(authorize)])
 
 DEFAULTS_KEY = "defaults"
 DEFAULT_DEFAULTS = {"chat_model": "", "image_checkpoint": "", "video_model": "wan"}
+
+
+@router.get("/overview")
+def get_overview():
+    """Operational counters for the Home page: what needs review or attention."""
+    with Session() as db:
+        def count(model, *criteria):
+            return db.scalar(select(func.count()).select_from(model).where(*criteria)) or 0
+
+        return {
+            "characters": count(Influencer),
+            "draft_images": count(ImageLibrary, ImageLibrary.status == "draft"),
+            "draft_videos": count(VideoClip, VideoClip.review_status == "draft"),
+            "jobs_running": count(TrainingJob, TrainingJob.status.in_(("queued", "running"))),
+            "jobs_failed": count(TrainingJob, TrainingJob.status == "failed"),
+            "loras_ready": count(CharacterLora, CharacterLora.status == "ready"),
+        }
 
 
 def read_defaults(db) -> dict:

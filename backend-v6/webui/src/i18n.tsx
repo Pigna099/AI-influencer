@@ -663,6 +663,13 @@ const en = {
   "lp.activeLora": "Active",
   "lp.showAllJobs": "Show all jobs (+{count})",
   "lp.showRecentJobs": "Show recent only",
+  "home.attention.title": "Needs attention",
+  "home.attention.open": "Open",
+  "home.attention.draftImages": "{count} images awaiting review",
+  "home.attention.draftVideos": "{count} video clips awaiting review",
+  "home.attention.failedJobs": "{count} failed training jobs",
+  "home.attention.runningJobs": "{count} training jobs running",
+  "home.attention.empty": "Nothing needs review right now.",
 } as const;
 
 type Catalog = typeof en;

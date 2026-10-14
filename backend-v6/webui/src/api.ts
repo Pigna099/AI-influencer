@@ -632,6 +632,10 @@ export class ApiClient {
     return this.request(`/api/library/${id}`, { method: "PATCH", body: JSON.stringify(data) });
   }
 
+  getOverview(): Promise<{ characters: number; draft_images: number; draft_videos: number; jobs_running: number; jobs_failed: number; loras_ready: number }> {
+    return this.request("/api/overview");
+  }
+
   patchVideo(id: string, data: { review_status: "draft" | "approved" | "rejected" }): Promise<VideoClip> {
     return this.request(`/api/videos/${id}`, { method: "PATCH", body: JSON.stringify(data) });
   }
