@@ -1,0 +1,116 @@
+"""App-wide defaults (chat/photo/video models) used by the Home page."""
+
+import json
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import Field
+
+from .auth import authorize
+from .char_schemas import StrictModel
+from .config import settings
+from .db import AppSetting, Session, now
+
+router = APIRouter(prefix="/api", tags=["Settings"], dependencies=[Depends(authorize)])
+
+DEFAULTS_KEY = "defaults"
+DEFAULT_DEFAULTS = {"chat_model": "", "image_checkpoint": "", "video_model": "wan"}
+
+
+def read_defaults(db) -> dict:
+    row = db.get(AppSetting, DEFAULTS_KEY)
+    if row is None:
+        return dict(DEFAULT_DEFAULTS)
+    return {**DEFAULT_DEFAULTS, **(row.value or {})}
+
+
+class DefaultsInput(StrictModel):
+    chat_model: str | None = Field(default=None, max_length=200)
+    image_checkpoint: str | None = Field(default=None, max_length=200)
+    video_model: Literal["wan", "ltx-distilled", "ltx-dev", "hunyuan"] | None = None
+
+
+@router.get("/settings/defaults")
+def get_defaults():
+    with Session() as db:
+        defaults = read_defaults(db)
+    vllm_available = False
+    if settings.text_provider == "vllm":
+        from .integrations.vllm import available
+
+        vllm_available = available()
+    return {**defaults, "text_provider": settings.text_provider, "vllm_available": vllm_available}
+
+
+@router.put("/settings/defaults")
+def set_defaults(body: DefaultsInput):
+    with Session.begin() as db:
+        row = db.get(AppSetting, DEFAULTS_KEY)
+        if row is None:
+            row = AppSetting(key=DEFAULTS_KEY, value={})
+            db.add(row)
+        value = {**DEFAULT_DEFAULTS, **(row.value or {})}
+        for key, item in body.model_dump(exclude_none=True).items():
+            value[key] = item
+        row.value = value
+        row.updated_at = now()
+        db.flush()
+        result = value
+    return result
+
+
+GPU_PLAN_KEY = "gpu_plan"
+DEFAULT_GPU_PLAN = {"media": [0, 1], "text": [2, 3]}
+
+
+class GpuPlanInput(StrictModel):
+    media: list[int] = Field(min_length=1, max_length=4)
+    text: list[int] = Field(default_factory=list, max_length=4)
+
+
+def _validate_plan(media: list[int], text: list[int]) -> None:
+    gpus = [*media, *text]
+    if any(gpu < 0 or gpu > 3 for gpu in gpus):
+        raise HTTPException(400, "GPU non valida: usa indici 0-3")
+    if len(set(gpus)) != len(gpus):
+        raise HTTPException(400, "Una GPU non puo essere assegnata a due usi")
+    if len(text) not in (0, 2):
+        raise HTTPException(400, "vLLM richiede 0 o 2 GPU (tensor parallel)")
+
+
+def _data_dir():
+    return settings.media_dir.parent
+
+
+@router.get("/settings/gpu-plan")
+def get_gpu_plan():
+    with Session() as db:
+        row = db.get(AppSetting, GPU_PLAN_KEY)
+        plan = {**DEFAULT_GPU_PLAN, **(row.value or {})} if row is not None else dict(DEFAULT_GPU_PLAN)
+    pending = (_data_dir() / "gpu_plan.request").exists()
+    applied = {}
+    applied_file = _data_dir() / "gpu_plan.applied.json"
+    if applied_file.is_file():
+        try:
+            applied = json.loads(applied_file.read_text())
+        except ValueError:
+            applied = {}
+    return {**plan, "pending": pending, "applied": applied}
+
+
+@router.put("/settings/gpu-plan")
+def set_gpu_plan(body: GpuPlanInput):
+    _validate_plan(body.media, body.text)
+    payload = {"media": sorted(set(body.media)), "text": sorted(set(body.text))}
+    with Session.begin() as db:
+        row = db.get(AppSetting, GPU_PLAN_KEY)
+        if row is None:
+            row = AppSetting(key=GPU_PLAN_KEY, value={})
+            db.add(row)
+        row.value = payload
+        row.updated_at = now()
+        db.flush()
+    data_dir = _data_dir()
+    (data_dir / "gpu_plan.json").write_text(json.dumps(payload))
+    (data_dir / "gpu_plan.request").write_text(now().isoformat())
+    return payload

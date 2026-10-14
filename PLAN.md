@@ -1,6 +1,6 @@
 # PLAN — Da playground a influencer autonoma
 
-Piano di lavoro per trasformare il playground (`backend-v5p0`) in una piattaforma che genera contenuti, pubblica su Instagram e gestisce i fan su Fanvue con vendita di foto/video.
+Piano di lavoro per trasformare il playground (`backend-v6`) in una piattaforma che genera contenuti, pubblica su Instagram e gestisce i fan su Fanvue con vendita di foto/video.
 
 Documento vivo: aggiornare quando una decisione cambia.
 
@@ -29,7 +29,7 @@ Vincolo di identità: **personaggi completamente sintetici**, nessuna likeness d
 
 ## 3. Cosa è riusabile oggi
 
-| Componente | File (backend-v5p0) | Riuso |
+| Componente | File (backend-v6) | Riuso |
 |---|---|---|
 | Client ComfyUI (parameterize, checkpoint, upload reference/IPAdapter) | `app/integrations/comfyui.py` | Alto — base del workflow selector |
 | Client Ollama (chat, embed, metrics) | `app/integrations/ollama.py` | Alto |
@@ -351,3 +351,50 @@ Da fare per completare il flusso: workflow/endpoint **Qwen-Image-Edit** per le v
 3. Qualità video attesa per partire (LTX veloce vs Wan/Hunyuan di qualità).
 4. Modello LLM per caption/chat definitivo (locale grande vs più modelli specializzati).
 5. Politica di prezzo e gestione refund/chargeback su Fanvue.
+
+## 16. Backlog corrente (3 ottobre 2026)
+
+### 16.1 Video — cosa resta
+- [x] **Miniature**: poster dal primo frame generato da ComfyUI (`ImageFromBatch` + `SaveImage`), salvato come `thumb_filename` (migrazione 0018) e servito da `/api/videos/{id}/thumb`; fallback immagine di partenza.
+- [ ] **Segnalibri/rating video**: preferiti, filtro per modello, ordinamento.
+- [x] **Clip in chat come PPV**: implementato con tabella dedicata `chat_videos` + `simulated_payments.chat_video_id`; il personaggio invia `[PPV-VIDEO: ...]`, sceglie una clip pronta non ripetuta, unlock simulato e player in chat.
+- [ ] **Verifica Wan T2V**: i modelli `wan2.2_t2v_high/low_noise_14B_fp8_scaled` sono in download (~26 GB); al termine provare la modalità testo e tarare eventualmente i passi.
+- [ ] **LTX-2.3 due stadi (opzionale)**: aggiungere `ltx-2.3-spatial-upscaler-x2-1.1.safetensors` + seconda passata con `LTXVLatentUpsampler` per qualità superiore; audio di output (oggi silenzioso) con `LTXVAudioVAEDecode` + `CreateVideo`.
+- [ ] **LoRA video reali**: provare una LoRA di stile Wan/LTX dalla picker (oggi vuota: esistono solo lightx2v/distilled, escluse perché automatiche).
+- [ ] **Video da candidati/dataset**: generare clip dalle reference canoniche (bottone nella scheda Video o nel dataset).
+- [ ] **HunyuanVideo 1.5 (dopo il download)**: modelli scaricati in `models/` (480p T2V/I2V cfg-distilled fp8, SR 720p, VAE fp16, ByT5-GlyphXL, SigCLIP vision, upsampler 720p, LoRA lightx2v 4-step). Integrare come terza famiglia video (TE `qwen_2.5_vl_7b_fp8_scaled` già presente; grafo con doppio text encoder Qwen2.5-VL + ByT5-GlyphXL, VAE dedicata, eventuale secondo stadio SR con latent upsampler).
+
+### 16.2 vLLM — sostituire Ollama per la velocità (Ollama resta come backup)
+Requisiti aggiuntivi (richiesti esplicitamente):
+- [ ] **Pannello GPU nella Home**: scegliere quali GPU riservare a **video/foto** (istanze ComfyUI) e quali a **testo/chat** (vLLM); il dispatcher ComfyUI e il worker devono rispettare la ripartizione.
+- [ ] **vLLM sul modello `qwen3.8`** (quello da 27B già in Ollama): deve girare su **due GPU** (tensor parallel = 2); verificare VRAM (27B in FP8/AWQ ~27-30 GB → 2×24 GB ok), misurare tok/s e confrontare con Ollama.
+- [ ] **Modelli di default nella Home**: scegliere una volta il modello per **chat**, per **generazione foto** e per **generazione video**; i playground non devono più chiedere il modello a ogni generazione (solo le LoRA restano selezionabili).
+- [ ] **Worker e piano GPU**: il trainer preferisce le GPU x16 (2,3) ora occupate da vLLM: se non ci sono GPU libere, liberare ComfyUI sulle GPU media e/o mettere vLLM in pausa (sleep mode) durante il training.
+- [ ] **Benchmark vLLM vs Ollama**: misurare tok/s e latenza primo token sullo stesso prompt nelle stesse condizioni e documentare in STATO.
+- [x] **UI solo inglese** (14 ottobre 2026): catalogo italiano rimosso, selettore lingua eliminato.
+- [x] **Home piu leggera**: elenchi (personaggi, checkpoint, LoRA, modelli) in sezioni richiudibili.
+- [ ] **UI più pulita ovunque**: resta la scheda LoRA (riorganizzare formazione/queue), le altre schede e la rimozione di chiavi i18n non usate.
+- [x] **Dataset: import Nextcloud** (link pubblico, sottocartelle) e **X migliorato** (link a post singoli, errori chiari); Instagram resta best-effort/scraping e il percorso consigliato e' il bot dell'utente + link Nextcloud.
+- [x] **Controllo coerenza personaggio** con modello vision (endpoint + UI nella scheda Immagini).: revisione di tutte le schede (Home, Chat, Immagini, Video, Dataset, LoRA) — meno pulsanti dominanti, sezioni richiudibili, gerarchia chiara, coerenza tra pagine.
+
+Obiettivo: text generation più veloce (chat, ampliamento prompt/personalità, descrizioni) con API OpenAI-compatible; Ollama resta installato e selezionabile.
+- [x] **Install**: venv dedicato in `/data/data_ssd/pigni/vllm-venv`, vLLM 0.30.0, `vllm serve` verificato con qwen3.8 (startup ~6-8 min con compile, poi cache).
+- [x] **GPU dedicate**: vLLM su GPU 2,3 (x16, TP=2), ComfyUI ridotto a GPU 0,1 (porte 8188/8189); boot script aggiornato.
+- [x] **Pesi HF**: scaricati `Qwen/Qwen3.8-27B-FP8` (29,5 GB) e serviti; misurare ancora tok/s vs Ollama Q4 nello stesso scenario.
+- [x] **Provider astratto**: `app/integrations/vllm.py` + `app/integrations/text.py` con `TEXT_PROVIDER=ollama|vllm` e fallback automatico; chat e lista modelli passano da lì.
+- [ ] **Modelli per task**: mappa per compito (chat, umanizzazione, ampliamento prompt, descrizioni vision) con modelli diversi; vision: valutare Qwen2.5-VL AWQ su vLLM oppure continuare a usare Ollama/Gemma3 per le descrizioni.
+- [ ] **Embedding**: restano su Ollama (`nomic-embed-text`, 274 MB) — vLLM non è pensato per gli embedding; nessuna modifica.
+- [ ] **Benchmark**: estendere la scheda Benchmark per confrontare Ollama vs vLLM sullo stesso prompt (tok/s, latenza primo token, RAM/VRAM) e documentare in STATO i risultati.
+- [ ] **Boot**: aggiornare `start-ai-influencer.sh` per avviare/fermare vLLM (flag `VLLM_ENABLED`), health-check e log dedicato.
+- [ ] **Rollback**: con `TEXT_PROVIDER=ollama` tutto deve funzionare come oggi; non rimuovere i modelli Ollama.
+
+### 16.3 Altro lavoro pendente
+- [x] **Qwen-Image-2.1**: file scaricati (`qwen_image_2.1_bf16`, TE `qwen3vl_8b_bf16`, VAE dedicata) ma il grafo `qwen-image` usa il TE/VAE vecchi: aggiungere la variante 2.1 (CLIPLoader/VAE dedicati, shift/step da tarare).
+- [x] **FLUX.2 Klein 4B**: integrato (base 20 step cfg 5 / distilled 4 step cfg 1, TE `qwen_3_4b`, LoRA utente applicate); verificato live.
+- [x] **Qwen-Edit 2511 come default**: `qwen_image_edit_2511_fp8mixed` presente; passare `qwen_edit_unet_name` da 2509 a 2511 dopo un test di qualità su una reference.
+- [ ] **Docker data-root** in `pigni/docker`: script pronto (`scripts/move-docker-data-root.sh`), richiede `sudo` dell'utente + `sudo rm -rf /data/data_ssd/docker`.
+- [ ] **`/etc/environment`**: aggiornare `HF_HOME` a `/data/data_ssd/pigni/huggingface` (richiede sudo).
+- [ ] **Chat image archive/PPV**: valutare archiviazione delle immagini chat e pulizia periodica dei file orfani (video inclusi).
+
+- [x] **ComfyUI aggiornato** (4 ottobre 2026) a master b87fe48b (rollback 225c52f6): abilita Qwen-Image 2.1 e il nuovo asset system; istanze con DB dedicati.
+- [x] **HunyuanVideo 1.5**: integrato come terza famiglia video (480p distilled single-stage, t2v+i2v verificati live); resta opzionale lo stadio **SR 720p** (`HunyuanVideo15SuperResolution` + latent upsampler, file già scaricati) e la LoRA lightx2v 4-step.

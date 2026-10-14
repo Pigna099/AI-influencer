@@ -61,7 +61,7 @@ Il playground serve a costruire e testare influencer sintetiche:
 
 \section{Avvio, accesso e spegnimento}
 \begin{itemize}
-  \item Avvio: \texttt{cd backend-v5p0 \&\& ./start.sh} (costruisce la WebUI, applica le migrazioni, avvia API e worker).
+  \item Avvio: \texttt{cd backend-v6 \&\& ./start.sh} (costruisce la WebUI, applica le migrazioni, avvia API e worker).
   \item Stato: \texttt{docker compose ps}; log: \texttt{docker compose logs -f api} (o \texttt{worker}).
   \item Accesso: aprire l'URL nel browser e inserire la \texttt{API\_KEY} del file \texttt{.env} (resta nella sessione del browser).
   \item Arresto senza perdere dati: \texttt{docker compose stop}; riavvio: \texttt{docker compose up -d}.
@@ -114,7 +114,7 @@ La pagina iniziale mostra lo stato del sistema:
 \end{itemize}
 \subsection{2 -- Dataset LoRA (reference canoniche e due rami)}
 \begin{itemize}
-  \item \textbf{1 \textperiodcentered{} Identit\`a}: genera 20--50 candidati con \textbf{Qwen-Image-2512} (selezionabile). Il campo prompt \`e precompilato; le scene del ramo variazioni sono 20 di esempio, ripristinabili con \emph{Ripristina default}. La sezione richiudibile \textbf{Prompt del personaggio} mostra la parte identit\`a del prompt della foto profilo (soggetto e aspetto), la salva e la include nei candidati, cos\`i etnia e tratti non si perdono. Nel passo dei candidati \`e selezionabile anche \textbf{Playground v2.5} (SDXL): riferimenti e pose funzionano come nel ramo SDXL.
+  \item \textbf{1 \textperiodcentered{} Identit\`a}: genera 20--50 candidati con \textbf{Qwen-Image-2512} (selezionabile). Il campo prompt \`e precompilato; le scene del ramo variazioni sono 20 di esempio, ripristinabili con \emph{Ripristina default}. La sezione richiudibile \textbf{Prompt del personaggio} mostra la parte identit\`a del prompt della foto profilo (soggetto e aspetto), la salva e la include nei candidati, cos\`i etnia e tratti non si perdono. Nel passo dei candidati \`e selezionabile anche \textbf{Playground v2.5} (SDXL): riferimenti e pose funzionano come nel ramo SDXL. Nella scheda LoRA \`e disponibile la famiglia \textbf{qwen-image}: il training usa musubi-tuner con pre-cache e block swap, a partire dai pesi bf16 del modello (i checkpoint fp8 vengono mappati automaticamente).
   \item \textbf{2 \textperiodcentered{} Reference canoniche}: assegna un \textbf{ruolo} a 4--8 immagini (volto ravvicinato, 3/4, profilo, mezzo busto, figura intera frontale, 3/4, laterale). Tutte le generazioni successive usano queste reference, non la sola foto profilo.
   \item \textbf{3 \textperiodcentered{} Due rami indipendenti}: \textbf{Variazioni Qwen-Image-Edit} (una scena per riga, modello selezionabile con LoRA Lightning abbinata) e \textbf{Candidati SDXL} (checkpoint + IPAdapter + pose ControlNet). I due rami non si incrociano e confluiscono nella stessa griglia.
   \item \textbf{Curatela}: seleziona le immagini, correggi le didascalie, elimina; la barra mostra \texttt{selezionate/60} (obiettivo 50--70 immagini finali).
@@ -181,7 +181,7 @@ Instagram chiede il login & Imposta \texttt{INSTAGRAM\_COOKIES} nel \texttt{.env
 \section{Manutenzione, backup e file importanti}
 \begin{itemize}
   \item \textbf{Backup}: snapshot in \texttt{backups/<versione>/} (dump PostgreSQL, \texttt{.env}, sorgente). Prima di modifiche importanti crearne uno nuovo.
-  \item \textbf{Aggiornamenti}: modificare il codice in \texttt{backend-v5p0}, poi \texttt{docker compose up -d --build}.
+  \item \textbf{Aggiornamenti}: modificare il codice in \texttt{backend-v6}, poi \texttt{docker compose up -d --build}.
   \item \textbf{Percorsi utili}: \texttt{app/} (API), \texttt{webui/src} (interfaccia), \texttt{workflows/} (grafi SDXL), \texttt{scripts/} (download modelli, trainer), \texttt{data/} (media, dataset, pose, LoRA).
   \item \textbf{Log}: \texttt{docker compose logs}; trainer in \texttt{/data/data\_ssd/pigni/trainer/runs/<job>/train.log}.
 \end{itemize}
