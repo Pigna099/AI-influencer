@@ -287,3 +287,4 @@
 .danger-zone-actions { margin-top: 10px; display: flex; gap: 6px; }
 
 .ip-form details summary .summary-hint { color: #6f86a8; font-weight: 400; margin-left: 6px; }
+.readiness-line { padding: 0 24px 8px; font-size: .75rem; color: #8fb0c9; }

@@ -160,6 +160,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
 
   const [loaded, setLoaded] = useState(false);
   const [jobsHasMore, setJobsHasMore] = useState(false);
+  const [showAllJobs, setShowAllJobs] = useState(false);
   const JOBS_PAGE = 30;
 
   const refresh = useCallback(async (id: string) => {
@@ -290,6 +291,26 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     });
   };
 
+  const visibleJobs = (() => {
+    if (showAllJobs) return jobs;
+    const seenFailures = new Set<string>();
+    return jobs.filter(job => {
+      if (job.status !== "failed" && job.status !== "canceled") return true;
+      const key = job.lora_id || job.lora?.name || job.id;
+      if (seenFailures.has(key)) return false;
+      seenFailures.add(key);
+      return true;
+    });
+  })();
+  const hiddenJobs = jobs.length - visibleJobs.length;
+  const activeLora = loras.find(lora => lora.is_active);
+  const readiness = character ? [
+    `${t("lp.step.character")} ✓`,
+    `${t("lp.step.dataset")} ${datasets.reduce((sum, dataset) => sum + dataset.selected_count, 0)}`,
+    `${t("lp.step.training")} ${loras.filter(lora => lora.status === "ready").length}`,
+    `${t("lp.activeLora")} ${activeLora ? activeLora.name : "—"}`,
+  ].join(" · ") : "";
+
   const progressPercent = (job: TrainingJob) => {
     const step = job.progress?.step ?? 0;
     const total = job.progress?.total ?? 0;
@@ -314,6 +335,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
           aside={<><span className="library-count">{loras.length} LoRA</span><button type="button" onClick={toggleGuide}>{guideOpen ? t("lp.guide.hide") : t("lp.guide.show")}</button></>}
         />
         {busy && <p className="memory-status lora-busy" role="status"><span className="spinner" />{busy} <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
+        {readiness && <p className="readiness-line" role="status">{readiness}</p>}
         <div className="lora-content">
           <section className="lora-step">
             <div className="lora-step-head"><span className="step-badge">1</span><h2>{t("lp.step.character")}</h2></div>
@@ -376,9 +398,9 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
             <div className="lora-grid">{loras.map(item => <LoraCard key={item.id} item={item} busy={!!busy} queueOpen={queueFor === item.id} onToggleQueue={lora => setQueueFor(current => current === lora.id ? "" : lora.id)} onDelete={remove} onActivate={activate} onQueue={queue} checkpoints={checkpoints} datasets={datasets} />)}</div>
           </section>
           <section>
-            <div className="section-title"><h2>{t("lp.jobs")}</h2><button disabled={!!busy} onClick={() => void refresh(characterId)}>{t("lp.refresh")}</button></div>
+            <div className="section-title"><h2>{t("lp.jobs")}</h2><div className="preset-actions">{hiddenJobs > 0 && <button disabled={!!busy} onClick={() => setShowAllJobs(value => !value)}>{showAllJobs ? t("lp.showRecentJobs") : t("lp.showAllJobs", { count: hiddenJobs })}</button>}<button disabled={!!busy} onClick={() => void refresh(characterId)}>{t("lp.refresh")}</button></div></div>
             {!jobs.length && (loaded ? <p className="muted">{t("lp.noJobs")}</p> : <p className="muted"><span className="spinner" /> {t("common.loadingData")}</p>)}
-            <div className="job-list">{jobs.map(job => <div key={job.id} className={`job-row status-${job.status}`}>
+            <div className="job-list">{visibleJobs.map(job => <div key={job.id} className={`job-row status-${job.status}`}>
               <header><strong>{job.name || job.lora?.name || job.lora_id || t("lp.jobs")}</strong><StatusBadge status={job.status} label={t(`lp.jobStatus.${job.status}`)} /><small>{new Date(job.created_at).toLocaleString()}</small></header>
               {job.status === "running" && <JobProgress percent={progressPercent(job)} label={job.name || `#${job.id}`} />}
               {job.status === "running" && <small>{job.progress?.total ? t("lp.progressStep", { step: job.progress.step ?? 0, total: job.progress.total }) : ""}{job.progress?.loss != null ? ` · ${t("lp.loss")} ${job.progress.loss.toFixed(4)}` : ""}</small>}
