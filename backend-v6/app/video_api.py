@@ -95,6 +95,7 @@ def video_out(item: VideoClip) -> dict:
         "model": item.model,
         "params": item.params or {},
         "status": item.status,
+        "review_status": item.review_status,
         "error": item.error,
         "seed": item.seed,
         "created_at": item.created_at.isoformat(),
@@ -102,17 +103,34 @@ def video_out(item: VideoClip) -> dict:
 
 
 @router.get("/characters/{character_id}/videos")
-def list_videos(character_id: str, limit: int = 100, offset: int = 0):
+def list_videos(character_id: str, limit: int = 100, offset: int = 0, review_status: str | None = None):
     with Session() as db:
         required(db, Influencer, character_id)
+        query = select(VideoClip).where(VideoClip.character_id == character_id)
+        if review_status:
+            query = query.where(VideoClip.review_status == review_status)
         items = db.scalars(
-            select(VideoClip)
-            .where(VideoClip.character_id == character_id)
+            query
             .order_by(VideoClip.created_at.desc())
             .limit(max(1, min(limit, 500)))
             .offset(max(0, offset))
         ).all()
         return [video_out(item) for item in items]
+
+
+class VideoReviewInput(StrictModel):
+    review_status: Literal["draft", "approved", "rejected"]
+
+
+@router.patch("/videos/{video_id}")
+def review_video(video_id: str, body: VideoReviewInput):
+    with Session.begin() as db:
+        item = db.get(VideoClip, video_id)
+        if item is None:
+            raise HTTPException(404, "Video not found")
+        item.review_status = body.review_status
+        result = video_out(item)
+    return result
 
 
 @router.post("/characters/{character_id}/videos", status_code=201)

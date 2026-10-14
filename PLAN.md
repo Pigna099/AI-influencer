@@ -252,6 +252,9 @@ Done (second block):
   model-management link and keeps raw log paths behind the details disclosure (mocked api).
 - **Effective-recipe summaries**: the collapsed Advanced sections in Images and Video now show
   style/checkpoint/LoRA count/pose count/seed (Images) and resolution/frames/steps/LoRA/seed (Video).
+- **Video review states**: `videos.review_status` (draft/approved/rejected, migration `0022`;
+  existing clips backfilled to approved), `PATCH /api/videos/{id}` + `review_status` list filter,
+  StatusBadge + Approve/Reject on video cards. Live-verified (patch, filter, restore); 150 tests.
 - **LoRA workflow readiness line** (character / selected dataset images / ready LoRAs / active LoRA)
   and **job history declutter**: older failed/cancelled jobs collapse behind "Show all jobs (+N)",
   always keeping the latest failure per LoRA visible.

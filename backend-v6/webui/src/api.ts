@@ -209,6 +209,7 @@ export interface VideoClip {
   model: string;
   params: Record<string, unknown>;
   status: string;
+  review_status: string;
   error: string;
   seed: number;
   created_at: string;
@@ -629,6 +630,10 @@ export class ApiClient {
 
   async patchLibraryItem(id: string, data: {status?: string; rating?: number; caption?: string; tags?: string[]}): Promise<LibraryImage> {
     return this.request(`/api/library/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+  }
+
+  patchVideo(id: string, data: { review_status: "draft" | "approved" | "rejected" }): Promise<VideoClip> {
+    return this.request(`/api/videos/${id}`, { method: "PATCH", body: JSON.stringify(data) });
   }
 
   async deleteLibraryItem(id: string): Promise<{deleted: boolean}> {

@@ -8,6 +8,7 @@
 - **Primitive UI** (`webui/src/components/ui/`): `AsyncBoundary` (stati loading/empty/skeleton grid) e `StatusBadge`, adottate in Immagini, Video, Dataset e job LoRA.
 - Smoke test API di tutte le schede (`tests/test_smoke_tabs.py`); suite a **149 test**.
 - **Shell condivisa** (fase 2): `ui/AppHeader` unico e sticky (nav con `aria-current`, sostituisce le sei copie in Chat/Immagini/Video/Dataset/LoRA/Home), `ui/Banner`, token CSS di design (spazi/tipografia/superfici/stati) usati dalle nuove primitive.
+- **Stati di revisione video** (migrazione `0022`): `videos.review_status` draft/approved/rejected (esistenti backfillati ad approved), `PATCH /api/videos/{id}` e filtro lista, badge + Approva/Rifiuta sulle card; verificato dal vivo.
 - **Messaggi backend in inglese** (~100 stringhe utente tradotte in `app/` e nel worker; il vecchio traduttore it/en resta come passthrough di compatibilità); test aggiornati; verificato dal vivo.
 - **Test frontend**: runner **vitest + Testing Library** (`cd webui && npm test`, jsdom); primi test dei componenti condivisi (11 test: AsyncBoundary, StatusBadge, JobProgress, AppHeader, Banner). Testi di conferma delle eliminazioni più precisi.
 

@@ -48,6 +48,25 @@ def test_video_generate_list_file_delete():
     assert client.get(f"/api/characters/{character_id}/videos").json() == []
 
 
+def test_video_review_status_flow():
+    character_id = make_character("Review Video")
+    clip = client.post(
+        f"/api/characters/{character_id}/videos",
+        json={"prompt": "x", "mode": "text", "length": 49},
+    ).json()
+    assert clip["review_status"] == "draft"
+
+    approved = client.patch(f"/api/videos/{clip['id']}", json={"review_status": "approved"})
+    assert approved.status_code == 200 and approved.json()["review_status"] == "approved"
+
+    listing = client.get(f"/api/characters/{character_id}/videos", params={"review_status": "approved"}).json()
+    assert [item["id"] for item in listing] == [clip["id"]]
+    assert client.get(f"/api/characters/{character_id}/videos", params={"review_status": "draft"}).json() == []
+
+    assert client.patch(f"/api/videos/{clip['id']}", json={"review_status": "archived"}).status_code == 422
+    assert client.patch("/api/videos/does-not-exist", json={"review_status": "draft"}).status_code == 404
+
+
 def test_video_requires_source_image():
     character_id = make_character("No Image")
     response = client.post(f"/api/characters/{character_id}/videos", json={"prompt": "x"})

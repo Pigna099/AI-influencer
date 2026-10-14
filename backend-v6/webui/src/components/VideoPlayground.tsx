@@ -3,14 +3,16 @@ import { api, Character, LibraryImage, VideoClip } from "../api";
 import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import AsyncBoundary from "./ui/AsyncBoundary";
+import StatusBadge from "./ui/StatusBadge";
 import PageHeader from "./ui/PageHeader";
 import EmptyState from "./ui/EmptyState";
 
-function VideoCard({ item, sourceImage, busy, onDelete, onError }: {
+function VideoCard({ item, sourceImage, busy, onDelete, onReview, onError }: {
   item: VideoClip;
   sourceImage: LibraryImage | undefined;
   busy: boolean;
   onDelete: (item: VideoClip) => void;
+  onReview: (item: VideoClip, review: "draft" | "approved" | "rejected") => void;
   onError: (message: string) => void;
 }) {
   const { t } = useI18n();
@@ -72,7 +74,12 @@ function VideoCard({ item, sourceImage, busy, onDelete, onError }: {
     <div className="video-meta">
       <p>{item.prompt}</p>
       <small>{length ? t("vd.frames", { count: length }) : ""}{length ? ` · ${t("vd.clip", { seconds: (length / (String(item.params?.model || "").includes("wan") ? 16 : 24)).toFixed(1) })}` : ""}{seconds ? ` · gen ${seconds}s` : ""} · seed {item.seed}</small>
-      <div className="library-actions"><button className="danger" disabled={busy} onClick={() => onDelete(item)}>{t("common.delete")}</button></div>
+      <div className="library-actions">
+        <StatusBadge status={item.review_status} label={t(`ip.status${item.review_status === "draft" ? "Draft" : item.review_status === "approved" ? "Approved" : "Rejected"}`)} />
+        <button disabled={busy} onClick={() => onReview(item, item.review_status === "approved" ? "draft" : "approved")}>{t("ip.approve")}</button>
+        <button disabled={busy} onClick={() => onReview(item, item.review_status === "rejected" ? "draft" : "rejected")}>{t("ip.reject")}</button>
+        <button className="danger" disabled={busy} onClick={() => onDelete(item)}>{t("common.delete")}</button>
+      </div>
     </div>
   </article>;
 }
@@ -222,6 +229,17 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
     })();
   };
 
+  const reviewVideo = (item: VideoClip, review: "draft" | "approved" | "rejected") => {
+    void (async () => {
+      try {
+        const updated = await api.patchVideo(item.id, { review_status: review });
+        setVideos(prev => prev.map(clip => clip.id === updated.id ? updated : clip));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    })();
+  };
+
   const removeVideo = (item: VideoClip) => {
     if (!window.confirm(t("vd.deleteConfirm"))) return;
     void (async () => {
@@ -258,7 +276,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
             loadingText={t("common.loadingData")}
             emptyState={<EmptyState symbol="▶" title={t("vd.empty")} />}
           >
-          <div className="video-grid">{videos.map(item => <VideoCard key={item.id} item={item} sourceImage={library.find(image => image.id === item.source_image_id)} busy={!!busy} onDelete={removeVideo} onError={setError} />)}</div>
+          <div className="video-grid">{videos.map(item => <VideoCard key={item.id} item={item} sourceImage={library.find(image => image.id === item.source_image_id)} busy={!!busy} onDelete={removeVideo} onReview={reviewVideo} onError={setError} />)}</div>
           {videosHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreVideos}>{t("common.loadMore")}</button></div>}
           </AsyncBoundary>
         </div>
