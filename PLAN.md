@@ -248,6 +248,8 @@ Done (second block):
   + right-hand slot), removing the last duplicated page header markup.
 - **`ui/DangerZone`**: character deletion moved out of the avatar action row into a labelled danger
   zone with explicit consequence copy (chats, memories, LoRAs, datasets, jobs, artifacts).
+- **Regression test for structured errors**: LoraPlayground renders code summary + remediation +
+  model-management link and keeps raw log paths behind the details disclosure (mocked api).
 
 Remaining in Phase 1: no false zeros/placeholders left in the audited set — kept under watch;
 component-test coverage to grow beyond the shell primitives.
