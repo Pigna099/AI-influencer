@@ -565,6 +565,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
             overlay={anchorOverlay}
             busy={!!busy}
             onStatus={setStatus}
+            onLabel={(item, label) => void perform("", async () => updateItem(await api.patchLibraryItem(item.id, { content_label: label })))}
             onRating={setRating}
             onNavigate={navigateReview}
             onView={(url, alt) => setViewer({ url, alt })}
@@ -583,7 +584,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
               <div className="library-stars" role="group" aria-label={t("ip.rating")}>{[1, 2, 3, 4, 5].map(value => <button key={value} className={item.rating >= value ? "on" : ""} disabled={!!busy} onClick={() => setRating(item, value)} aria-label={`${value}/5`}>★</button>)}</div>
               <p>{item.caption || item.prompt}</p>
               {!!item.tags.length && <div className="library-tags">{item.tags.slice(0, 8).map(tag => <span key={tag}>{tag}</span>)}</div>}
-              <small>{item.style} · {(item.checkpoint || "").replace(".safetensors", "")} · {t("ip.used")} {item.used_count} · {item.source === "chat" ? t("ip.sourceChat") : t("ip.sourcePlayground")}</small>
+              <small>{item.content_label || "suggestive"} · {item.style} · {(item.checkpoint || "").replace(".safetensors", "")} · {t("ip.used")} {item.used_count} · {item.source === "chat" ? t("ip.sourceChat") : t("ip.sourcePlayground")}</small>
               <div className="library-actions">
                 {trashView ? <>
                   <button disabled={!!busy} onClick={() => restoreItem(item)}>{t("ip.restore")}</button>

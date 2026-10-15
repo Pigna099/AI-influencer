@@ -76,7 +76,7 @@ function VideoCard({ item, sourceImage, busy, onDelete, onReview, onError }: {
     </div>
     <div className="video-meta">
       <p>{item.prompt}</p>
-      <small>{length ? t("vd.secondsFrames", { seconds: duration.toFixed(1), frames: length }) : ""}{seconds ? ` · gen ${seconds}s` : ""} · seed {item.seed}</small>
+      <small>{item.content_label || "suggestive"} · {length ? t("vd.secondsFrames", { seconds: duration.toFixed(1), frames: length }) : ""}{seconds ? ` · gen ${seconds}s` : ""} · seed {item.seed}</small>
       <div className="library-actions">
         <StatusBadge status={item.review_status} label={t(`ip.status${item.review_status === "draft" ? "Draft" : item.review_status === "approved" ? "Approved" : "Rejected"}`)} />
         <button disabled={busy} onClick={() => onReview(item, item.review_status === "approved" ? "draft" : "approved")}>{t("ip.approve")}</button>

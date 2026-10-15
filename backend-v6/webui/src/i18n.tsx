@@ -813,6 +813,10 @@ const en = {
   "jobs.metrics.approval": "library approval rate",
   "jobs.metrics.storage": "{files} media files \u00b7 {gb} GB used \u00b7 {free} GB free",
   "jobs.audit": "Audit log (recent actions)",
+  "ip.contentLabel": "Content",
+  "ip.label.sfw": "SFW",
+  "ip.label.suggestive": "Suggestive",
+  "ip.label.explicit": "Explicit",
 } as const;
 
 type Catalog = typeof en;

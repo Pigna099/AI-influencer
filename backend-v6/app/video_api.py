@@ -99,6 +99,7 @@ def video_out(item: VideoClip) -> dict:
         "status": item.status,
         "review_status": item.review_status,
         "policy": item.policy or {},
+        "content_label": item.content_label,
         "error": item.error,
         "seed": item.seed,
         "created_at": item.created_at.isoformat(),
@@ -123,6 +124,7 @@ def list_videos(character_id: str, limit: int = 100, offset: int = 0, review_sta
 
 class VideoReviewInput(StrictModel):
     review_status: Literal["draft", "approved", "rejected"]
+    content_label: Literal["sfw", "suggestive", "explicit"] | None = None
 
 
 @router.patch("/videos/{video_id}")
@@ -132,6 +134,8 @@ def review_video(video_id: str, body: VideoReviewInput):
         if item is None:
             raise HTTPException(404, "Video not found")
         item.review_status = body.review_status
+        if body.content_label is not None:
+            item.content_label = body.content_label
         audit_record(db, f"video.{body.review_status}", "video", item.id)
         result = video_out(item)
     return result

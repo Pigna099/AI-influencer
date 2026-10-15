@@ -195,6 +195,7 @@ def library_out(item: ImageLibrary) -> dict:
         "status": item.status,
         "phash": item.phash,
         "policy": item.policy or {},
+        "content_label": item.content_label,
         "deleted_at": item.deleted_at.isoformat() if item.deleted_at else None,
         "rating": item.rating,
         "source": item.source,

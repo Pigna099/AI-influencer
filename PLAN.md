@@ -870,6 +870,9 @@ Progress log — 15 October 2026 (first slice):
 - Remaining: content labels (SFW/suggestive/explicit), roles, session expiry/key rotation, rate
   limits, per-platform policy checklists.
 - Audit UI: recent actions list on the Jobs & System page (time, action, object, counts).
+- Content labels (`sfw`/`suggestive`/`explicit`, migration `0032`) on library images and videos,
+  editable in Review mode (select) and via `PATCH /api/library/{id}` / video review; badge in cards.
+  Test added.
 
 ### Required controls
 

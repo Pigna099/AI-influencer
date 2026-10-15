@@ -164,6 +164,7 @@ class LibraryPatch(StrictModel):
     rating: int | None = Field(default=None, ge=0, le=5)
     caption: str | None = Field(default=None, max_length=2000)
     tags: list[str] | None = Field(default=None, max_length=20)
+    content_label: Literal["sfw", "suggestive", "explicit"] | None = None
 
 
 class PromptAugmentInput(StrictModel):

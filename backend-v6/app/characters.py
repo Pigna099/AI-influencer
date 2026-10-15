@@ -497,6 +497,8 @@ def patch_library_item(item_id: str, body: LibraryPatch):
             item.tags = [tag.strip().lower()[:40] for tag in body.tags if tag.strip()][:20]
         item.updated_at = now()
         db.flush()
+        if body.content_label is not None:
+            item.content_label = body.content_label
         if body.caption is not None or body.tags is not None:
             embedding, embedding_model = embed_library_text(library_text(item))
             item.embedding = embedding

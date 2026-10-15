@@ -416,3 +416,6 @@
 .audit-log li { display: flex; gap: 10px; align-items: baseline; }
 .audit-log li span:first-child { color: #6f86a8; flex-shrink: 0; }
 .audit-log code { color: #a9d6cf; }
+
+.review-label { font-size: .72rem; color: #9db2cf; display: inline-flex; align-items: center; gap: 6px; }
+.review-label select { width: auto; font-size: .72rem; padding: .2rem .35rem; }

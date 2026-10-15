@@ -189,6 +189,7 @@ export interface LibraryImage {
   rating: number;
   source: string;
   used_count: number;
+  content_label?: "sfw" | "suggestive" | "explicit";
   phash?: string;
   deleted_at?: string | null;
   created_at: string;
@@ -222,6 +223,7 @@ export interface VideoClip {
   params: Record<string, unknown>;
   status: string;
   review_status: string;
+  content_label?: "sfw" | "suggestive" | "explicit";
   error: string;
   seed: number;
   created_at: string;
@@ -703,7 +705,7 @@ export class ApiClient {
     });
   }
 
-  async patchLibraryItem(id: string, data: {status?: string; rating?: number; caption?: string; tags?: string[]}): Promise<LibraryImage> {
+  async patchLibraryItem(id: string, data: {status?: string; rating?: number; caption?: string; tags?: string[]; content_label?: "sfw" | "suggestive" | "explicit"}): Promise<LibraryImage> {
     return this.request(`/api/library/${id}`, { method: "PATCH", body: JSON.stringify(data) });
   }
 

@@ -635,3 +635,15 @@ def test_audit_log_records_actions():
     actions = [event["action"] for event in events]
     assert actions[:3] == ["library.restore", "library.trash", "library.approved"]
     assert all(event["object_type"] == "image" for event in events)
+
+def test_content_labels():
+    character = client.post("/api/characters", json={"name": "Labels", "profile": {"description": "x"}}).json()
+    images = client.post(f"/api/characters/{character['id']}/library/generate", json={"prompt": "x", "count": 1}).json()
+    image_id = images[0]["id"]
+    assert images[0]["content_label"] == "suggestive"
+
+    patched = client.patch(f"/api/library/{image_id}", json={"content_label": "explicit"})
+    assert patched.status_code == 200 and patched.json()["content_label"] == "explicit"
+    assert client.patch(f"/api/library/{image_id}", json={"content_label": "nude"}).status_code == 422
+    listing = client.get(f"/api/characters/{character['id']}/library").json()
+    assert listing[0]["content_label"] == "explicit"
