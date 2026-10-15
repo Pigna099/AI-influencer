@@ -18,10 +18,10 @@ Use `backend-v6/README.md` (operations, UI guide) and `backend-v6/STATO.md` (cur
 
 | Path | Purpose |
 |------|---------|
-| `backend-v6/app/` | FastAPI app + routers (`characters.py`, `lora_api.py`, `pose_api.py`, `presets_api.py`, `video_api.py`, `dataset*.py`, `main.py`) |
+| `backend-v6/app/` | FastAPI app + routers (`characters.py`, `lora_api.py`, `pose_api.py`, `presets_api.py`, `video_api.py`, `dataset*.py`, `jobs_api.py`, `identity_api.py`, `main.py`) |
 | `backend-v6/app/db.py` | SQLAlchemy models |
 | `backend-v6/app/integrations/` | ComfyUI (multi-instance), Ollama, GPU helpers |
-| `backend-v6/alembic/versions/` | Migrations (currently up to `0017`) |
+| `backend-v6/alembic/versions/` | Migrations (currently up to `0030`) |
 | `backend-v6/webui/` | React + Vite frontend (built into the Docker image; `webui_dist/` is untracked) |
 | `backend-v6/scripts/` | Model downloads, startup scripts, trainer (`scripts/trainer/`) |
 | `backend-v6/tests/` | Pytest suite (mock providers) |

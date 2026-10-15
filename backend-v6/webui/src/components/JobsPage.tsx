@@ -9,7 +9,7 @@ import PageHeader from "./ui/PageHeader";
 import StatusBadge from "./ui/StatusBadge";
 
 const JOB_TYPES = [
-  "training", "video", "image", "dataset_generate", "dataset_variation",
+  "training", "video", "image", "identity_run", "lora_validation", "dataset_generate", "dataset_variation",
   "dataset_import", "dataset_classify", "consistency_check", "pose_extract", "avatar",
 ];
 const PAGE = 50;

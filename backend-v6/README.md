@@ -317,6 +317,32 @@ docker compose exec -T api alembic check
 
 I test automatici usano un database temporaneo SQLite con chiavi esterne attive. Non modificano i dati veri. `scripts/verify_playground.py` è una verifica opzionale con Ollama reale: crea e poi elimina solo i suoi record temporanei. Il suo valore predefinito punta all'anteprima sulla porta 8011; per un altro ambiente impostare `VERIFY_URL` e `VERIFY_KEY` senza mettere la chiave nel repository.
 
+## Novita del 15 ottobre 2026
+
+- **Piano GPU al boot**: `start-ai-influencer.sh` applica l'ultimo piano salvato in Home
+  (`data/gpu_plan.json`): ComfyUI parte solo sulle GPU foto/video, vLLM sulle GPU testo.
+- **Home / GPU**: card per GPU con tachimetro semicircolare dell'utilizzo, barra memoria e barra
+  potenza (valori dentro le barre, GB con 2 decimali), temperatura/watt e pulsanti
+  Photo/Video | Text | Off per riassegnare le GPU.
+- **Jobs & System** (`/jobs`): tutte le operazioni lunghe (training, video, immagini, identity set,
+  validazione LoRA, dataset, pose, consistency) in un'unica lista con filtri, annulla/riprova,
+  eventi e dettagli tecnici; campanella nell'header con job attivi/falliti; retention 30 giorni;
+  scansione file orfani.
+- **Immagini**: modalita **Review** (immagine grande, filmstrip, scorciatoie ←/→ A R 1-5 O),
+  **Trash** con ripristino, **collezioni**, filtri salvati, duplicati (phash), approvazione in blocco,
+  riga "ricetta effettiva" prima di Genera.
+- **Identity set** (scheda LoRA): set canonico multi-angolo dall'anchor (18 angoli), punteggi di
+  similarita con modello vision locale, rigenerazione dei rifiutati, freeze bilanciato 6-10 con
+  motivazione di override, overlay anchor.
+- **LoRA**: griglia di validazione a 7 prompt prima dell'attivazione, checklist di preflight,
+  attivazione esplicita (niente auto-attivazione) con **rollback** all'artefatto precedente,
+  hash di spec e artefatto, iperparametri raccomandati con prefill, blueprint dataset per categoria.
+- **Personaggi**: campi policy (eta adulta 21+, dichiarazione sintetica, provenienza,
+  categoria sorgente con blocco "reference only", lifecycle); i personaggi incompleti sono segnalati
+  in Home e nella scheda LoRA.
+- **Video**: card dei modelli con capacita (fps, I2V/T2V, step, LoRA), durata in secondi + frame,
+  preset di movimento, stati di revisione (bozza/approvato/rifiutato).
+
 ## Limiti attuali
 
 Il playground usa una chiave condivisa per il proprietario: i fan sono identità simulate, non utenti autenticati reali. L'estrazione memoria è un'attività in background non persistente: se l'API si arresta durante l'estrazione, la risposta salvata resta disponibile ma il ricordo potrebbe dover essere aggiunto manualmente. Le varianti di personalità del confronto non vengono salvate come personaggi: sono temporanee e servono a decidere cosa applicare con l'editor o con **Duplica**. Non sono implementati invio su OnlyFans/Fanvue, pagamenti, campagne o notifiche esterne. La pipeline immagini preesistente resta disponibile, ma non è il focus della v3.
