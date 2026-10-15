@@ -849,6 +849,7 @@ const en = {
   "pg.ppvReset": "Clear price override",
   "pg.ppvDefaultsInEditor": "PPV defaults are set in the character editor (LoRA tab).",
   "pg.characterSettings": "Character settings (version, style, PPV, timing)",
+  "home.attention.undisclosed": "{count} characters publish without AI disclosure",
 } as const;
 
 type Catalog = typeof en;

@@ -666,6 +666,10 @@ def test_platform_policy_checklists():
     body = created.json()
     assert body["platform_policy"]["platforms"]["instagram"]["ai_disclosure"] is True
 
+    # Both platforms declare the AI disclosure, so nothing is flagged.
+    overview = client.get("/api/overview").json()
+    assert overview["characters_undisclosed"] == 0
+
     bad = client.put(f"/api/characters/{body['id']}", json={"platform_policy": {"platforms": {"myspace": {}}}})
     assert bad.status_code == 400
 
@@ -676,6 +680,13 @@ def test_platform_policy_checklists():
     assert updated.status_code == 200
     assert updated.json()["platform_policy"]["platforms"]["instagram"]["content_rules_ok"] is True
     assert "fanvue" not in updated.json()["platform_policy"]["platforms"]
+
+    # Dropping the disclosure flags the character in the Home overview.
+    client.put(
+        f"/api/characters/{body['id']}",
+        json={"platform_policy": {"platforms": {"instagram": {"ai_disclosure": False}}}},
+    )
+    assert client.get("/api/overview").json()["characters_undisclosed"] >= 1
 
 def test_conversation_ppv_override():
     character = client.post("/api/characters", json={"name": "PPV Override", "profile": {"description": "x"}}).json()

@@ -35,7 +35,18 @@ def get_overview():
             "characters_incomplete": count(
                 Influencer, or_(Influencer.age.is_(None), Influencer.synthetic_declared.is_(False))
             ),
+            "characters_undisclosed": _undisclosed_characters(db),
         }
+
+
+def _undisclosed_characters(db) -> int:
+    """Characters with a platform in use whose AI disclosure check is missing."""
+    total = 0
+    for policy in db.scalars(select(Influencer.platform_policy)):
+        platforms = (policy or {}).get("platforms", {}) or {}
+        if any(not (checks or {}).get("ai_disclosure") for checks in platforms.values()):
+            total += 1
+    return total
 
 
 def read_defaults(db) -> dict:

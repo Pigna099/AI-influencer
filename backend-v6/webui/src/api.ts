@@ -792,7 +792,7 @@ export class ApiClient {
     return this.request(`/api/identity-runs/${runId}/freeze`, { method: "POST", body: JSON.stringify({ override_reason: overrideReason }) });
   }
 
-  getOverview(): Promise<{ characters: number; draft_images: number; draft_videos: number; jobs_running: number; jobs_failed: number; loras_ready: number; characters_incomplete: number }> {
+  getOverview(): Promise<{ characters: number; draft_images: number; draft_videos: number; jobs_running: number; jobs_failed: number; loras_ready: number; characters_incomplete: number; characters_undisclosed: number }> {
     return this.request("/api/overview");
   }
 

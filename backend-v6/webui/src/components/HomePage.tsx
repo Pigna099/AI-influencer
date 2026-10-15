@@ -222,8 +222,9 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
     <div className="home-scroll">
       <section>
         <div className="section-title"><h2>{t("home.attention.title")}</h2></div>
-        {overview && (overview.draft_images + overview.draft_videos + overview.jobs_failed + overview.jobs_running + overview.characters_incomplete > 0 ? (
+        {overview && (overview.draft_images + overview.draft_videos + overview.jobs_failed + overview.jobs_running + overview.characters_incomplete + overview.characters_undisclosed > 0 ? (
           <div className="attention-list">
+            {overview.characters_undisclosed > 0 && <Link to="/loras"><span>{t("home.attention.undisclosed", { count: overview.characters_undisclosed })}</span><b>{t("home.attention.open")}</b></Link>}
             {overview.characters_incomplete > 0 && <Link to="/loras"><span>{t("home.attention.incompleteCharacters", { count: overview.characters_incomplete })}</span><b>{t("home.attention.open")}</b></Link>}
             {overview.draft_images > 0 && <Link to="/images"><span>{t("home.attention.draftImages", { count: overview.draft_images })}</span><b>{t("home.attention.open")}</b></Link>}
             {overview.draft_videos > 0 && <Link to="/video"><span>{t("home.attention.draftVideos", { count: overview.draft_videos })}</span><b>{t("home.attention.open")}</b></Link>}

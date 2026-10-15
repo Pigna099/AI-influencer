@@ -893,6 +893,8 @@ Progress log — 15 October 2026 (first slice):
 - Per-platform policy checklists (migration `0033`): platforms in use + AI disclosure / terms /
   content-rules checks per platform, edited in the character editor with a publish warning when
   disclosure is missing. Test added.
+- Home "Needs attention" flags characters publishing without AI disclosure (`characters_undisclosed`
+  in `/api/overview`).
 - Remaining: roles, per-conversation PPV override.
 - Audit UI: recent actions list on the Jobs & System page (time, action, object, counts).
 - Content labels (`sfw`/`suggestive`/`explicit`, migration `0032`) on library images and videos,
