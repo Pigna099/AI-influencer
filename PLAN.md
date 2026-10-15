@@ -670,6 +670,13 @@ Do not auto-activate immediately after successful training.
 
 ## 14. Phase 8 — Redesign the image studio and asset library
 
+Progress log — 15 October 2026 (first slice):
+- **Review mode** in the Images page: Grid/Review switch, large stage with previous/next, filmstrip,
+  keyboard shortcuts (←/→ navigate, A approve, R reject, 1-5 rating, O anchor overlay, Esc back),
+  anchor overlay comparison, caption and status/rating controls. Reuses the library filters.
+- Remaining: Generate/Review/Library mode split with saved filters, Trash/soft-delete, duplicate
+  clustering, virtualization, effective-recipe line before submission (partially done).
+
 ### Page structure
 
 Use three modes under Studio:

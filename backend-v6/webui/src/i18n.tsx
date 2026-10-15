@@ -770,6 +770,13 @@ const en = {
   "lp.rollback": "Rollback",
   "lp.rollbackBusy": "Rolling back to the previous artifact\u2026",
   "lp.useRecommended": "Use recommended parameters",
+  "ip.mode": "Library mode",
+  "ip.mode.grid": "Grid",
+  "ip.mode.review": "Review",
+  "ip.review.prev": "Previous image",
+  "ip.review.next": "Next image",
+  "ip.review.overlay": "Overlay anchor",
+  "ip.review.shortcuts": "\u2190/\u2192 navigate \u00b7 A approve \u00b7 R reject \u00b7 1-5 rating \u00b7 O overlay \u00b7 Esc back to grid",
 } as const;
 
 type Catalog = typeof en;

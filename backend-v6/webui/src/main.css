@@ -366,3 +366,20 @@
 .preflight-list { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 3px; font-size: .72rem; }
 .preflight-list li.ok { color: #8fd6c9; }
 .preflight-list li.fail { color: #f5b6c1; }
+
+.review-layout { display: grid; gap: 12px; }
+.review-stage { display: grid; gap: 8px; justify-items: center; }
+.review-image { position: relative; display: grid; place-items: center; max-width: 100%; }
+.review-image img { max-height: 58vh; max-width: 100%; border-radius: 12px; border: 1px solid #2a3a53; cursor: zoom-in; }
+.review-image .review-overlay { position: absolute; inset: 0; margin: auto; max-height: 58vh; opacity: .45; pointer-events: none; }
+.review-prev, .review-next { position: absolute; top: 50%; transform: translateY(-50%); font-size: 1.5rem; padding: .2rem .6rem; background: #101a2ad9; }
+.review-prev { left: 8px; } .review-next { right: 8px; }
+.review-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.review-controls kbd { font-size: .62rem; color: #8ba0bd; border: 1px solid #2b3850; border-radius: 4px; padding: 0 4px; margin-left: 4px; }
+.review-counter { color: #8ba0bd; font-size: .75rem; }
+.review-caption { font-size: .85rem; color: #c3d2e6; text-align: center; max-width: 70ch; }
+.review-strip { display: flex; gap: 8px; overflow-x: auto; padding: 6px 2px; }
+.review-thumb { flex-shrink: 0; width: 86px; height: 112px; padding: 0; border: 2px solid transparent; border-radius: 8px; overflow: hidden; background: #0b1423; }
+.review-thumb.selected { border-color: var(--accent); }
+.review-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.review-thumb.status-rejected { opacity: .5; }

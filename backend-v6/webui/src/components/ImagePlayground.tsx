@@ -5,6 +5,7 @@ import AppHeader from "./ui/AppHeader";
 import CharacterAvatar from "./CharacterAvatar";
 import Lightbox from "./Lightbox";
 import AsyncBoundary from "./ui/AsyncBoundary";
+import ReviewStage from "./ui/ReviewStage";
 import AdvancedSettings from "./ui/AdvancedSettings";
 import PageHeader from "./ui/PageHeader";
 import EmptyState from "./ui/EmptyState";
@@ -151,6 +152,10 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   }, [characterId, checkpointFamily, checkpoint, activeCharacterLora]);
 
   const [libraryLoaded, setLibraryLoaded] = useState(false);
+  const [mode, setMode] = useState<"grid" | "review">("grid");
+  const [reviewId, setReviewId] = useState("");
+  const [anchorOverlay, setAnchorOverlay] = useState(false);
+  const [anchorUrl, setAnchorUrl] = useState("");
   const [libraryHasMore, setLibraryHasMore] = useState(false);
   const LIBRARY_PAGE = 60;
 
@@ -168,6 +173,58 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
       if (epoch === generation.current) setLibraryLoaded(true);
     }
   }, [statusFilter, styleFilter]);
+
+  useEffect(() => {
+    let objectUrl = "";
+    let alive = true;
+    const current = characters.find(item => item.id === characterId);
+    if (!current?.avatar_filename) {
+      setAnchorUrl("");
+      return;
+    }
+    api.fetchBlob(`/api/characters/${current.id}/avatar/file?v=${encodeURIComponent(current.avatar_filename)}`)
+      .then(blob => {
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setAnchorUrl(objectUrl);
+      })
+      .catch(() => setAnchorUrl(""));
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [characters, characterId]);
+
+  const reviewIndex = library.findIndex(item => item.id === reviewId);
+  const reviewItem = reviewIndex >= 0 ? library[reviewIndex] : null;
+
+  const navigateReview = (direction: -1 | 1) => {
+    const next = reviewIndex + direction;
+    if (next >= 0 && next < library.length) setReviewId(library[next].id);
+  };
+
+  useEffect(() => {
+    if (mode !== "review") return;
+    if (!reviewItem && library.length) setReviewId(library[0].id);
+  }, [mode, reviewItem, library]);
+
+  useEffect(() => {
+    if (mode !== "review") return;
+    const handler = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
+      if (!reviewItem) return;
+      if (event.key === "ArrowLeft") { navigateReview(-1); }
+      else if (event.key === "ArrowRight") { navigateReview(1); }
+      else if (event.key === "a" || event.key === "A") { setStatus(reviewItem, reviewItem.status === "approved" ? "draft" : "approved"); }
+      else if (event.key === "r" || event.key === "R") { setStatus(reviewItem, reviewItem.status === "rejected" ? "draft" : "rejected"); }
+      else if (event.key === "o" || event.key === "O") { setAnchorOverlay(value => !value); }
+      else if (event.key === "Escape") { setMode("grid"); }
+      else if (["1", "2", "3", "4", "5"].includes(event.key)) { setRating(reviewItem, Number(event.key)); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [mode, reviewItem, library, reviewIndex]);
 
   const loadMoreLibrary = () => {
     if (!characterId) return;
@@ -355,8 +412,14 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
         />
         <div className="library-scroll">
           <div className="bulk-bar">
-            <label><input type="checkbox" disabled={!!busy || !library.length} checked={selectedIds.length > 0 && selectedIds.length === library.length} onChange={e => setSelectedIds(e.target.checked ? library.map(entry => entry.id) : [])} /> {t("bulk.selectAll")}</label>
-            <button className="danger" disabled={!!busy || !selectedIds.length} onClick={removeSelected}>{t("bulk.deleteSelected", { count: selectedIds.length })}</button>
+            <div className="view-tabs" role="tablist" aria-label={t("ip.mode")}>
+              <button role="tab" aria-selected={mode === "grid"} disabled={!!busy} onClick={() => setMode("grid")}>{t("ip.mode.grid")}</button>
+              <button role="tab" aria-selected={mode === "review"} disabled={!!busy} onClick={() => setMode("review")}>{t("ip.mode.review")}</button>
+            </div>
+            {mode === "grid" ? <>
+              <label><input type="checkbox" disabled={!!busy || !library.length} checked={selectedIds.length > 0 && selectedIds.length === library.length} onChange={e => setSelectedIds(e.target.checked ? library.map(entry => entry.id) : [])} /> {t("bulk.selectAll")}</label>
+              <button className="danger" disabled={!!busy || !selectedIds.length} onClick={removeSelected}>{t("bulk.deleteSelected", { count: selectedIds.length })}</button>
+            </> : <label className="auto-label"><input type="checkbox" checked={anchorOverlay} onChange={e => setAnchorOverlay(e.target.checked)} disabled={!anchorUrl} /> {t("ip.review.overlay")} <kbd>O</kbd></label>}
           </div>
           <AsyncBoundary
             loading={!libraryLoaded}
@@ -365,7 +428,22 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
             loadingText={t("common.loadingData")}
             emptyState={<EmptyState symbol="◎" title={t("ip.empty")} />}
           >
-          <div className="library-grid">{library.map(item => <article className={`library-card status-${item.status}`} key={item.id}>
+          {mode === "review" && reviewItem && <ReviewStage
+            item={reviewItem}
+            index={reviewIndex}
+            total={library.length}
+            anchorUrl={anchorUrl}
+            overlay={anchorOverlay}
+            busy={!!busy}
+            onStatus={setStatus}
+            onRating={setRating}
+            onNavigate={navigateReview}
+            onView={(url, alt) => setViewer({ url, alt })}
+          />}
+          {mode === "review" && <div className="review-strip">{library.map(item => <button key={item.id} type="button" className={`review-thumb ${item.id === reviewId ? "selected" : ""} status-${item.status}`} onClick={() => setReviewId(item.id)}>
+            <LibraryThumb item={item} onView={(url, alt) => setViewer({ url, alt })} alt={item.caption || item.prompt} />
+          </button>)}</div>}
+          <div className="library-grid" style={mode === "review" ? { display: "none" } : undefined}>{library.map(item => <article className={`library-card status-${item.status}`} key={item.id}>
             <div className="library-thumb">
               <LibraryThumb item={item} onView={(url, alt) => setViewer({ url, alt })} alt={item.caption || item.prompt} />
               <span className={`badge ${item.status}`}>{statusLabel(item)}</span>
