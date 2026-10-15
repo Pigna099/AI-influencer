@@ -54,6 +54,40 @@ def scan_media_orphans(db, reference: datetime | None = None) -> list[Path]:
     return orphans
 
 
+def purge_trash(days: int = 30) -> dict:
+    """Delete trashed assets older than the retention window (rows + files)."""
+    from sqlalchemy import delete, update
+
+    from .db import LoraDataset, LoraDatasetItem, VideoClip
+
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+    purged = 0
+    removed_files = 0
+    with Session.begin() as db:
+        items = db.scalars(
+            select(ImageLibrary).where(
+                ImageLibrary.deleted_at.is_not(None), ImageLibrary.deleted_at < cutoff
+            )
+        ).all()
+        for item in items:
+            db.execute(delete(LoraDatasetItem).where(LoraDatasetItem.image_id == item.id))
+            db.execute(update(VideoClip).where(VideoClip.source_image_id == item.id).values(source_image_id=None))
+            db.execute(
+                update(LoraDataset).where(LoraDataset.anchor_image_id == item.id).values(anchor_image_id=None)
+            )
+            filename = item.filename
+            db.delete(item)
+            purged += 1
+            path = (settings.media_dir / filename).resolve()
+            if path.is_file() and path.is_relative_to(settings.media_dir.resolve()):
+                try:
+                    path.unlink()
+                    removed_files += 1
+                except OSError:
+                    pass
+    return {"purged": purged, "removed_files": removed_files, "days": days}
+
+
 def reconcile_media(delete: bool = False) -> dict:
     with Session() as db:
         orphans = scan_media_orphans(db)

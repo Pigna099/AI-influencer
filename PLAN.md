@@ -874,6 +874,9 @@ Progress log — 15 October 2026 (first slice):
   cards.
 - Failed-attempt limiter: 30 bad API-key attempts per minute from one IP → 429 for 5 minutes
   (per-IP block, cleared by a valid key before the threshold); test added.
+- Trash retention: `POST /api/system/purge-trash?days=30` permanently deletes trashed assets
+  older than the window (rows + files, dataset/video references cleaned) with a button on the Jobs
+  page; test added.
 - Remaining: roles, session expiry/key rotation, per-platform policy checklists.
 - Audit UI: recent actions list on the Jobs & System page (time, action, object, counts).
 - Content labels (`sfw`/`suggestive`/`explicit`, migration `0032`) on library images and videos,

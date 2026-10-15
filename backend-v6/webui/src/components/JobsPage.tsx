@@ -182,6 +182,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
         </div>}
         <div className="maintenance-row">
           <button disabled={busy} onClick={() => reconcile(false)}>{t("jobs.scanOrphans")}</button>
+          <button disabled={busy} onClick={() => { if (window.confirm(t("jobs.purgeTrashConfirm"))) { setBusy(true); void api.purgeTrash(30).then(() => setReconcileReport(null)).catch(e => setError(e instanceof Error ? e.message : String(e))).finally(() => setBusy(false)); } }}>{t("jobs.purgeTrash")}</button>
           {reconcileReport && (reconcileReport.orphans > 0
             ? <span>{t("jobs.orphansFound", { count: reconcileReport.orphans })} <button disabled={busy} className="danger" onClick={() => reconcile(true)}>{t("jobs.deleteOrphans")}</button></span>
             : <span>{reconcileReport.removed > 0 ? t("jobs.orphansRemoved", { count: reconcileReport.removed, gb: (reconcileReport.freed_bytes / 1024 ** 3).toFixed(2) }) : t("jobs.noOrphans")}</span>)}

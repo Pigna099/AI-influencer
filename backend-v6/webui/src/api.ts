@@ -735,6 +735,10 @@ export class ApiClient {
     return this.request(`/api/jobs/${id}/retry`, { method: "POST" });
   }
 
+  purgeTrash(days = 30): Promise<{ purged: number; removed_files: number; days: number }> {
+    return this.request(`/api/system/purge-trash?days=${days}`, { method: "POST" });
+  }
+
   reconcileMedia(deleteOrphans = false): Promise<{ orphans: number; removed: number; freed_bytes: number; sample: string[] }> {
     return this.request(`/api/system/reconcile${deleteOrphans ? "?delete=true" : ""}`, { method: "POST" });
   }

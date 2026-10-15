@@ -120,6 +120,14 @@ def reconcile(delete: bool = False):
     return reconcile_media(delete=delete)
 
 
+@app.post("/api/system/purge-trash", tags=["System"], dependencies=[Depends(authorize)])
+def purge_trash_endpoint(days: int = 30):
+    """Delete trashed assets older than the retention window."""
+    from .reconcile import purge_trash
+
+    return purge_trash(days=max(1, min(days, 3650)))
+
+
 @app.post("/influencers", status_code=201, tags=["Influencers"], dependencies=[Depends(authorize)])
 def create_influencer(body: InfluencerInput):
     with Session.begin() as db:

@@ -53,3 +53,24 @@ def test_reconcile_reports_and_deletes_orphans():
     assert not (settings.media_dir / "old-orphan.png").is_file()
     assert (settings.media_dir / "kept.png").is_file()
     assert (settings.media_dir / "recent-orphan.png").is_file()
+
+def test_purge_trash():
+    from datetime import UTC, datetime, timedelta
+
+    from app.db import ImageLibrary, Session
+
+    character = client.post("/api/characters", json={"name": "Purge", "profile": PROFILE}).json()
+    images = client.post(f"/api/characters/{character['id']}/library/generate", json={"prompt": "x", "count": 2}).json()
+    old_id, fresh_id = images[0]["id"], images[1]["id"]
+
+    client.post(f"/api/library/{old_id}/trash")
+    client.post(f"/api/library/{fresh_id}/trash")
+    with Session.begin() as db:
+        stored = db.get(ImageLibrary, old_id)
+        stored.deleted_at = datetime.now(UTC) - timedelta(days=45)
+
+    report = client.post("/api/system/purge-trash", params={"days": 30}).json()
+    assert report["purged"] == 1 and report["removed_files"] == 1
+    with Session() as db:
+        assert db.get(ImageLibrary, old_id) is None
+        assert db.get(ImageLibrary, fresh_id) is not None

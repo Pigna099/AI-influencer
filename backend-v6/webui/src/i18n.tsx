@@ -830,6 +830,8 @@ const en = {
   "jobs.metrics.datasetsLine": "Dataset images selected",
   "jobs.metrics.identityLine": "Identity sets frozen / runs",
   "jobs.metrics.charactersLine": "Characters with ready LoRA",
+  "jobs.purgeTrash": "Purge trash (>30 days)",
+  "jobs.purgeTrashConfirm": "Permanently delete trashed assets older than 30 days? This cannot be undone.",
 } as const;
 
 type Catalog = typeof en;
