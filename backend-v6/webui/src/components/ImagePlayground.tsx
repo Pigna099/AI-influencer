@@ -212,16 +212,33 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   useEffect(() => { localStorage.setItem("ip_status_filter", statusFilter); }, [statusFilter]);
   useEffect(() => { localStorage.setItem("ip_style_filter", styleFilter); }, [styleFilter]);
 
-  const duplicateCounts = (() => {
-    const counts: Record<string, number> = {};
+  const phashDistance = (a: string, b: string) => {
+    try {
+      let x = BigInt("0x" + a) ^ BigInt("0x" + b);
+      let count = 0;
+      while (x > 0n) {
+        count += Number(x & 1n);
+        x >>= 1n;
+      }
+      return count;
+    } catch {
+      return 64;
+    }
+  };
+  const duplicateSize = (() => {
+    const clusters: { phash: string; ids: string[] }[] = [];
     for (const item of library) {
       if (!item.phash) continue;
-      counts[item.phash] = (counts[item.phash] || 0) + 1;
+      const found = clusters.find(cluster => phashDistance(cluster.phash, item.phash as string) <= 6);
+      if (found) found.ids.push(item.id);
+      else clusters.push({ phash: item.phash, ids: [item.id] });
     }
-    return counts;
+    const map: Record<string, number> = {};
+    for (const cluster of clusters) for (const id of cluster.ids) map[id] = cluster.ids.length;
+    return { map, groups: clusters.filter(cluster => cluster.ids.length > 1).length };
   })();
-  const duplicateGroups = Object.values(duplicateCounts).filter(count => count > 1).length;
-  const displayed = dupOnly ? library.filter(item => item.phash && duplicateCounts[item.phash] > 1) : library;
+  const duplicateGroups = duplicateSize.groups;
+  const displayed = dupOnly ? library.filter(item => (duplicateSize.map[item.id] || 1) > 1) : library;
 
   const reviewIndex = library.findIndex(item => item.id === reviewId);
   const reviewItem = reviewIndex >= 0 ? library[reviewIndex] : null;
@@ -559,7 +576,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
             <div className="library-thumb">
               <LibraryThumb item={item} onView={(url, alt) => setViewer({ url, alt })} alt={item.caption || item.prompt} />
               <span className={`badge ${item.status}`}>{statusLabel(item)}</span>
-              {item.phash && duplicateCounts[item.phash] > 1 && <span className="badge dup-badge">×{duplicateCounts[item.phash]}</span>}
+              {(duplicateSize.map[item.id] || 1) > 1 && <span className="badge dup-badge">×{duplicateSize.map[item.id]}</span>}
               <label className="select-check" title={t("bulk.select")}><input type="checkbox" checked={selectedIds.includes(item.id)} disabled={!!busy} onChange={() => toggleSelectedId(item.id)} /></label>
             </div>
             <div className="library-meta">
