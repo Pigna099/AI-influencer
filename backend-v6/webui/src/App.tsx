@@ -9,25 +9,34 @@ import LoraPlayground from "./components/LoraPlayground";
 import VideoPlayground from "./components/VideoPlayground";
 import JobsPage from "./components/JobsPage";
 
+const SESSION_HOURS = 12;
+
 function App() {
   const [apiKey, setApiKey] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     const storedKey = sessionStorage.getItem("api_key");
-    if (storedKey) {
+    const storedAt = Number(sessionStorage.getItem("api_key_at") || 0);
+    const expired = !storedAt || Date.now() - storedAt > SESSION_HOURS * 3600 * 1000;
+    if (storedKey && !expired) {
       setApiKey(storedKey);
+    } else {
+      sessionStorage.removeItem("api_key");
+      sessionStorage.removeItem("api_key_at");
     }
   }, []);
 
   const handleLogin = async (key: string) => {
     sessionStorage.setItem("api_key", key);
+    sessionStorage.setItem("api_key_at", String(Date.now()));
     setApiKey(key);
     navigate("/");
   };
 
   const handleLogout = () => {
     sessionStorage.removeItem("api_key");
+    sessionStorage.removeItem("api_key_at");
     setApiKey(null);
     navigate("/");
   };

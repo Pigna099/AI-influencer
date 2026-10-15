@@ -877,7 +877,10 @@ Progress log — 15 October 2026 (first slice):
 - Trash retention: `POST /api/system/purge-trash?days=30` permanently deletes trashed assets
   older than the window (rows + files, dataset/video references cleaned) with a button on the Jobs
   page; test added.
-- Remaining: roles, session expiry/key rotation, per-platform policy checklists.
+- Session security: API key stays in sessionStorage with a 12 h expiry (cleared on expiry/logout);
+  key rotation supported via `API_KEY_PREVIOUS` (old key keeps working while clients migrate).
+  Test added.
+- Remaining: roles, per-platform policy checklists.
 - Audit UI: recent actions list on the Jobs & System page (time, action, object, counts).
 - Content labels (`sfw`/`suggestive`/`explicit`, migration `0032`) on library images and videos,
   editable in Review mode (select) and via `PATCH /api/library/{id}` / video review; badge in cards.

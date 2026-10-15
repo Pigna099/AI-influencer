@@ -44,12 +44,17 @@ def _record_failure(ip: str) -> None:
         window.clear()
 
 
+def _matches(key: str, expected: str) -> bool:
+    return bool(expected) and secrets.compare_digest(key.encode(), expected.encode())
+
+
 def authorize(request: Request, key: str | None = Depends(key_header)):
     if not settings.api_key:
         raise HTTPException(503, "Configure API_KEY before using the API")
     ip = _client_ip(request)
     _check_blocked(ip)
-    if key is None or not secrets.compare_digest(key.encode(), settings.api_key.encode()):
+    # Rotation: API_KEY_PREVIOUS keeps working while clients migrate to the new key.
+    if key is None or not (_matches(key, settings.api_key) or _matches(key, settings.api_key_previous)):
         _record_failure(ip)
         raise HTTPException(401, "Invalid access key")
     _failures.pop(ip, None)

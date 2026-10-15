@@ -49,3 +49,18 @@ def test_failed_attempt_limiter():
     assert client.get("/api/characters").status_code == 429
     reset_limits()
     assert client.get("/api/characters").status_code == 200
+
+def test_api_key_rotation_accepts_previous_key():
+    from app.auth import reset_limits
+    from app.config import settings
+
+    reset_limits()
+    original = settings.api_key_previous
+    settings.api_key_previous = "rotated-out-key"
+    try:
+        rotated = TestClient(app, headers={"X-API-Key": "rotated-out-key"})
+        assert rotated.get("/api/characters").status_code == 200
+        assert TestClient(app, headers={"X-API-Key": "still-wrong"}).get("/api/characters").status_code == 401
+    finally:
+        settings.api_key_previous = original
+        reset_limits()

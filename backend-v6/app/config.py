@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./data/backend.db"
     media_dir: Path = Path("data/media")
     api_key: str = ""
+    api_key_previous: str = ""
     text_provider: Literal["mock", "ollama", "vllm"] = "mock"
     image_provider: Literal["mock", "comfyui"] = "mock"
     ollama_url: str = "http://127.0.0.1:11434"
