@@ -42,6 +42,7 @@ class VideoGenerateInput(StrictModel):
     mode: Literal["image", "text"] = "image"
     model: Literal["wan", "ltx-distilled", "ltx-dev", "hunyuan"] = "wan"
     image_id: str | None = None
+    last_image_id: str | None = None
     loras: list[VideoLora] = Field(default_factory=list, max_length=4)
     width: int = Field(default=832, ge=256, le=1280)
     height: int = Field(default=480, ge=256, le=1280)
@@ -161,9 +162,20 @@ def generate_video(character_id: str, body: VideoGenerateInput):
         height = max(256, (height // 32) * 32)
         length = max(9, round((length - 1) / 8) * 8 + 1)
     image_path: Path | None = None
+    last_frame_path: Path | None = None
+    if body.last_image_id and body.model not in ("ltx-distilled", "ltx-dev"):
+        raise HTTPException(400, "Last-frame conditioning is only available for LTX models")
     with Session.begin() as db:
         required(db, Influencer, character_id)
         source = required(db, ImageLibrary, body.image_id) if body.image_id else None
+        last_source = required(db, ImageLibrary, body.last_image_id) if body.last_image_id else None
+        if last_source is not None:
+            if last_source.character_id != character_id:
+                raise HTTPException(400, "The last-frame image belongs to another character")
+            candidate = (settings.media_dir / last_source.filename).resolve()
+            if not candidate.is_file() or not candidate.is_relative_to(settings.media_dir.resolve()):
+                raise HTTPException(404, "Last-frame image file not found")
+            last_frame_path = candidate
         running = db.scalar(
             select(ExecutionJob).where(
                 ExecutionJob.type == "video",
@@ -220,6 +232,7 @@ def generate_video(character_id: str, body: VideoGenerateInput):
                 body.prompt,
                 body.negative or DEFAULT_NEGATIVE,
                 image_path,
+                last_frame_path=last_frame_path,
                 model=body.model,
                 loras=loras,
                 width=width,
@@ -246,7 +259,13 @@ def generate_video(character_id: str, body: VideoGenerateInput):
                 )
         raise HTTPException(502, f"Video generation failed: {error}") from error
     fps = 16 if body.model == "wan" else 24
-    meta = {**meta, "fps": fps, "frames": length, "duration_seconds": round(length / fps, 2)}
+    meta = {
+        **meta,
+        "fps": fps,
+        "frames": length,
+        "duration_seconds": round(length / fps, 2),
+        "last_frame": body.last_image_id is not None,
+    }
     suffix = ".webm"
     base = identifier()
     filename = f"{base}{suffix}"

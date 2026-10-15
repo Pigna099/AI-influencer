@@ -197,3 +197,39 @@ def test_hunyuan_model_via_api():
     )
     assert response.status_code == 400
     assert "compatible" in response.json()["detail"]
+
+def test_ltx_last_frame_graph_and_api():
+    from app.integrations.comfyui import ltx_video_graph
+
+    graph = ltx_video_graph("a cat", "bad", image_name="first.png", last_frame_name="last.png", length=49)
+    assert graph["30"]["class_type"] == "LoadImage" and graph["31"]["class_type"] == "LTXVAddGuide"
+    assert graph["31"]["inputs"]["frame_idx"] == -1
+    assert graph["13"]["inputs"]["positive"] == ["31", 0]
+    assert graph["19"]["class_type"] == "SaveWEBM"  # decoder/save untouched
+    plain = ltx_video_graph("a cat", "bad", image_name="first.png", length=49)
+    assert "31" not in plain
+
+    character_id = make_character("Last Frame")
+    images = client.post(
+        f"/api/characters/{character_id}/library/generate", json={"prompt": "x", "count": 2}
+    ).json()
+    accepted = client.post(
+        f"/api/characters/{character_id}/videos",
+        json={
+            "prompt": "she turns",
+            "mode": "image",
+            "model": "ltx-distilled",
+            "image_id": images[0]["id"],
+            "last_image_id": images[1]["id"],
+            "length": 49,
+        },
+    )
+    assert accepted.status_code == 201, accepted.text
+    assert accepted.json()["params"]["last_frame"] is True
+
+    rejected = client.post(
+        f"/api/characters/{character_id}/videos",
+        json={"prompt": "x", "mode": "image", "model": "wan", "image_id": images[0]["id"], "last_image_id": images[1]["id"]},
+    )
+    assert rejected.status_code == 400
+    assert "LTX" in rejected.json()["detail"]

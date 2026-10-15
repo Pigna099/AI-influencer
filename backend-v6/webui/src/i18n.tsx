@@ -871,6 +871,8 @@ const en = {
   "lp.avatarCheck.sharp": "sharp",
   "jobs.etaSeconds": "ETA {seconds}s",
   "jobs.etaMinutes": "ETA {minutes}m",
+  "vd.lastFrame": "Last frame (optional)",
+  "vd.lastFrameNone": "None (first frame only)",
 } as const;
 
 type Catalog = typeof en;

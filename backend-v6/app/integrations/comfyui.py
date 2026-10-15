@@ -394,6 +394,7 @@ def ltx_video_graph(
     negative_prompt: str,
     *,
     image_name: str | None = None,
+    last_frame_name: str | None = None,
     checkpoint: str | None = None,
     text_encoder: str | None = None,
     loras: list[dict] | None = None,
@@ -436,7 +437,8 @@ def ltx_video_graph(
             "inputs": {"model": model_ref, "lora_name": name, "strength_model": float(lora.get("weight", 1.0))},
         }
         model_ref = [node_id, 0]
-    graph["13"] = {"class_type": "CFGGuider", "inputs": {"model": model_ref, "positive": ["5", 0], "negative": ["5", 1], "cfg": cfg}}
+    positive_ref = ["5", 0]
+    negative_ref = ["5", 1]
     video_latent = ["6", 0]
     if image_name:
         graph["9"] = {"class_type": "LoadImage", "inputs": {"image": image_name}}
@@ -445,6 +447,24 @@ def ltx_video_graph(
             "inputs": {"vae": ["1", 2], "image": ["9", 0], "latent": ["6", 0], "strength": 0.7, "bypass": False},
         }
         video_latent = ["10", 0]
+    if last_frame_name:
+        graph["30"] = {"class_type": "LoadImage", "inputs": {"image": last_frame_name}}
+        graph["31"] = {
+            "class_type": "LTXVAddGuide",
+            "inputs": {
+                "positive": positive_ref,
+                "negative": negative_ref,
+                "vae": ["1", 2],
+                "latent": video_latent,
+                "image": ["30", 0],
+                "frame_idx": -1,
+                "strength": 1.0,
+            },
+        }
+        positive_ref = ["31", 0]
+        negative_ref = ["31", 1]
+        video_latent = ["31", 2]
+    graph["13"] = {"class_type": "CFGGuider", "inputs": {"model": model_ref, "positive": positive_ref, "negative": negative_ref, "cfg": cfg}}
     graph["11"] = {"class_type": "LTXVConcatAVLatent", "inputs": {"video_latent": video_latent, "audio_latent": ["8", 0]}}
     graph["16"] = {
         "class_type": "SamplerCustomAdvanced",
@@ -457,6 +477,7 @@ def generate_ltx_video(
     prompt: str,
     negative_prompt: str,
     image_path: Path | None = None,
+    last_frame_path: Path | None = None,
     *,
     model: str = "ltx-distilled",
     loras: list[dict] | None = None,
@@ -486,20 +507,28 @@ def generate_ltx_video(
         checkpoint = settings.ltx_checkpoint_name
     workflow_loras = auto_loras + list(loras or [])
     image_name = None
+    last_frame_name = None
     prepared: Path | None = None
+    prepared_last: Path | None = None
     try:
         if image_path is not None:
             prepared = _fit_image(image_path, width, height)
             image_name = upload_reference(prepared, base_url=base_url)
+        if last_frame_path is not None:
+            prepared_last = _fit_image(last_frame_path, width, height)
+            last_frame_name = upload_reference(prepared_last, base_url=base_url)
         graph = ltx_video_graph(
-            prompt, negative_prompt, image_name=image_name, checkpoint=checkpoint,
-            loras=workflow_loras, width=width, height=height, length=length, steps=steps, cfg=1.0, seed=seed,
+            prompt, negative_prompt, image_name=image_name, last_frame_name=last_frame_name,
+            checkpoint=checkpoint, loras=workflow_loras, width=width, height=height, length=length,
+            steps=steps, cfg=1.0, seed=seed,
         )
         started = time.perf_counter()
         data, thumb = _split_video_outputs(_submit_all(graph, settings.video_timeout, base_url=base_url))
     finally:
         if prepared is not None:
             prepared.unlink(missing_ok=True)
+        if prepared_last is not None:
+            prepared_last.unlink(missing_ok=True)
     return data, thumb, {
         "provider": "comfyui",
         "seed": seed,

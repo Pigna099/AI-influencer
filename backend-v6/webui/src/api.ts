@@ -298,6 +298,7 @@ export interface JobEvent {
 export interface VideoGenerateInput {
   prompt: string;
   negative?: string;
+  last_image_id?: string;
   mode?: "image" | "text";
   model?: "wan" | "ltx-distilled" | "ltx-dev" | "hunyuan";
   image_id?: string;

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     vllm_timeout_seconds: int = 600
     ollama_embedding_model: str = "embeddinggemma"
     chat_temperature: float = 0.7
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:8010"
     comfyui_url: str = "http://127.0.0.1:8188"
     # Extra ComfyUI instances (one per GPU) for parallel generation: comma-separated URLs.
     comfyui_urls: str = ""

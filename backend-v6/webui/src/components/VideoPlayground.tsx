@@ -126,6 +126,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   const [prompt, setPrompt] = useState("");
   const [negative, setNegative] = useState("");
   const [sourceId, setSourceId] = useState("");
+  const [lastImageId, setLastImageId] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [videosHasMore, setVideosHasMore] = useState(false);
   const VIDEOS_PAGE = 50;
@@ -241,6 +242,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
           mode,
           model,
           image_id: mode === "image" ? sourceId : undefined,
+          last_image_id: mode === "image" && lastImageId && (model === "ltx-distilled" || model === "ltx-dev") ? lastImageId : undefined,
           loras: Object.entries(loraSel).map(([name, weight]) => ({ name, weight })),
           width,
           height,
@@ -319,6 +321,10 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
             {library.map(image => <option key={image.id} value={image.id}>{(image.caption || image.prompt || image.filename).slice(0, 70)}</option>)}
           </select></label>}
           {mode === "image" && <SourcePreview image={library.find(image => image.id === sourceId)} />}
+          {mode === "image" && (model === "ltx-distilled" || model === "ltx-dev") && <label>{t("vd.lastFrame")}<select value={lastImageId} disabled={!!busy || !library.length} onChange={e => setLastImageId(e.target.value)}>
+            <option value="">{t("vd.lastFrameNone")}</option>
+            {library.filter(image => image.id !== sourceId).map(image => <option key={image.id} value={image.id}>{(image.caption || image.prompt || image.filename).slice(0, 70)}</option>)}
+          </select></label>}
           <label>{t("vd.prompt")}<textarea rows={3} value={prompt} disabled={!!busy} onChange={e => setPrompt(e.target.value)} placeholder={t("vd.promptPlaceholder")} maxLength={2000} /></label>
           <div className="motion-presets" role="group" aria-label={t("vd.motion.title")}>
             <small className="muted">{t("vd.motion.title")}</small>
