@@ -790,6 +790,7 @@ const en = {
   "vd.motion.hair": "Hair / wind",
   "vd.motion.push": "Camera push",
   "vd.motion.orbit": "Orbit",
+  "ip.duplicates": "Duplicates ({count})",
 } as const;
 
 type Catalog = typeof en;

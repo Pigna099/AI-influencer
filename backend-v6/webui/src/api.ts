@@ -189,6 +189,7 @@ export interface LibraryImage {
   rating: number;
   source: string;
   used_count: number;
+  phash?: string;
   deleted_at?: string | null;
   created_at: string;
   updated_at: string | null;

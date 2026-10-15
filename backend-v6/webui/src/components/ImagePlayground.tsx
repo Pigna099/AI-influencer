@@ -154,6 +154,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   const [libraryLoaded, setLibraryLoaded] = useState(false);
   const [mode, setMode] = useState<"grid" | "review">("grid");
   const [trashView, setTrashView] = useState(false);
+  const [dupOnly, setDupOnly] = useState(false);
   const [reviewId, setReviewId] = useState("");
   const [anchorOverlay, setAnchorOverlay] = useState(false);
   const [anchorUrl, setAnchorUrl] = useState("");
@@ -195,6 +196,17 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [characters, characterId]);
+
+  const duplicateCounts = (() => {
+    const counts: Record<string, number> = {};
+    for (const item of library) {
+      if (!item.phash) continue;
+      counts[item.phash] = (counts[item.phash] || 0) + 1;
+    }
+    return counts;
+  })();
+  const duplicateGroups = Object.values(duplicateCounts).filter(count => count > 1).length;
+  const displayed = dupOnly ? library.filter(item => item.phash && duplicateCounts[item.phash] > 1) : library;
 
   const reviewIndex = library.findIndex(item => item.id === reviewId);
   const reviewItem = reviewIndex >= 0 ? library[reviewIndex] : null;
@@ -436,6 +448,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
               <label><input type="checkbox" disabled={!!busy || !library.length} checked={selectedIds.length > 0 && selectedIds.length === library.length} onChange={e => setSelectedIds(e.target.checked ? library.map(entry => entry.id) : [])} /> {t("bulk.selectAll")}</label>
               <button className="danger" disabled={!!busy || !selectedIds.length} onClick={removeSelected}>{t("bulk.deleteSelected", { count: selectedIds.length })}</button>
             </> : <label className="auto-label"><input type="checkbox" checked={anchorOverlay} onChange={e => setAnchorOverlay(e.target.checked)} disabled={!anchorUrl} /> {t("ip.review.overlay")} <kbd>O</kbd></label>}
+            {mode === "grid" && !trashView && <label className="auto-label"><input type="checkbox" checked={dupOnly} onChange={e => setDupOnly(e.target.checked)} disabled={!duplicateGroups} /> {t("ip.duplicates", { count: duplicateGroups })}</label>}
           </div>
           <AsyncBoundary
             loading={!libraryLoaded}
@@ -459,10 +472,11 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
           {mode === "review" && <div className="review-strip">{library.map(item => <button key={item.id} type="button" className={`review-thumb ${item.id === reviewId ? "selected" : ""} status-${item.status}`} onClick={() => setReviewId(item.id)}>
             <LibraryThumb item={item} onView={(url, alt) => setViewer({ url, alt })} alt={item.caption || item.prompt} />
           </button>)}</div>}
-          <div className="library-grid" style={mode === "review" ? { display: "none" } : undefined}>{library.map(item => <article className={`library-card status-${item.status}`} key={item.id}>
+          <div className="library-grid" style={mode === "review" ? { display: "none" } : undefined}>{displayed.map(item => <article className={`library-card status-${item.status}`} key={item.id}>
             <div className="library-thumb">
               <LibraryThumb item={item} onView={(url, alt) => setViewer({ url, alt })} alt={item.caption || item.prompt} />
               <span className={`badge ${item.status}`}>{statusLabel(item)}</span>
+              {item.phash && duplicateCounts[item.phash] > 1 && <span className="badge dup-badge">×{duplicateCounts[item.phash]}</span>}
               <label className="select-check" title={t("bulk.select")}><input type="checkbox" checked={selectedIds.includes(item.id)} disabled={!!busy} onChange={() => toggleSelectedId(item.id)} /></label>
             </div>
             <div className="library-meta">

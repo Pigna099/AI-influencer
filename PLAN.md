@@ -738,8 +738,8 @@ Progress log — 15 October 2026 (first slice):
   duration expressed in seconds first, frames second (select + effective-recipe summary);
   motion preset chips (subtle portrait, turn to camera, walking, hair/wind, camera push, orbit)
   append to the prompt. Source preview and approved-only picker were already in place.
-- Remaining: first/last-frame support, ETA via unified jobs (progress is recorded), review
-  collections, poster/recipe fields (params already carry model/seed; adding fps/duration next).
+- Params now store fps/frames/duration (cards use them); duplicate detection in the library
+  (exact phash grouping, "Duplicates (N)" filter + per-card ×N badge).
 
 ### Steps
 

@@ -193,6 +193,7 @@ def library_out(item: ImageLibrary) -> dict:
         "seed": item.seed,
         "style": item.style,
         "status": item.status,
+        "phash": item.phash,
         "deleted_at": item.deleted_at.isoformat() if item.deleted_at else None,
         "rating": item.rating,
         "source": item.source,
