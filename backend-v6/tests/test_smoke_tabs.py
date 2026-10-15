@@ -36,3 +36,16 @@ def test_every_tab_main_endpoints():
         if response.status_code != 200:
             failures.append(f"{path} -> {response.status_code}: {response.text[:120]}")
     assert not failures, "\n".join(failures)
+
+def test_failed_attempt_limiter():
+    from app.auth import reset_limits
+
+    reset_limits()
+    bad = TestClient(app, headers={"X-API-Key": "wrong-key"})
+    for _ in range(31):
+        assert bad.get("/api/characters").status_code == 401
+    assert bad.get("/api/characters").status_code == 429
+    # The block is per client IP: even a valid key from that IP is rejected until it expires.
+    assert client.get("/api/characters").status_code == 429
+    reset_limits()
+    assert client.get("/api/characters").status_code == 200

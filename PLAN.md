@@ -870,8 +870,11 @@ Progress log — 15 October 2026 (first slice):
 - **Audit log** (`audit_events`, migration `0031`): library approve/reject (single + bulk), trash,
   restore, delete-forever, video review, LoRA activate/rollback, identity freeze with override
   reason; `GET /api/audit` with filters. Test added.
-- Remaining: content labels (SFW/suggestive/explicit), roles, session expiry/key rotation, rate
-  limits, per-platform policy checklists.
+- Content labels on images and videos (migration `0032`), editable in Review mode and on video
+  cards.
+- Failed-attempt limiter: 30 bad API-key attempts per minute from one IP → 429 for 5 minutes
+  (per-IP block, cleared by a valid key before the threshold); test added.
+- Remaining: roles, session expiry/key rotation, per-platform policy checklists.
 - Audit UI: recent actions list on the Jobs & System page (time, action, object, counts).
 - Content labels (`sfw`/`suggestive`/`explicit`, migration `0032`) on library images and videos,
   editable in Review mode (select) and via `PATCH /api/library/{id}` / video review; badge in cards.
