@@ -46,8 +46,8 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [checkpoints, setCheckpoints] = useState<CheckpointInfo[]>([]);
   const [loras, setLoras] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState("");
-  const [styleFilter, setStyleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(() => localStorage.getItem("ip_status_filter") || "");
+  const [styleFilter, setStyleFilter] = useState(() => localStorage.getItem("ip_style_filter") || "");
   const [prompt, setPrompt] = useState("");
   const [direction, setDirection] = useState("");
   const [negative, setNegative] = useState("");
@@ -196,6 +196,9 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [characters, characterId]);
+
+  useEffect(() => { localStorage.setItem("ip_status_filter", statusFilter); }, [statusFilter]);
+  useEffect(() => { localStorage.setItem("ip_style_filter", styleFilter); }, [styleFilter]);
 
   const duplicateCounts = (() => {
     const counts: Record<string, number> = {};
