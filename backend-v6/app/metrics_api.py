@@ -1,9 +1,12 @@
 """Operational metrics: queue/run times, success rates, asset and dataset coverage."""
 
+import shutil
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 
 from .auth import authorize
+from .config import settings
 from .db import (
     CharacterLora,
     ExecutionJob,
@@ -66,7 +69,29 @@ def get_metrics():
             select(func.count()).select_from(LoraDatasetItem).where(LoraDatasetItem.selected.is_(True))
         ) or 0
 
+        media_bytes = 0
+        media_files = 0
+        try:
+            for entry in settings.media_dir.iterdir():
+                if entry.is_file():
+                    media_bytes += entry.stat().st_size
+                    media_files += 1
+        except OSError:
+            pass
+        disk_free = disk_total = 0
+        try:
+            usage = shutil.disk_usage(settings.media_dir if settings.media_dir.exists() else settings.media_dir.parent)
+            disk_free, disk_total = usage.free, usage.total
+        except OSError:
+            pass
+
         return {
+            "storage": {
+                "media_bytes": media_bytes,
+                "media_files": media_files,
+                "disk_free_bytes": disk_free,
+                "disk_total_bytes": disk_total,
+            },
             "jobs": {
                 "by_state": jobs_by_state,
                 "by_type": by_type,

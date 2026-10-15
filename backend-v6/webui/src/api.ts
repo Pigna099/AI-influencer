@@ -804,6 +804,7 @@ export class ApiClient {
   }
 
   getMetrics(): Promise<{
+    storage: { media_bytes: number; media_files: number; disk_free_bytes: number; disk_total_bytes: number };
     jobs: { by_state: Record<string, number>; by_type: Record<string, Record<string, number>>; avg_run_seconds: Record<string, number>; avg_queue_seconds: Record<string, number> };
     library: { total: number; approved: number; draft: number; rejected: number; trashed: number; approval_rate: number };
     videos: { total: number; draft: number; approved: number; rejected: number };

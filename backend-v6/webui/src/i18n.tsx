@@ -811,6 +811,7 @@ const en = {
   "jobs.metrics.succeeded": "succeeded",
   "jobs.metrics.failed": "failed",
   "jobs.metrics.approval": "library approval rate",
+  "jobs.metrics.storage": "{files} media files \u00b7 {gb} GB used \u00b7 {free} GB free",
 } as const;
 
 type Catalog = typeof en;

@@ -170,6 +170,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
           <span><b>{metrics.jobs.by_state.failed}</b> {t("jobs.metrics.failed")}</span>
           {Object.entries(metrics.jobs.avg_run_seconds).slice(0, 4).map(([type, seconds]) => <span key={type}>{t(`jobs.type.${type}` as "jobs.type.training")} ≈ {seconds}s</span>)}
           <span><b>{Math.round(metrics.library.approval_rate * 100)}%</b> {t("jobs.metrics.approval")}</span>
+          <span>{t("jobs.metrics.storage", { files: metrics.storage.media_files, gb: (metrics.storage.media_bytes / 1024 ** 3).toFixed(2), free: Math.round(metrics.storage.disk_free_bytes / 1024 ** 3) })}</span>
         </div>}
         {!!errorsByCode.length && <div className="errors-by-code">
           <small className="muted">{t("jobs.errorsByCode")}</small>

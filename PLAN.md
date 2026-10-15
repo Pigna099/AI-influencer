@@ -891,7 +891,8 @@ Progress log — 15 October 2026 (first slice):
 - `GET /api/metrics`: jobs by state/type with average queue and run times, library approval rate,
   video review counts, dataset coverage, identity runs, characters with ready LoRAs. Smoke test
   covers the endpoint.
-- Remaining: metrics screen in the UI, storage usage, model registry checks, backup status.
+- Storage usage in `/api/metrics` (media files/bytes, disk free) and in the Jobs metrics strip.
+- Remaining: full metrics screen, model registry checks, backup status.
 
 ### Metrics
 
