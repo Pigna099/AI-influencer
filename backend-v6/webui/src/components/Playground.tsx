@@ -3,6 +3,7 @@ import { api, Character, CheckpointInfo, Conversation, Memory, Message, OllamaMo
 import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import EmptyState from "./ui/EmptyState";
+import StatusBadge from "./ui/StatusBadge";
 import PageHeader from "./ui/PageHeader";
 import CharacterForm from "./CharacterForm";
 import ChatPanel from "./ChatPanel";
@@ -97,6 +98,19 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
     const timer = window.setInterval(() => setWaitElapsed((Date.now() - start) / 1000), 200);
     return () => window.clearInterval(timer);
   }, [waiting, conversation?.pending_reply_at]);
+  const chatState: "none" | "generating" | "waiting" | "active" = !conversation
+    ? "none"
+    : busy
+      ? "generating"
+      : waiting
+        ? "waiting"
+        : "active";
+  const chatStateLabel = chatState === "generating"
+    ? `${t("pg.chatState.generating")} ${elapsed.toFixed(0)}s`
+    : chatState === "waiting"
+      ? `${t("pg.chatState.waiting")} ${waitElapsed.toFixed(0)}s`
+      : t(`pg.chatState.${chatState}` as "pg.chatState.none");
+
 
   const refresh = useCallback(async (id: string) => {
     const epoch = generation.current;
@@ -336,7 +350,7 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
           eyebrow={character ? t("pg.personalityVersion", { version: character.version }) : t("pg.lab")}
           title={character?.name || t("pg.chooseCharacter")}
           subtitle={fan ? t("pg.withFan", { name: fan.name }) : t("pg.createFanHint")}
-          aside={<div className="view-tabs" role="tablist"><button role="tab" aria-selected={tab === "chat"} onClick={() => setTab("chat")} disabled={!!busy}>{t("pg.tab.chat")}</button><button role="tab" aria-selected={tab === "benchmark"} onClick={() => setTab("benchmark")} disabled={!!busy}>{t("pg.tab.benchmark")}</button></div>}
+          aside={<><StatusBadge status={chatState === "active" ? "active" : chatState === "none" ? "draft" : "running"} label={chatStateLabel} /><div className="view-tabs" role="tablist"><button role="tab" aria-selected={tab === "chat"} onClick={() => setTab("chat")} disabled={!!busy}>{t("pg.tab.chat")}</button><button role="tab" aria-selected={tab === "benchmark"} onClick={() => setTab("benchmark")} disabled={!!busy}>{t("pg.tab.benchmark")}</button></div></>}
         />
         {tab === "chat" ? <>
           <div className="model-toolbar"><label htmlFor="model-select">{t("pg.model")}</label><select id="model-select" value={model} disabled={!!busy} onChange={e => setModel(e.target.value)}>

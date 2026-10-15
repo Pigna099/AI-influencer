@@ -791,6 +791,10 @@ const en = {
   "vd.motion.push": "Camera push",
   "vd.motion.orbit": "Orbit",
   "ip.duplicates": "Duplicates ({count})",
+  "pg.chatState.none": "No chat selected",
+  "pg.chatState.generating": "Generating reply",
+  "pg.chatState.waiting": "Waiting for reply",
+  "pg.chatState.active": "Active",
 } as const;
 
 type Catalog = typeof en;

@@ -762,6 +762,11 @@ Progress log — 15 October 2026 (first slice):
 
 ## 16. Phase 10 — Conversation simulator and content offers
 
+Progress log — 15 October 2026 (first slice):
+- Conversation state chip in the Chat heading: No chat selected / Generating reply (with seconds) /
+  Waiting for reply (with seconds) / Active — derived from conversation, busy and pending replies.
+- Remaining: rail/inspector split, asset composer, structured assistant proposals, policy validation.
+
 ### UI redesign
 
 1. First rail: fans/inboxes and conversation list.
