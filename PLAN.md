@@ -776,7 +776,11 @@ Progress log — 15 October 2026 (second slice):
 - Rail/inspector split (lean): the character settings (style, checkpoint, PPV override, realism,
   activity hours) moved from the left rail into a collapsible section of the right inspector; the
   rail now holds character selection, fan and conversation lists.
-- Remaining: structured assistant proposals, full routing split.
+- Structured proposals (first slice): the PPV marker can propose a price
+  (`[PPV: price=12.50; <prompt>]`); the proposal is recorded in the message metrics
+  (`proposal: {kind, locked, price_cents}`) and used for the locked photo when valid. Parsing and
+  integration tests added.
+- Remaining: proposal display in the transcript, follow-up scheduling from proposals, full routing split.
 
 Progress log — 15 October 2026 (first slice):
 - Conversation state chip in the Chat heading: No chat selected / Generating reply (with seconds) /

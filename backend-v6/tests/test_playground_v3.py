@@ -319,14 +319,17 @@ def test_injection_guard_replaces_stored_reply(monkeypatch):
 
 
 def test_photo_marker_parsing_and_prompt_builders():
-    clean, scene, locked = extract_photo_request(
+    clean, scene, locked, price = extract_photo_request(
         "Guarda che ti mando 😏\n[PHOTO: nude on bed, lying on back, dim light]"
     )
     assert clean == "Guarda che ti mando 😏"
-    assert scene and "nude on bed" in scene and locked is False
-    assert extract_photo_request("Ciao, come stai?") == ("Ciao, come stai?", None, False)
-    assert extract_photo_request("[PPV: nude on bed]") == ("", "nude on bed", True)
-    assert extract_photo_request("[PHOTO: ]") == ("", None, False)
+    assert scene and "nude on bed" in scene and locked is False and price is None
+    assert extract_photo_request("Ciao, come stai?") == ("Ciao, come stai?", None, False, None)
+    assert extract_photo_request("[PPV: nude on bed]") == ("", "nude on bed", True, None)
+    assert extract_photo_request("[PHOTO: ]") == ("", None, False, None)
+    assert extract_photo_request("[PPV: price=12.50; nude on bed]") == ("", "nude on bed", True, 1250)
+    assert extract_photo_request("[PPV: price=12,50; nude on bed]") == ("", "nude on bed", True, 1250)
+    assert extract_photo_request("[PPV: price=999999; nude on bed]") == ("", "price=999999; nude on bed", True, None)
     char, a, _ = setup_pair()
     conv = conversation(char, a)
     with Session() as db:
@@ -1107,3 +1110,19 @@ def test_flux2_klein_graph_variants():
     assert distilled["7"]["inputs"]["negative"] == ["15", 0]
     assert distilled["7"]["inputs"]["model"] == ["lora1", 0]
     assert distilled["lora1"]["inputs"]["strength_model"] == 0.6
+
+def test_ppv_photo_proposed_price(monkeypatch):
+    char, a, _ = setup_pair()
+    client.put(f"/api/characters/{char['id']}/ppv", json={"enabled": True, "price_cents": 500})
+    conv = conversation(char, a)
+    monkeypatch.setattr(
+        "app.chat_service.chat",
+        lambda *args, **kwargs: {"message": {"content": "Solo per te 😏\n[PPV: price=12.50; nude on bed]"}},
+    )
+    response = client.post(f"/api/conversations/{conv['id']}/messages", json={"content": "esclusiva?"})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["images"][0]["price_cents"] == 1250
+    assert body["ollama_metrics"]["photo_price_cents"] == 1250
+    assert body["ollama_metrics"]["proposal"] == {"kind": "photo", "locked": True, "price_cents": 1250}
+    assert client.post(f"/api/chat-images/{body['images'][0]['id']}/unlock").status_code == 200

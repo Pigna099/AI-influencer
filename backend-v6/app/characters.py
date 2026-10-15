@@ -1357,6 +1357,9 @@ def run_turn(
                 checkpoint = character.image_checkpoint if character else None
                 style = (character.image_style or "real") if character else "real"
                 ppv_enabled, ppv_price = effective_ppv(conv, character) if character else (False, 0)
+                proposed_price = metrics.get("photo_price_cents")
+                if isinstance(proposed_price, int) and 0 < proposed_price <= 100000:
+                    ppv_price = proposed_price
             family = checkpoint_family(style, checkpoint)
             locked = bool(
                 metrics.get("photo_locked_requested")
