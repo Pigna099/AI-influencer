@@ -49,6 +49,12 @@ export default function GpuCard({ gpu, role, busy, onRole }: {
   const live = "memory_total" in gpu;
   const shortName = live ? gpu.name.replace("NVIDIA GeForce ", "") : t("home.gpu.noData");
   const memoryPercent = live && gpu.memory_total ? Math.min(100, (gpu.memory_used / gpu.memory_total) * 100) : 0;
+  const powerPercent = live && gpu.power_watts != null && gpu.power_limit
+    ? Math.min(100, (gpu.power_watts / gpu.power_limit) * 100)
+    : 0;
+  const powerLabel = live && gpu.power_watts != null
+    ? (gpu.power_limit ? `${Math.round(gpu.power_watts)} / ${Math.round(gpu.power_limit)} W` : `${Math.round(gpu.power_watts)} W`)
+    : "";
   const roles: Role[] = ["media", "text", "off"];
   const roleLabel: Record<Role, string> = {
     media: t("home.plan.media"),
@@ -82,11 +88,15 @@ export default function GpuCard({ gpu, role, busy, onRole }: {
             <>
               <div className={`gpu-bar tone-${tone(memoryPercent)}`} title={`${gbKb(gpu.memory_used)} / ${gbKb(gpu.memory_total)}`}>
                 <i style={{ width: `${memoryPercent}%` }} />
+                <span className="gpu-bar-label">{gbKb(gpu.memory_used)} / {gbKb(gpu.memory_total)}</span>
               </div>
-              <small>
-                {gbKb(gpu.memory_used)} / {gbKb(gpu.memory_total)} · {gpu.memory_utilization}% {t("home.gpu.mem")}
-                {gpu.power_watts != null ? ` · ${Math.round(gpu.power_watts)} W` : ""}
-              </small>
+              {gpu.power_watts != null && (
+                <div className={`gpu-bar tone-${tone(powerPercent)}`} title={powerLabel}>
+                  <i style={{ width: `${powerPercent}%` }} />
+                  <span className="gpu-bar-label">{powerLabel}</span>
+                </div>
+              )}
+              <small>{gpu.memory_utilization}% {t("home.gpu.mem")}</small>
             </>
           )}
         </div>

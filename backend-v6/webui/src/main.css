@@ -328,3 +328,7 @@
 .gpu-bar.tone-warn i { background: linear-gradient(90deg, #b8862c, #e0b25f); }
 .gpu-bar.tone-bad i { background: linear-gradient(90deg, #b04a46, #e0736f); }
 .gpu-plan-status { margin: -4px 0 10px; font-size: .74rem; }
+
+.gpu-card .gpu-bar { height: 18px; position: relative; border-radius: 6px; }
+.gpu-card .gpu-bar i { position: absolute; top: 0; bottom: 0; left: 0; }
+.gpu-bar-label { position: absolute; inset: 0; display: grid; place-items: center; font-size: .64rem; font-weight: 550; color: #f2f7fd; text-shadow: 0 1px 2px #000e, 0 0 3px #0009; letter-spacing: .02em; }
