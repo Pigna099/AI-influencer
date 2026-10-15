@@ -8,6 +8,7 @@ its angle, seed, prompt and recipe so results stay traceable and reviewable.
 from __future__ import annotations
 
 import hashlib
+import logging
 import random
 from concurrent.futures import ThreadPoolExecutor
 
@@ -18,6 +19,7 @@ from sqlalchemy import select
 from .auth import authorize
 from .char_schemas import StrictModel
 from .config import settings
+from .consistency_api import resize_jpeg
 from .db import (
     ExecutionJob,
     IdentityCandidate,
@@ -30,7 +32,11 @@ from .db import (
 )
 from .image_library import average_hash
 from .integrations.comfyui import ComfyUIError, pick_target, qwen_image_edit
+from .integrations.ollama import OllamaNotAvailable
+from .integrations.text import vision_json
 from .jobs import create_job, finish_job, start_job, update_progress
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["Identity"], dependencies=[Depends(authorize)])
 
@@ -63,6 +69,25 @@ ANGLE_INDEX = {key: (fragment, role) for key, fragment, role in ANGLES}
 REQUIRED_ROLES = ("close_front", "three_quarter_left", "three_quarter_right", "profile_left", "profile_right", "upper_body", "full_body")
 CANONICAL_MIN = 6
 CANONICAL_MAX = 10
+
+SCORE_PROMPT = (
+    "You are checking identity consistency for a fictional adult (25+) character. "
+    "Image 1 is the anchor. Image 2 is a generated candidate that should show the SAME person "
+    "at a requested angle. Score similarity (how much the face is the same person, 0-100), "
+    "same_person (boolean), angle_accuracy (how well the candidate matches a neutral portrait "
+    "angle, 0-100), and quality_notes (short text: blur, occlusion, artifacts; empty if fine)."
+)
+SCORE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "similarity": {"type": "integer"},
+        "same_person": {"type": "boolean"},
+        "angle_accuracy": {"type": "integer"},
+        "quality_notes": {"type": "string"},
+    },
+    "required": ["similarity", "same_person", "angle_accuracy", "quality_notes"],
+    "additionalProperties": False,
+}
 
 
 class IdentityRunInput(StrictModel):
@@ -210,6 +235,7 @@ def create_identity_run(character_id: str, body: IdentityRunInput):
                 errors.append(error)
 
     created: list[dict] = []
+    candidate_data: dict[str, bytes] = {}
     for angle_key, seed, prompt, data, meta in rendered:
         settings.media_dir.mkdir(parents=True, exist_ok=True)
         filename = f"{identifier()}.png"
@@ -249,7 +275,39 @@ def create_identity_run(character_id: str, body: IdentityRunInput):
             )
             db.add(candidate)
             db.flush()
+            candidate_data[candidate.id] = data
             created.append(candidate_out(candidate, library))
+
+    scored = 0
+    if created:
+        anchor_b64 = resize_jpeg(anchor_bytes)
+        for entry in created:
+            data = candidate_data.get(entry["id"])
+            if not data:
+                continue
+            try:
+                verdict = vision_json(
+                    settings.consistency_model,
+                    SCORE_PROMPT,
+                    [anchor_b64, resize_jpeg(data)],
+                    schema=SCORE_SCHEMA,
+                    max_tokens=160,
+                )
+            except (OllamaNotAvailable, OSError, ValueError) as error:
+                logger.info("identity scoring failed for %s: %s", entry["id"], error)
+                continue
+            scores = {
+                "similarity": max(0, min(100, int(verdict.get("similarity", 0) or 0))),
+                "same_person": bool(verdict.get("same_person")),
+                "angle_accuracy": max(0, min(100, int(verdict.get("angle_accuracy", 0) or 0))),
+                "quality_notes": str(verdict.get("quality_notes") or "")[:200],
+            }
+            entry["scores"] = scores
+            with Session.begin() as db:
+                stored = db.get(IdentityCandidate, entry["id"])
+                if stored is not None:
+                    stored.scores = scores
+            scored += 1
 
     with Session.begin() as db:
         run = db.get(IdentityRun, run_id)
@@ -270,7 +328,7 @@ def create_identity_run(character_id: str, body: IdentityRunInput):
                     "remediation": "Check Qwen-Image-Edit and the anchor image, then retry.",
                     "technical_details": str(errors[0])[:800] if errors else "",
                 },
-                message=f"{len(created)} candidates ready",
+                message=f"{len(created)} candidates ready, {scored} scored",
             )
         result = run_out(run, created)
     if not created:

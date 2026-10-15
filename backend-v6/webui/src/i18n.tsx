@@ -752,6 +752,8 @@ const en = {
   "idr.status.accepted": "Accepted",
   "idr.status.rejected": "Rejected",
   "idr.status.uncertain": "Uncertain",
+  "idr.similarity": "id",
+  "idr.angleAccuracy": "angle",
 } as const;
 
 type Catalog = typeof en;

@@ -12,8 +12,22 @@ PROFILE = {
 }
 
 
+def png_bytes():
+    from io import BytesIO
+
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (16, 16), (120, 80, 60)).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
 def fake_edit(reference, prompt, **kwargs):
-    return b"fake-identity-image", {"provider": "mock", "seed": kwargs.get("seed", 0), "model": "qwen_image_edit"}
+    return png_bytes(), {"provider": "mock", "seed": kwargs.get("seed", 0), "model": "qwen_image_edit"}
+
+
+def fake_vision(model, prompt, images, **kwargs):
+    return {"similarity": 82, "same_person": True, "angle_accuracy": 75, "quality_notes": ""}
 
 
 def make_character(name="Identity"):
@@ -36,6 +50,7 @@ def test_identity_template():
 
 def test_identity_run_generates_candidates(monkeypatch):
     monkeypatch.setattr("app.identity_api.qwen_image_edit", fake_edit)
+    monkeypatch.setattr("app.identity_api.vision_json", fake_vision)
     character_id = make_character("Identity Run")
 
     response = client.post(
@@ -53,6 +68,8 @@ def test_identity_run_generates_candidates(monkeypatch):
     detail = client.get(f"/api/identity-runs/{run['id']}").json()
     assert len(detail["candidates"]) == 8
     assert all(candidate["filename"] for candidate in detail["candidates"])
+    assert all(candidate["scores"]["similarity"] == 82 for candidate in detail["candidates"])
+    assert all(candidate["scores"]["angle_accuracy"] == 75 for candidate in detail["candidates"])
 
     listing = client.get(f"/api/characters/{character_id}/identity-runs").json()
     assert listing and listing[0]["id"] == run["id"]
@@ -60,6 +77,7 @@ def test_identity_run_generates_candidates(monkeypatch):
 
 def test_identity_candidate_review_and_freeze(monkeypatch):
     monkeypatch.setattr("app.identity_api.qwen_image_edit", fake_edit)
+    monkeypatch.setattr("app.identity_api.vision_json", fake_vision)
     character_id = make_character("Identity Freeze")
     run = client.post(
         f"/api/characters/{character_id}/identity-runs",

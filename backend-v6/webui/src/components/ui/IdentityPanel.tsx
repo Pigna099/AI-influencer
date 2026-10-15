@@ -110,6 +110,9 @@ export default function IdentityPanel({ character, busy, perform, onView, onErro
         {run.candidates.map(candidate => <article className={`identity-card status-${candidate.status}`} key={candidate.id}>
           <CandidateThumb candidate={candidate} onView={onView} />
           <small>{candidate.angle} · {candidate.seed}</small>
+          {"similarity" in candidate.scores && <small className={`identity-score ${Number(candidate.scores.similarity) < 60 || candidate.scores.same_person === false ? "flagged" : ""}`}>
+            {t("idr.similarity")} {String(candidate.scores.similarity)}% · {t("idr.angleAccuracy")} {String(candidate.scores.angle_accuracy)}%{candidate.scores.quality_notes ? ` · ${String(candidate.scores.quality_notes)}` : ""}
+          </small>}
           <StatusBadge status={candidate.status === "accepted" ? "approved" : candidate.status === "rejected" ? "rejected" : "draft"} label={t(`idr.status.${candidate.status}` as "idr.status.draft")} />
           <div className="library-actions">
             <button disabled={busy || run.status === "frozen"} onClick={() => review(candidate, "accepted")}>{t("idr.accept")}</button>
