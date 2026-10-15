@@ -343,6 +343,20 @@ I test automatici usano un database temporaneo SQLite con chiavi esterne attive.
 - **Video**: card dei modelli con capacita (fps, I2V/T2V, step, LoRA), durata in secondi + frame,
   preset di movimento, stati di revisione (bozza/approvato/rifiutato).
 
+## Novita del 15 ottobre 2026 (pomeriggio)
+
+- **Etichette contenuto**: `SFW / Suggestive / Explicit` su immagini e video (migrazione `0032`),
+  modificabili dalla modalita Review (select) e dalle card video; mostrate anche in libreria.
+- **Guardia policy in chat**: le risposte che citano minorenni (o termini ambigui + contesto
+  sessuale) vengono bloccate e sostituite con un messaggio di policy; il blocco e' registrato nei
+  metriche del messaggio.
+- **Sicurezza API**: dopo 30 tentativi di chiave errata in un minuto dallo stesso IP, le richieste
+  ricevono 429 per 5 minuti (protezione brute-force sulla LAN).
+- **Retention Trash**: pulsante "Purge trash (>30 giorni)" nella pagina Jobs (o
+  `POST /api/system/purge-trash?days=30`) per eliminare definitivamente gli asset cestinati vecchi.
+- **Metriche di sistema** (pagina Jobs): job per tipo con tempi medi, copertura asset, controllo
+  LoRA con checkpoint mancante, stato ultimo backup, spazio su disco e file orfani.
+
 ## Limiti attuali
 
 Il playground usa una chiave condivisa per il proprietario: i fan sono identità simulate, non utenti autenticati reali. L'estrazione memoria è un'attività in background non persistente: se l'API si arresta durante l'estrazione, la risposta salvata resta disponibile ma il ricordo potrebbe dover essere aggiunto manualmente. Le varianti di personalità del confronto non vengono salvate come personaggi: sono temporanee e servono a decidere cosa applicare con l'editor o con **Duplica**. Non sono implementati invio su OnlyFans/Fanvue, pagamenti, campagne o notifiche esterne. La pipeline immagini preesistente resta disponibile, ma non è il focus della v3.
