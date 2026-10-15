@@ -439,3 +439,7 @@
 .platform-row:last-of-type { border-bottom: 0; }
 .platform-row strong { width: 74px; font-size: .74rem; text-transform: capitalize; }
 .platform-row label { font-size: .7rem; }
+
+.inspector-settings { margin-bottom: 14px; }
+.inspector-settings > summary { cursor: pointer; font-size: .8rem; font-weight: 600; color: #b7c6dc; margin-bottom: 8px; }
+.inspector-settings .image-checkpoint { display: block; margin-top: 8px; }

@@ -307,49 +307,6 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
           <CharacterAvatar character={c} index={index} onView={(url, alt) => setViewer({ url, alt })} altTemplate={t("pg.avatarAlt")} /><span><strong>{c.name}</strong><small>{c.profile.personality_traits || t("pg.noTraits")}</small></span></button>)}
           {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}</div>
         {character && <div className="character-actions"><button onClick={() => setEditing(character)} disabled={!!busy}>{t("pg.editPersonality")}</button><Link className="text-button" to="/loras">{t("pg.editInCharacterTab")}</Link></div>}
-        {character && <label className="image-checkpoint">{t("pg.imageStyle")}<select value={character.image_style || "real"} disabled={!!busy} onChange={e => void perform(t("pg.busy.style"), async () => {
-          const updated = await api.setImageStyle(character.id, e.target.value as "anime" | "real");
-          setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));
-        })}><option value="real">{t("pg.style.real")}</option><option value="anime">{t("pg.style.anime")}</option></select></label>}
-        {character && checkpoints.some(c => c.usable) && <label className="image-checkpoint">{t("pg.checkpoint")}<select value={character.image_checkpoint || ""} disabled={!!busy} onChange={e => void perform(t("pg.busy.checkpoint"), async () => {
-          const updated = await api.setImageCheckpoint(character.id, e.target.value || null);
-          setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));
-        })}><option value="">{t("pg.checkpointDefault")}</option>{checkpoints.filter(c => c.usable).map(checkpoint => <option key={checkpoint.name} value={checkpoint.name}>{checkpoint.name} · {checkpoint.family}</option>)}</select></label>}
-        {character && conversation && <div className="ppv-settings">
-          <label className="auto-label" title={t("pg.ppvHint")}>{t("pg.ppvOverride")}
-            <select value={conversation.ppv_enabled == null ? "default" : conversation.ppv_enabled ? "on" : "off"} disabled={!!busy} onChange={e => saveConvPpv({ ppv_enabled: e.target.value === "default" ? null : e.target.value === "on" })}>
-              <option value="default">{t("pg.ppvDefault", { state: character.ppv_enabled ? t("pg.ppvOn") : t("pg.ppvOff"), price: ((character.ppv_price_cents ?? 0) / 100).toFixed(2) })}</option>
-              <option value="on">{t("pg.ppvOn")}</option>
-              <option value="off">{t("pg.ppvOff")}</option>
-            </select>
-          </label>
-          <label className="ppv-price">€<input key={conversation.id} type="number" min="0" max="1000" step="0.5" defaultValue={(((conversation.ppv_price_cents ?? character.ppv_price_cents ?? 500)) / 100).toFixed(2)} disabled={!!busy} onBlur={e => saveConvPpv({ ppv_price_cents: Math.round(Number(e.target.value) * 100) })} /></label>
-          {conversation.ppv_price_cents != null && <button type="button" className="text-button" disabled={!!busy} onClick={() => saveConvPpv({ ppv_price_cents: null })}>{t("pg.ppvReset")}</button>}
-        </div>}
-        {character && !conversation && <p className="muted">{t("pg.ppvDefaultsInEditor")}</p>}
-        {character && <details className="realism-settings">
-          <summary title={t("pg.realismHint")}>{t("pg.realism")}</summary>
-          <div className="ppv-settings">
-            <div className="realism-delays">
-              <label className="ppv-price" title={t("pg.realismHint")}>{t("pg.delay")} <input key={`min-${character.id}`} type="number" min="0" max="3600" defaultValue={character.reply_delay_min_seconds ?? 8} disabled={!!busy} onBlur={e => saveRealism({ reply_delay_min_seconds: Math.max(0, Math.min(3600, Number(e.target.value))) })} /></label>
-              <label className="ppv-price">– <input key={`max-${character.id}`} type="number" min="0" max="3600" defaultValue={character.reply_delay_max_seconds ?? 40} disabled={!!busy} onBlur={e => saveRealism({ reply_delay_max_seconds: Math.max(0, Math.min(3600, Number(e.target.value))) })} /></label>
-            </div>
-            <label className="auto-label">{t("pg.activity")} <input type="checkbox" checked={!!character.activity_enabled} disabled={!!busy} onChange={e => saveRealism({ activity_enabled: e.target.checked })} /></label>
-            {!!character.activity_enabled && <>
-              <div className="realism-hours">
-                <label className="ppv-price">{t("pg.from")} <select value={character.activity_start_hour ?? 9} disabled={!!busy} onChange={e => saveRealism({ activity_start_hour: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, hour) => <option key={hour} value={hour}>{hour}</option>)}</select></label>
-                <label className="ppv-price">{t("pg.to")} <select value={character.activity_end_hour ?? 23} disabled={!!busy} onChange={e => saveRealism({ activity_end_hour: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, hour) => <option key={hour} value={hour}>{hour}</option>)}</select></label>
-              </div>
-              <div className="day-chips" role="group" aria-label={t("pg.days")}>
-                {[0, 1, 2, 3, 4, 5, 6].map(day => {
-                  const selectedDays = character.activity_days ?? [0, 1, 2, 3, 4, 5, 6];
-                  const label = new Date(Date.UTC(2024, 0, 1 + day)).toLocaleDateString("en-GB", { weekday: "short" });
-                  return <button type="button" key={day} className={selectedDays.includes(day) ? "on" : ""} disabled={!!busy} onClick={() => saveRealism({ activity_days: selectedDays.includes(day) ? selectedDays.filter(value => value !== day) : [...selectedDays, day] })}>{label}</button>;
-                })}
-              </div>
-            </>}
-          </div>
-        </details>}
         <div className="rail-divider" />
         <div className="section-title"><h2>{t("pg.playFan")}</h2><button aria-label={t("pg.createFan")} onClick={() => openFan("new")} disabled={!!busy}>+</button></div>
         <label className="sr-only" htmlFor="fan-select">{t("pg.fanAccount")}</label><select id="fan-select" value={fanId} onChange={e => setFanId(e.target.value)} disabled={!!busy}>
@@ -407,6 +364,52 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
         </> : <BenchmarkPanel character={character} fanId={fanId} models={chatModels} onBusy={setBusy} />}
       </main>
       <aside className="inspector">
+        <details className="inspector-settings" open><summary>{t("pg.characterSettings")}</summary>
+        {character && <label className="image-checkpoint">{t("pg.imageStyle")}<select value={character.image_style || "real"} disabled={!!busy} onChange={e => void perform(t("pg.busy.style"), async () => {
+          const updated = await api.setImageStyle(character.id, e.target.value as "anime" | "real");
+          setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));
+        })}><option value="real">{t("pg.style.real")}</option><option value="anime">{t("pg.style.anime")}</option></select></label>}
+        {character && checkpoints.some(c => c.usable) && <label className="image-checkpoint">{t("pg.checkpoint")}<select value={character.image_checkpoint || ""} disabled={!!busy} onChange={e => void perform(t("pg.busy.checkpoint"), async () => {
+          const updated = await api.setImageCheckpoint(character.id, e.target.value || null);
+          setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));
+        })}><option value="">{t("pg.checkpointDefault")}</option>{checkpoints.filter(c => c.usable).map(checkpoint => <option key={checkpoint.name} value={checkpoint.name}>{checkpoint.name} · {checkpoint.family}</option>)}</select></label>}
+        {character && conversation && <div className="ppv-settings">
+          <label className="auto-label" title={t("pg.ppvHint")}>{t("pg.ppvOverride")}
+            <select value={conversation.ppv_enabled == null ? "default" : conversation.ppv_enabled ? "on" : "off"} disabled={!!busy} onChange={e => saveConvPpv({ ppv_enabled: e.target.value === "default" ? null : e.target.value === "on" })}>
+              <option value="default">{t("pg.ppvDefault", { state: character.ppv_enabled ? t("pg.ppvOn") : t("pg.ppvOff"), price: ((character.ppv_price_cents ?? 0) / 100).toFixed(2) })}</option>
+              <option value="on">{t("pg.ppvOn")}</option>
+              <option value="off">{t("pg.ppvOff")}</option>
+            </select>
+          </label>
+          <label className="ppv-price">€<input key={conversation.id} type="number" min="0" max="1000" step="0.5" defaultValue={(((conversation.ppv_price_cents ?? character.ppv_price_cents ?? 500)) / 100).toFixed(2)} disabled={!!busy} onBlur={e => saveConvPpv({ ppv_price_cents: Math.round(Number(e.target.value) * 100) })} /></label>
+          {conversation.ppv_price_cents != null && <button type="button" className="text-button" disabled={!!busy} onClick={() => saveConvPpv({ ppv_price_cents: null })}>{t("pg.ppvReset")}</button>}
+        </div>}
+        {character && !conversation && <p className="muted">{t("pg.ppvDefaultsInEditor")}</p>}
+        {character && <details className="realism-settings">
+          <summary title={t("pg.realismHint")}>{t("pg.realism")}</summary>
+          <div className="ppv-settings">
+            <div className="realism-delays">
+              <label className="ppv-price" title={t("pg.realismHint")}>{t("pg.delay")} <input key={`min-${character.id}`} type="number" min="0" max="3600" defaultValue={character.reply_delay_min_seconds ?? 8} disabled={!!busy} onBlur={e => saveRealism({ reply_delay_min_seconds: Math.max(0, Math.min(3600, Number(e.target.value))) })} /></label>
+              <label className="ppv-price">– <input key={`max-${character.id}`} type="number" min="0" max="3600" defaultValue={character.reply_delay_max_seconds ?? 40} disabled={!!busy} onBlur={e => saveRealism({ reply_delay_max_seconds: Math.max(0, Math.min(3600, Number(e.target.value))) })} /></label>
+            </div>
+            <label className="auto-label">{t("pg.activity")} <input type="checkbox" checked={!!character.activity_enabled} disabled={!!busy} onChange={e => saveRealism({ activity_enabled: e.target.checked })} /></label>
+            {!!character.activity_enabled && <>
+              <div className="realism-hours">
+                <label className="ppv-price">{t("pg.from")} <select value={character.activity_start_hour ?? 9} disabled={!!busy} onChange={e => saveRealism({ activity_start_hour: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, hour) => <option key={hour} value={hour}>{hour}</option>)}</select></label>
+                <label className="ppv-price">{t("pg.to")} <select value={character.activity_end_hour ?? 23} disabled={!!busy} onChange={e => saveRealism({ activity_end_hour: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, hour) => <option key={hour} value={hour}>{hour}</option>)}</select></label>
+              </div>
+              <div className="day-chips" role="group" aria-label={t("pg.days")}>
+                {[0, 1, 2, 3, 4, 5, 6].map(day => {
+                  const selectedDays = character.activity_days ?? [0, 1, 2, 3, 4, 5, 6];
+                  const label = new Date(Date.UTC(2024, 0, 1 + day)).toLocaleDateString("en-GB", { weekday: "short" });
+                  return <button type="button" key={day} className={selectedDays.includes(day) ? "on" : ""} disabled={!!busy} onClick={() => saveRealism({ activity_days: selectedDays.includes(day) ? selectedDays.filter(value => value !== day) : [...selectedDays, day] })}>{label}</button>;
+                })}
+              </div>
+            </>}
+          </div>
+        </details>}
+        </details>
+
         <div className="section-title"><h2>{t("pg.memory.title")}</h2><span>{memories.length}</span></div>
         <p className="scope-label">{character?.name || t("pg.characterFallback")} × {fan?.name || "Fan"}</p>
         {conversation?.memory_status === "pending" && <p className="memory-status" role="status"><span className="spinner" /> {t("pg.memory.extracting")}</p>}

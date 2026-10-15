@@ -768,6 +768,16 @@ Progress log — 15 October 2026 (first slice):
 
 ## 16. Phase 10 — Conversation simulator and content offers
 
+Progress log — 15 October 2026 (second slice):
+- Per-conversation PPV override (migration `0034`): conversation-level enable/disable and price
+  falling back to the character defaults, editable in the chat rail; PPV defaults moved to the
+  character editor (Monetization section). Effective PPV is used for chat photos and PPV videos.
+  Test added.
+- Rail/inspector split (lean): the character settings (style, checkpoint, PPV override, realism,
+  activity hours) moved from the left rail into a collapsible section of the right inspector; the
+  rail now holds character selection, fan and conversation lists.
+- Remaining: structured assistant proposals, full routing split.
+
 Progress log — 15 October 2026 (first slice):
 - Conversation state chip in the Chat heading: No chat selected / Generating reply (with seconds) /
   Waiting for reply (with seconds) / Active — derived from conversation, busy and pending replies.
