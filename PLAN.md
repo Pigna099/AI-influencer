@@ -744,6 +744,8 @@ Progress log — 15 October 2026 (second slice):
 - ETA on job progress: rate-based estimate shown for running jobs (Jobs page and LoRA training rows).
 - Large-grid virtualization: `content-visibility: auto` + intrinsic sizes on library/video/dataset/
   identity cards (offscreen cards skip rendering).
+- Video review filter (draft/approved/rejected) in the video toolbar (server-side), honored by
+  Load more.
 - First/last-frame support for LTX models: optional last-frame picker in the video form
   (`last_image_id`), `LTXVAddGuide` with `frame_idx=-1` in the graph (decoder/save nodes untouched),
   `last_frame` recorded in params; graph + API tests; live-verified with a real 84 s generation.

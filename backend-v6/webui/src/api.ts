@@ -682,10 +682,11 @@ export class ApiClient {
     return this.request("/api/settings/defaults", { method: "PUT", body: JSON.stringify(data) });
   }
 
-  async getVideos(characterId: string, params: { limit?: number; offset?: number } = {}): Promise<VideoClip[]> {
+  async getVideos(characterId: string, params: { limit?: number; offset?: number; review_status?: string } = {}): Promise<VideoClip[]> {
     const query = new URLSearchParams();
     if (params.limit != null) query.set("limit", String(params.limit));
     if (params.offset) query.set("offset", String(params.offset));
+    if (params.review_status) query.set("review_status", params.review_status);
     const suffix = query.toString() ? `?${query.toString()}` : "";
     return this.request(`/api/characters/${characterId}/videos${suffix}`);
   }

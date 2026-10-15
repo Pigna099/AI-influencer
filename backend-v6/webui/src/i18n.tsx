@@ -875,6 +875,8 @@ const en = {
   "vd.lastFrameNone": "None (first frame only)",
   "ip.emptyTrash": "Empty trash now",
   "ip.emptyTrashConfirm": "Permanently delete everything in the trash? This cannot be undone.",
+  "vd.reviewFilter": "Review filter",
+  "vd.reviewAll": "All review states",
 } as const;
 
 type Catalog = typeof en;

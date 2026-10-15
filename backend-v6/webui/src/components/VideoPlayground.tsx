@@ -127,6 +127,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   const [negative, setNegative] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [lastImageId, setLastImageId] = useState("");
+  const [reviewFilter, setReviewFilter] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [videosHasMore, setVideosHasMore] = useState(false);
   const VIDEOS_PAGE = 50;
@@ -142,7 +143,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   const load = useCallback(async (id: string) => {
     if (!id) { setVideos([]); setLibrary([]); setLoaded(true); return; }
     try {
-      const [clips, images] = await Promise.all([api.getVideos(id, { limit: VIDEOS_PAGE }), api.getLibrary(id, { limit: 200, status: "approved" })]);
+      const [clips, images] = await Promise.all([api.getVideos(id, { limit: VIDEOS_PAGE, review_status: reviewFilter || undefined }), api.getLibrary(id, { limit: 200, status: "approved" })]);
       setVideos(clips);
       setVideosHasMore(clips.length === VIDEOS_PAGE);
       setLibrary(images);
@@ -150,7 +151,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
     } finally {
       setLoaded(true);
     }
-  }, []);
+  }, [reviewFilter]);
 
   useEffect(() => {
     api.getDefaults()
@@ -223,7 +224,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   const loadMoreVideos = () => {
     if (!characterId) return;
     void (async () => {
-      const clips = await api.getVideos(characterId, { limit: VIDEOS_PAGE, offset: videos.length });
+      const clips = await api.getVideos(characterId, { limit: VIDEOS_PAGE, offset: videos.length, review_status: reviewFilter || undefined });
       setVideos(prev => [...prev, ...clips.filter(clip => !prev.some(entry => entry.id === clip.id))]);
       setVideosHasMore(clips.length === VIDEOS_PAGE);
     })();
@@ -296,7 +297,12 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
           eyebrow={characterId ? t("vd.subtitle") : t("ip.title")}
           title={characters.find(item => item.id === characterId)?.name || t("vd.selectCharacter")}
           subtitle={t("vd.subtitle")}
-          aside={<span className="library-count">{t("vd.count", { count: videos.length })}</span>}
+          aside={<div className="section-actions"><select className="saved-filter-select" value={reviewFilter} disabled={!!busy} onChange={e => setReviewFilter(e.target.value)} aria-label={t("vd.reviewFilter")}>
+            <option value="">{t("vd.reviewAll")}</option>
+            <option value="draft">{t("ip.statusDraft")}</option>
+            <option value="approved">{t("ip.statusApproved")}</option>
+            <option value="rejected">{t("ip.statusRejected")}</option>
+          </select><span className="library-count">{t("vd.count", { count: videos.length })}</span></div>}
         />
         <div className="library-scroll">
           <AsyncBoundary
