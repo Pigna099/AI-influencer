@@ -718,6 +718,7 @@ const en = {
   "form.provenance.original": "Original creation",
   "form.provenance.consented": "Consented likeness",
   "form.syntheticDeclaration": "This character is a fictional adult (21+) and its identity is declared as above. No real person's likeness is used without consent.",
+  "home.attention.incompleteCharacters": "{count} characters need policy details (adult age, declaration)",
 } as const;
 
 type Catalog = typeof en;

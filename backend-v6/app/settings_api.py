@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from .auth import authorize
 from .char_schemas import StrictModel
@@ -32,6 +32,9 @@ def get_overview():
             "jobs_running": count(TrainingJob, TrainingJob.status.in_(("queued", "running"))),
             "jobs_failed": count(TrainingJob, TrainingJob.status == "failed"),
             "loras_ready": count(CharacterLora, CharacterLora.status == "ready"),
+            "characters_incomplete": count(
+                Influencer, or_(Influencer.age.is_(None), Influencer.synthetic_declared.is_(False))
+            ),
         }
 
 

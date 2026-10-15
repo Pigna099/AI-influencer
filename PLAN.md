@@ -408,6 +408,8 @@ Progress log — 15 October 2026 (first slice):
 - Character editor UI: adult-age field, provenance select and the synthetic/consented-likeness
   declaration checkbox; `(copia)` clone suffix fixed to `(copy)`. Test added (age validation +
   update); live-verified (migration 0024 applied, characters expose the fields).
+- Home "Needs attention" now flags characters missing policy details (adult age / declaration) and
+  links to the editor; `/api/overview` exposes `characters_incomplete`.
 
 ### Character schema
 
