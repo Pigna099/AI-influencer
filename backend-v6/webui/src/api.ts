@@ -803,6 +803,17 @@ export class ApiClient {
     return this.request(`/api/library/${id}/restore`, { method: "POST" });
   }
 
+  getMetrics(): Promise<{
+    jobs: { by_state: Record<string, number>; by_type: Record<string, Record<string, number>>; avg_run_seconds: Record<string, number>; avg_queue_seconds: Record<string, number> };
+    library: { total: number; approved: number; draft: number; rejected: number; trashed: number; approval_rate: number };
+    videos: { total: number; draft: number; approved: number; rejected: number };
+    datasets: { count: number; selected_items: number };
+    identity: { runs: number; frozen: number };
+    characters: { total: number; with_ready_lora: number };
+  }> {
+    return this.request("/api/metrics");
+  }
+
   getCollections(): Promise<{ id: string; name: string; count: number }[]> {
     return this.request("/api/collections");
   }

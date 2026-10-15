@@ -406,3 +406,6 @@
 .errors-by-code li { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-2); border-radius: 8px; padding: 3px 8px; font-size: .7rem; background: var(--surface-2); }
 .errors-by-code code { color: #f5b6c1; }
 .errors-by-code b { color: #ccd9ef; }
+
+.metrics-strip { display: flex; flex-wrap: wrap; gap: 14px; font-size: .74rem; color: #9db2cf; margin-bottom: 10px; }
+.metrics-strip b { color: #cfe9e6; font-weight: 600; }

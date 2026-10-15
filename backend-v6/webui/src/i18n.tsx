@@ -807,6 +807,10 @@ const en = {
   "jobs.type.identity_run": "Identity set",
   "pg.editInCharacterTab": "Open in Character tab",
   "jobs.errorsByCode": "Recent failures by error code",
+  "jobs.metrics.active": "active",
+  "jobs.metrics.succeeded": "succeeded",
+  "jobs.metrics.failed": "failed",
+  "jobs.metrics.approval": "library approval rate",
 } as const;
 
 type Catalog = typeof en;

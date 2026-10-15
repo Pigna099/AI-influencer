@@ -82,6 +82,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
   const [error, setError] = useState("");
   const [reconcileReport, setReconcileReport] = useState<{ orphans: number; removed: number; freed_bytes: number; sample: string[] } | null>(null);
   const [errorsByCode, setErrorsByCode] = useState<{ code: string; count: number }[]>([]);
+  const [metrics, setMetrics] = useState<Awaited<ReturnType<typeof api.getMetrics>> | null>(null);
 
   const load = useCallback(async (offset = 0) => {
     const data = await api.getJobs({
@@ -107,6 +108,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     api.getCharacters().then(setCharacters).catch(() => undefined);
     api.getJobSummary().then(summary => setErrorsByCode(summary.errors_by_code ?? [])).catch(() => undefined);
+    api.getMetrics().then(setMetrics).catch(() => undefined);
   }, []);
 
   const reconcile = (deleteOrphans: boolean) => {
@@ -162,6 +164,13 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
             </select>
           </div>}
         />
+        {metrics && <div className="metrics-strip">
+          <span><b>{metrics.jobs.by_state.running + metrics.jobs.by_state.queued}</b> {t("jobs.metrics.active")}</span>
+          <span><b>{metrics.jobs.by_state.succeeded}</b> {t("jobs.metrics.succeeded")}</span>
+          <span><b>{metrics.jobs.by_state.failed}</b> {t("jobs.metrics.failed")}</span>
+          {Object.entries(metrics.jobs.avg_run_seconds).slice(0, 4).map(([type, seconds]) => <span key={type}>{t(`jobs.type.${type}` as "jobs.type.training")} ≈ {seconds}s</span>)}
+          <span><b>{Math.round(metrics.library.approval_rate * 100)}%</b> {t("jobs.metrics.approval")}</span>
+        </div>}
         {!!errorsByCode.length && <div className="errors-by-code">
           <small className="muted">{t("jobs.errorsByCode")}</small>
           <ul>{errorsByCode.map(entry => <li key={entry.code}><code>{entry.code}</code><b>{entry.count}</b></li>)}</ul>
