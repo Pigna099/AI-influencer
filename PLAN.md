@@ -507,6 +507,16 @@ The AI may rank candidates, but the operator must approve the canonical set.
 - `POST /api/identity-runs/{id}/regenerate`
 - `POST /api/identity-runs/{id}/freeze`
 
+Progress log — 15 October 2026 (slice 1):
+- Backend: versioned angle template (18 angles, template v1), `identity_runs` + `identity_candidates`
+  (migration `0026`), run creation via Qwen-Image-Edit with deterministic seed family and recorded
+  anchor hash/recipe, `PATCH` candidate review, `freeze` with balance check (6-10 accepted + required
+  roles, explicit override reason). Job type `identity_run` recorded. 4 tests.
+- UI: Identity set panel in the LoRA tab (generate, candidates grid with accept/reject/uncertain,
+  freeze + override reason); live-verified endpoints; real generation intentionally left to the user.
+- Remaining: candidate scoring (similarity/quality/angle accuracy), regenerate endpoint, anchor
+  overlay comparison.
+
 ### Acceptance criteria
 
 - Every candidate can be traced to anchor, template, model, seed, and recipe.

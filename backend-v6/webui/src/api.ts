@@ -226,6 +226,35 @@ export interface VideoClip {
 }
 
 
+export interface IdentityCandidate {
+  id: string;
+  run_id: string;
+  image_id: string | null;
+  angle: string;
+  seed: number;
+  prompt: string;
+  status: "draft" | "accepted" | "rejected" | "uncertain";
+  scores: Record<string, unknown>;
+  filename: string | null;
+  created_at: string;
+}
+
+export interface IdentityRun {
+  id: string;
+  character_id: string;
+  status: string;
+  template_version: string;
+  anchor_filename: string;
+  anchor_sha256: string;
+  model: string;
+  params: Record<string, unknown>;
+  override_reason: string;
+  frozen_at: string | null;
+  created_at: string;
+  finished_at: string | null;
+  candidates: IdentityCandidate[];
+}
+
 export interface ExecutionJob {
   id: string;
   type: string;
@@ -701,6 +730,30 @@ export class ApiClient {
 
   reconcileMedia(deleteOrphans = false): Promise<{ orphans: number; removed: number; freed_bytes: number; sample: string[] }> {
     return this.request(`/api/system/reconcile${deleteOrphans ? "?delete=true" : ""}`, { method: "POST" });
+  }
+
+  getIdentityTemplate(): Promise<{ version: string; angles: { key: string; prompt: string; role: string }[]; canonical_min: number; canonical_max: number; required_roles: string[] }> {
+    return this.request("/api/identity-template");
+  }
+
+  getIdentityRuns(characterId: string, limit = 20): Promise<IdentityRun[]> {
+    return this.request(`/api/characters/${characterId}/identity-runs?limit=${limit}`);
+  }
+
+  getIdentityRun(runId: string): Promise<IdentityRun> {
+    return this.request(`/api/identity-runs/${runId}`);
+  }
+
+  createIdentityRun(characterId: string, data: { angles?: string[]; per_angle?: number; seed?: number } = {}): Promise<IdentityRun> {
+    return this.request(`/api/characters/${characterId}/identity-runs`, { method: "POST", body: JSON.stringify(data) });
+  }
+
+  patchIdentityCandidate(candidateId: string, status: "draft" | "accepted" | "rejected" | "uncertain"): Promise<IdentityCandidate> {
+    return this.request(`/api/identity-candidates/${candidateId}`, { method: "PATCH", body: JSON.stringify({ status }) });
+  }
+
+  freezeIdentityRun(runId: string, overrideReason = ""): Promise<IdentityRun> {
+    return this.request(`/api/identity-runs/${runId}/freeze`, { method: "POST", body: JSON.stringify({ override_reason: overrideReason }) });
   }
 
   getOverview(): Promise<{ characters: number; draft_images: number; draft_videos: number; jobs_running: number; jobs_failed: number; loras_ready: number; characters_incomplete: number }> {

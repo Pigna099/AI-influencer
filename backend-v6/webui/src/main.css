@@ -338,3 +338,14 @@
 
 .policy-declaration { font-size: .74rem; color: #a8bcd6; line-height: 1.5; align-items: flex-start; }
 .policy-declaration input { margin-top: 2px; }
+
+.identity-panel { margin-top: 16px; display: grid; gap: 10px; }
+.identity-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+.identity-card { border: 1px solid var(--border-2); border-radius: 10px; padding: 8px; display: grid; gap: 6px; background: var(--surface-2); }
+.identity-card.status-accepted { border-color: #2f6b58; }
+.identity-card.status-rejected { opacity: .55; }
+.identity-card small { color: #7f95b2; font-size: .64rem; }
+.identity-thumb { padding: 0; border: 0; background: #0b1423; border-radius: 8px; overflow: hidden; aspect-ratio: 1; display: grid; place-items: center; }
+.identity-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
+.identity-override { font-size: .72rem; color: #8ba0bd; }
+.identity-override input { margin-top: 4px; font-size: .78rem; }

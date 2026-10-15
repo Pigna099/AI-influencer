@@ -11,6 +11,7 @@ import DatasetPanel from "./DatasetPanel";
 import StatusBadge from "./ui/StatusBadge";
 import JobProgress from "./ui/JobProgress";
 import DangerZone from "./ui/DangerZone";
+import IdentityPanel from "./ui/IdentityPanel";
 import PageHeader from "./ui/PageHeader";
 import Lightbox from "./Lightbox";
 
@@ -356,6 +357,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
                   <input value={avatarPrompt} disabled={!!busy} onChange={e => setAvatarPrompt(e.target.value)} placeholder={t("lp.avatarEditPlaceholder")} maxLength={1000} />
                   <button disabled={!!busy || !avatarPrompt.trim()} onClick={editAvatar}>{t("lp.avatarEdit")}</button>
                 </div>}
+                <IdentityPanel character={character} busy={!!busy} perform={perform} onView={(url, alt) => setViewer({ url, alt })} onError={setError} />
                 <DangerZone title={t("lp.dangerTitle")} hint={t("lp.dangerHint")}>
                   <button className="danger" disabled={!!busy} onClick={removeCharacter}>{t("common.delete")}</button>
                 </DangerZone>
