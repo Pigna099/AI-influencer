@@ -82,3 +82,42 @@ def test_chat_video_no_clips_falls_back(monkeypatch):
     messages = client.get(f"/api/conversations/{conversation['id']}/messages").json()
     assistant = [message for message in messages if message["role"] == "assistant"][-1]
     assert assistant["videos"] == []
+
+def test_manual_video_from_library(monkeypatch):
+    from app.db import Session, VideoClip
+
+    character_id = client.post("/api/characters", json={"name": "Manual Video", "profile": PROFILE}).json()["id"]
+    images = client.post(
+        f"/api/characters/{character_id}/library/generate", json={"prompt": "x", "count": 1}
+    ).json()
+    clip = client.post(
+        f"/api/characters/{character_id}/videos",
+        json={"prompt": "x", "image_id": images[0]["id"], "length": 49},
+    ).json()
+    client.patch(f"/api/videos/{clip['id']}", json={"review_status": "approved"})
+    conversation = client.post(
+        f"/api/characters/{character_id}/conversations",
+        json={"fan_id": client.post("/api/fans", json={"name": "Video Fan"}).json()["id"], "model": "test-model"},
+    ).json()
+
+    sent = client.post(
+        f"/api/conversations/{conversation['id']}/video",
+        json={"video_id": clip["id"], "caption": "Guarda che clip 😏", "locked": True, "price_cents": 400},
+    )
+    assert sent.status_code == 201, sent.text
+    body = sent.json()
+    assert body["content"] == "Guarda che clip 😏"
+    assert body["videos"][0]["price_cents"] == 400
+    assert body["ollama_metrics"]["video_sent"] is True
+
+    unlock = client.post(f"/api/chat-videos/{body['videos'][0]['id']}/unlock")
+    assert unlock.status_code == 200
+
+    other = client.post("/api/characters", json={"name": "Other", "profile": {"description": "x"}}).json()
+    other_conv = client.post(
+        f"/api/characters/{other['id']}/conversations",
+        json={"fan_id": client.post("/api/fans", json={"name": "Other Fan"}).json()["id"], "model": "test-model"},
+    ).json()
+    assert client.post(
+        f"/api/conversations/{other_conv['id']}/video", json={"video_id": clip["id"]}
+    ).status_code == 404

@@ -782,6 +782,9 @@ Progress log — 15 October 2026 (second slice):
   integration tests added.
 - Follow-up scheduling from proposals: `[FOLLOWUP: 3h]` (15m-72h) schedules one re-engage via the
   scheduler; shown as a chip in the transcript. Parsing + scheduling tests added.
+- Asset composer completed: the chat can also send a reviewed library video
+  (`POST /api/conversations/{id}/video`, approved clips only, optional PPV price) with a picker modal;
+  test added.
 - Remaining: full routing split.
 
 Progress log — 15 October 2026 (first slice):

@@ -906,6 +906,10 @@ export class ApiClient {
     return this.request(`/api/dataset/images/${id}`, { method: "DELETE" });
   }
 
+  async sendVideo(conversationId: string, data: {video_id: string; caption?: string; locked?: boolean; price_cents?: number}): Promise<Message> {
+    return this.request(`/api/conversations/${conversationId}/video`, { method: "POST", body: JSON.stringify(data) });
+  }
+
   async sendPhoto(conversationId: string, data: {scene?: string; caption?: string; locked?: boolean; price_cents?: number; library_id?: string}): Promise<Message> {
     return this.request(`/api/conversations/${conversationId}/photo`, {
       method: "POST",

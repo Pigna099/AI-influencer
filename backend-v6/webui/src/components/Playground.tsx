@@ -43,6 +43,26 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
   const [photoCaption, setPhotoCaption] = useState("");
   const [photoLocked, setPhotoLocked] = useState(false);
   const [photoLibraryId, setPhotoLibraryId] = useState("");
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [videoId, setVideoId] = useState("");
+  const [videoCaption, setVideoCaption] = useState("");
+  const [videoLocked, setVideoLocked] = useState(false);
+  const [videoPrice, setVideoPrice] = useState("5.00");
+  const [videoClips, setVideoClips] = useState<{ id: string; prompt: string; review_status?: string }[]>([]);
+
+  useEffect(() => {
+    if (!videoOpen || !characterId) return;
+    let live = true;
+    api.getVideos(characterId, { limit: 100 })
+      .then(clips => {
+        if (!live) return;
+        const approved = clips.filter(clip => clip.review_status === "approved");
+        setVideoClips(approved);
+        setVideoId(approved[0]?.id || "");
+      })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, [videoOpen, characterId]);
   const [photoLibrary, setPhotoLibrary] = useState<{ id: string; caption?: string; prompt?: string; filename: string }[]>([]);
 
   useEffect(() => {
@@ -342,7 +362,7 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
             <div className="quick-actions">
               <button disabled={!!busy} onClick={() => void initiate("opener")} title={t("pg.quick.openTitle")}>{t("pg.quick.open")}</button>
               <button disabled={!!busy} onClick={() => void initiate("reengage")} title={t("pg.quick.checkinTitle")}>{t("pg.quick.checkin")}</button>
-              <button disabled={!!busy} title={t("pg.manualPhotoTitle")} onClick={() => { setPhotoScene(""); setPhotoCaption(""); setPhotoLocked(false); setPhotoPrice((((character?.ppv_price_cents ?? 500) / 100)).toFixed(2)); setPhotoOpen(true); }}>{t("pg.manualPhoto")}</button>
+              <button disabled={!!busy} title={t("pg.manualPhotoTitle")} onClick={() => { setPhotoScene(""); setPhotoCaption(""); setPhotoLocked(false); setPhotoPrice((((character?.ppv_price_cents ?? 500) / 100)).toFixed(2)); setPhotoOpen(true); }}>{t("pg.manualPhoto")}</button><button disabled={!!busy} title={t("pg.manualVideoTitle")} onClick={() => { setVideoCaption(""); setVideoLocked(false); setVideoPrice((((conversation?.ppv_price_cents ?? character?.ppv_price_cents ?? 500) / 100)).toFixed(2)); setVideoOpen(true); }}>{t("pg.manualVideo")}</button>
               <label className="toggle-pill" title={t("pg.autoPhotoTitle")}><input type="checkbox" checked={conversation.images_enabled !== false} disabled={!!busy} onChange={e => void perform(t("pg.busy.images"), async () => {
                 const updated = await api.updateConversation(conversation.id, { images_enabled: e.target.checked });
                 setConversation(updated);
@@ -435,6 +455,13 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
       await api.sendPhoto(conversation.id, { scene, caption, locked: photoLocked, price_cents: photoLocked ? Math.round(Number(photoPrice || "0") * 100) : undefined, library_id: photoLibraryId || undefined });
       await refresh(conversation.id);
     }); }}><h2>{t("pg.photo.title")}</h2><p className="muted">{t("pg.photo.note", { reference: character?.avatar_filename ? t("pg.photo.reference") : "" })}</p><label>{t("pg.photo.fromLibrary")}<select value={photoLibraryId} disabled={!!busy} onChange={e => setPhotoLibraryId(e.target.value)}><option value="">{t("pg.photo.newPhoto")}</option>{photoLibrary.map(image => <option key={image.id} value={image.id}>{(image.caption || image.prompt || image.filename).slice(0, 60)}</option>)}</select></label><label>{t("pg.photo.scene")}<textarea autoFocus rows={3} value={photoScene} disabled={!!photoLibraryId} onChange={e => setPhotoScene(e.target.value)} maxLength={1500} placeholder={t("pg.photo.scenePlaceholder")} /></label><label>{t("pg.photo.caption")}<input value={photoCaption} onChange={e => setPhotoCaption(e.target.value)} maxLength={1000} placeholder={t("pg.photo.captionPlaceholder")} /></label><div className="photo-ppv"><label className="auto-label">{t("pg.photo.locked")} <input type="checkbox" checked={photoLocked} disabled={!!busy} onChange={e => setPhotoLocked(e.target.checked)} /></label><label className="ppv-price">€<input type="number" min="0" max="1000" step="0.5" value={photoPrice} disabled={!!busy || !photoLocked} onChange={e => setPhotoPrice(e.target.value)} /></label></div><div className="modal-actions">{busy && <button type="button" className="danger" onClick={() => void api.interruptGeneration()}>{t("pg.photo.cancelGenerate")}</button>}<button type="button" onClick={() => setPhotoOpen(false)} disabled={!!busy}>{t("common.cancel")}</button><button className="primary" disabled={!!busy}>{t("pg.photo.generate")}</button></div></form></div>}
+    {videoOpen && conversation && <div className="modal-backdrop"><form className="modal fan-editor photo-editor" role="dialog" aria-modal="true" aria-label={t("pg.manualVideoTitle")} onSubmit={e => { e.preventDefault(); if (!videoId) return; setVideoOpen(false); void perform(t("pg.busy.photo"), async () => {
+      await api.sendVideo(conversation.id, { video_id: videoId, caption: videoCaption.trim() || undefined, locked: videoLocked, price_cents: videoLocked ? Math.round(Number(videoPrice || "0") * 100) : undefined });
+      await refresh(conversation.id);
+    }); }}><h2>{t("pg.manualVideoTitle")}</h2><label>{t("pg.videoPick")}<select value={videoId} disabled={!!busy || !videoClips.length} onChange={e => setVideoId(e.target.value)}>
+      {!videoClips.length && <option value="">{t("pg.videoNoneApproved")}</option>}
+      {videoClips.map(clip => <option key={clip.id} value={clip.id}>{(clip.prompt || clip.id).slice(0, 70)}</option>)}
+    </select></label><label>{t("pg.photo.caption")}<input value={videoCaption} onChange={e => setVideoCaption(e.target.value)} maxLength={1000} /></label><div className="photo-ppv"><label className="auto-label">{t("pg.photo.locked")} <input type="checkbox" checked={videoLocked} disabled={!!busy} onChange={e => setVideoLocked(e.target.checked)} /></label><label className="ppv-price">€<input type="number" min="0" max="1000" step="0.5" value={videoPrice} disabled={!!busy || !videoLocked} onChange={e => setVideoPrice(e.target.value)} /></label></div><div className="modal-actions"><button type="button" onClick={() => setVideoOpen(false)} disabled={!!busy}>{t("common.cancel")}</button><button className="primary" disabled={!!busy || !videoId}>{t("pg.videoSend")}</button></div></form></div>}
     {fanEditor && <div className="modal-backdrop"><form className="modal fan-editor" role="dialog" aria-modal="true" aria-label={t("pg.fanAccount")} onSubmit={e => { e.preventDefault(); void perform(t("pg.busy.saveFan"), async () => {
       const saved = await api.request<Fan>(fanEditor === "new" ? "/api/fans" : `/api/fans/${fanEditor.id}`, { method: fanEditor === "new" ? "POST" : "PUT", body: JSON.stringify({ name: fanName, notes: fanNotes }) });
       setFans(prev => [...prev.filter(f => f.id !== saved.id), saved]); setFanId(saved.id); setFanEditor(null);

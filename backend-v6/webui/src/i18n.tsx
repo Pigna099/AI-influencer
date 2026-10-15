@@ -855,6 +855,11 @@ const en = {
   "chat.proposal.video": "video",
   "chat.proposal.locked": "locked",
   "chat.followup": "Follow-up in {hours}h",
+  "pg.manualVideo": "Send video",
+  "pg.manualVideoTitle": "Send a reviewed video from the library",
+  "pg.videoPick": "Video clip",
+  "pg.videoNoneApproved": "No approved videos yet",
+  "pg.videoSend": "Send video",
 } as const;
 
 type Catalog = typeof en;

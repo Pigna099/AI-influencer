@@ -32,6 +32,7 @@ from .char_schemas import (
     CharacterProfile,
     CharacterUpdate,
     ChatMessageInput,
+    ChatVideoInput,
     CollectionInput,
     CollectionItemsInput,
     ConversationInput,
@@ -1552,6 +1553,75 @@ def run_turn(
             return last
     except OllamaNotAvailable as error:
         raise HTTPException(503, str(error)) from error
+    finally:
+        with Session.begin() as db:
+            db.execute(
+                update(Conversation)
+                .where(Conversation.id == conversation_id, Conversation.busy_until == lease)
+                .values(busy_until=None)
+            )
+
+
+@router.post("/conversations/{conversation_id}/video", status_code=201)
+def send_video(conversation_id: str, body: ChatVideoInput):
+    """Manual video: send a reviewed library clip to the fan without asking the chat model."""
+    if not settings.chat_video_enabled:
+        raise HTTPException(409, "Chat videos are disabled")
+    lease = now() + timedelta(seconds=settings.generation_timeout + 60)
+    with Session.begin() as db:
+        changed = db.execute(
+            update(Conversation)
+            .where(
+                Conversation.id == conversation_id,
+                or_(Conversation.busy_until.is_(None), Conversation.busy_until < now()),
+            )
+            .values(busy_until=lease)
+        )
+        if changed.rowcount != 1:
+            raise HTTPException(409, "The character is already replying in this conversation")
+        conv = required(db, Conversation, conversation_id)
+        character = required(db, Influencer, conv.character_id)
+        clip = required(db, VideoClip, body.video_id)
+        if clip.character_id != conv.character_id:
+            raise HTTPException(404, "Video unavailable")
+        if clip.status != "ready":
+            raise HTTPException(409, "The video is not ready yet")
+        _ppv_on, ppv_price = effective_ppv(conv, character)
+        locked_price = 0
+        if body.locked and settings.ppv_enabled:
+            locked_price = body.price_cents or ppv_price or 500
+        caption = (body.caption or clip.prompt or "guarda qua 😏").strip()[:1000]
+    try:
+        with Session.begin() as db:
+            current = required(db, Conversation, conversation_id)
+            message = ChatMessage(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=caption,
+                model=conv.model,
+                ollama_metrics={
+                    "kind": "video",
+                    "manual": True,
+                    "video_sent": True,
+                    "video_locked": locked_price > 0,
+                    "video_price_cents": locked_price,
+                },
+            )
+            db.add(message)
+            db.flush()
+            db.add(
+                ChatVideo(
+                    message_id=message.id,
+                    conversation_id=conversation_id,
+                    character_id=conv.character_id,
+                    video_id=clip.id,
+                    prompt=clip.prompt or "",
+                    price_cents=locked_price,
+                )
+            )
+            current.updated_at = now()
+            db.flush()
+            return messages_out(db, [message])[0]
     finally:
         with Session.begin() as db:
             db.execute(

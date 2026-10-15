@@ -148,6 +148,13 @@ class RealismInput(StrictModel):
         return sorted(set(value))
 
 
+class ChatVideoInput(StrictModel):
+    video_id: str = Field(min_length=1, max_length=36)
+    caption: str | None = Field(default=None, max_length=1000)
+    locked: bool = False
+    price_cents: int | None = Field(default=None, ge=0, le=100000)
+
+
 class PhotoInput(StrictModel):
     scene: str | None = Field(default=None, max_length=1500)
     caption: str | None = Field(default=None, max_length=1000)
