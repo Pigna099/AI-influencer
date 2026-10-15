@@ -370,6 +370,16 @@ I test automatici usano un database temporaneo SQLite con chiavi esterne attive.
 - **Chat**: le impostazioni del personaggio (stile, checkpoint, PPV, tempi, attivita') sono
   nell'inspector di destra; il rail resta per personaggi, fan e conversazioni.
 
+## Novita del 15 ottobre 2026 (notte)
+
+- **Proposte strutturate in chat**: il modello puo proporre un **prezzo** per la foto PPV
+  (`[PPV: price=12.50; <prompt>]`), registrato nei metriche del messaggio e mostrato come chip
+  ("Proposal: photo · locked · €12.50").
+- **Follow-up programmato dal modello**: `[FOLLOWUP: 3h]` (15 minuti - 72 ore) crea un re-engage
+  automatico via scheduler; chip "Follow-up in 3h" nella trascrizione.
+- **Asset composer completo**: dalla chat puoi inviare una **foto approvata** o un **video approvato**
+  della libreria (con prezzo PPV opzionale); per i video il picker mostra solo le clip revisionate.
+
 ## Limiti attuali
 
 Il playground usa una chiave condivisa per il proprietario: i fan sono identità simulate, non utenti autenticati reali. L'estrazione memoria è un'attività in background non persistente: se l'API si arresta durante l'estrazione, la risposta salvata resta disponibile ma il ricordo potrebbe dover essere aggiunto manualmente. Le varianti di personalità del confronto non vengono salvate come personaggi: sono temporanee e servono a decidere cosa applicare con l'editor o con **Duplica**. Non sono implementati invio su OnlyFans/Fanvue, pagamenti, campagne o notifiche esterne. La pipeline immagini preesistente resta disponibile, ma non è il focus della v3.
