@@ -789,7 +789,7 @@ export class ApiClient {
     return this.request("/api/overview");
   }
 
-  patchVideo(id: string, data: { review_status: "draft" | "approved" | "rejected" }): Promise<VideoClip> {
+  patchVideo(id: string, data: { review_status: "draft" | "approved" | "rejected"; content_label?: "sfw" | "suggestive" | "explicit" }): Promise<VideoClip> {
     return this.request(`/api/videos/${id}`, { method: "PATCH", body: JSON.stringify(data) });
   }
 

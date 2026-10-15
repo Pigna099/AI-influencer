@@ -419,3 +419,5 @@
 
 .review-label { font-size: .72rem; color: #9db2cf; display: inline-flex; align-items: center; gap: 6px; }
 .review-label select { width: auto; font-size: .72rem; padding: .2rem .35rem; }
+
+.video-label-select { width: auto; font-size: .66rem; padding: .2rem .3rem; }

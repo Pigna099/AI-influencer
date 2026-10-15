@@ -13,7 +13,7 @@ function VideoCard({ item, sourceImage, busy, onDelete, onReview, onError }: {
   sourceImage: LibraryImage | undefined;
   busy: boolean;
   onDelete: (item: VideoClip) => void;
-  onReview: (item: VideoClip, review: "draft" | "approved" | "rejected") => void;
+  onReview: (item: VideoClip, review: "draft" | "approved" | "rejected", label?: "sfw" | "suggestive" | "explicit") => void;
   onError: (message: string) => void;
 }) {
   const { t } = useI18n();
@@ -81,6 +81,11 @@ function VideoCard({ item, sourceImage, busy, onDelete, onReview, onError }: {
         <StatusBadge status={item.review_status} label={t(`ip.status${item.review_status === "draft" ? "Draft" : item.review_status === "approved" ? "Approved" : "Rejected"}`)} />
         <button disabled={busy} onClick={() => onReview(item, item.review_status === "approved" ? "draft" : "approved")}>{t("ip.approve")}</button>
         <button disabled={busy} onClick={() => onReview(item, item.review_status === "rejected" ? "draft" : "rejected")}>{t("ip.reject")}</button>
+        <select className="video-label-select" value={item.content_label || "suggestive"} disabled={busy} onChange={e => onReview(item, item.review_status as "draft" | "approved" | "rejected", e.target.value as "sfw" | "suggestive" | "explicit")} aria-label={t("ip.contentLabel")}>
+          <option value="sfw">{t("ip.label.sfw")}</option>
+          <option value="suggestive">{t("ip.label.suggestive")}</option>
+          <option value="explicit">{t("ip.label.explicit")}</option>
+        </select>
         <button className="danger" disabled={busy} onClick={() => onDelete(item)}>{t("common.delete")}</button>
       </div>
     </div>
@@ -252,10 +257,10 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
     })();
   };
 
-  const reviewVideo = (item: VideoClip, review: "draft" | "approved" | "rejected") => {
+  const reviewVideo = (item: VideoClip, review: "draft" | "approved" | "rejected", label?: "sfw" | "suggestive" | "explicit") => {
     void (async () => {
       try {
-        const updated = await api.patchVideo(item.id, { review_status: review });
+        const updated = await api.patchVideo(item.id, label ? { review_status: review, content_label: label } : { review_status: review });
         setVideos(prev => prev.map(clip => clip.id === updated.id ? updated : clip));
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
