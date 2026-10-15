@@ -25,6 +25,7 @@ STALE_AFTER_SECONDS = {
     "dataset_import": 1800,
     "dataset_classify": 900,
     "consistency_check": 600,
+    "identity_run": 1800,
     "pose_extract": 300,
     "avatar": 900,
 }

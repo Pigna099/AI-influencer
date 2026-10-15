@@ -15,6 +15,7 @@ from .consistency_api import router as consistency_router
 from .dataset_api import router as dataset_router
 from .db import Asset, BibleVersion, Influencer, Job, Review, Session
 from .i18n import translate_detail
+from .identity_api import router as identity_router
 from .integrations.comfyui import free_memory
 from .integrations.ollama import unload_models
 from .jobs_api import router as jobs_router
@@ -263,6 +264,7 @@ app.include_router(video_router)
 app.include_router(settings_router)
 app.include_router(consistency_router)
 app.include_router(jobs_router)
+app.include_router(identity_router)
 
 
 @app.get("/{spa_path:path}", response_class=HTMLResponse, include_in_schema=False, dependencies=[])

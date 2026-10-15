@@ -428,6 +428,35 @@ class JobEvent(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now)
 
 
+class IdentityRun(Base):
+    __tablename__ = "identity_runs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    character_id: Mapped[str] = mapped_column(ForeignKey("influencers.id"), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="running", server_default="running", index=True)
+    template_version: Mapped[str] = mapped_column(String(16), default="1", server_default="1")
+    anchor_filename: Mapped[str] = mapped_column(String(160), default="", server_default="")
+    anchor_sha256: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    model: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    params: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    override_reason: Mapped[str] = mapped_column(Text, default="", server_default="")
+    frozen_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now)
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+
+
+class IdentityCandidate(Base):
+    __tablename__ = "identity_candidates"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    run_id: Mapped[str] = mapped_column(ForeignKey("identity_runs.id"), index=True)
+    image_id: Mapped[str | None] = mapped_column(ForeignKey("image_library.id"), nullable=True)
+    angle: Mapped[str] = mapped_column(String(40), index=True)
+    seed: Mapped[int] = mapped_column(Integer, default=0)
+    prompt: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(16), default="draft", server_default="draft", index=True)
+    scores: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now)
+
+
 class GenerationPreset(Base):
     __tablename__ = "generation_presets"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
