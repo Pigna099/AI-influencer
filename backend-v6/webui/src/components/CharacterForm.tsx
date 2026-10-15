@@ -13,7 +13,7 @@ const fields: [keyof CharacterProfile, TranslationKey, number][] = [
   ["relationship_style", "form.field.relationship_style", 1000], ["boundaries", "form.field.boundaries", 2000], ["custom_instructions", "form.field.custom_instructions", 5000],
 ];
 
-export default function CharacterForm({ character, models, onSave, onCancel }: { character?: Character; models: OllamaModel[]; onSave: (data: {name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string; source_category?: string; rights_notes?: string; permitted_uses?: string; lifecycle_state?: string; platform_policy?: {platforms: Record<string, {ai_disclosure: boolean; terms_reviewed: boolean; content_rules_ok: boolean}>}}) => Promise<void>; onCancel: () => void }) {
+export default function CharacterForm({ character, models, onSave, onCancel }: { character?: Character; models: OllamaModel[]; onSave: (data: {name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string; source_category?: string; rights_notes?: string; permitted_uses?: string; lifecycle_state?: string; platform_policy?: {platforms: Record<string, {ai_disclosure: boolean; terms_reviewed: boolean; content_rules_ok: boolean}>}; ppv_enabled?: boolean; ppv_price_cents?: number}) => Promise<void>; onCancel: () => void }) {
   const { t } = useI18n();
   const [available, setAvailable] = useState<OllamaModel[]>(() => chatModels(models));
   const [name, setName] = useState(character?.name || "");
@@ -24,6 +24,8 @@ export default function CharacterForm({ character, models, onSave, onCancel }: {
   const [rightsNotes, setRightsNotes] = useState(character?.rights_notes || "");
   const [permittedUses, setPermittedUses] = useState(character?.permitted_uses || "");
   const [lifecycle, setLifecycle] = useState(character?.lifecycle_state || "active");
+  const [ppvEnabled, setPpvEnabled] = useState(character?.ppv_enabled ?? false);
+  const [ppvPrice, setPpvPrice] = useState(String(((character?.ppv_price_cents ?? 500) / 100).toFixed(2)));
   const [platformPolicy, setPlatformPolicy] = useState<Record<string, { ai_disclosure: boolean; terms_reviewed: boolean; content_rules_ok: boolean }>>(
     () => (character?.platform_policy?.platforms as Record<string, { ai_disclosure: boolean; terms_reviewed: boolean; content_rules_ok: boolean }>) || {},
   );
@@ -64,7 +66,7 @@ export default function CharacterForm({ character, models, onSave, onCancel }: {
     catch (e) { setError(e instanceof Error ? e.message : t("form.enhance.error")); } finally { setBusy(""); }
   };
   return <div className="character-editor"><header><div><span className="eyebrow">PERSONALITY</span><h2>{character ? t("form.title.edit", { name: character.name }) : t("form.title.new")}</h2></div><button onClick={onCancel} disabled={!!busy} aria-label={t("common.close")}>×</button></header>
-    <form onSubmit={async e => { e.preventDefault(); setBusy(t("form.saving")); setError(""); try { await onSave({ name, profile, age: age.trim() ? Number(age) : null, synthetic_declared: synthetic, provenance, source_category: sourceCategory, rights_notes: rightsNotes, permitted_uses: permittedUses, lifecycle_state: lifecycle, platform_policy: { platforms: platformPolicy } }); } catch (err) { setError(String(err)); } finally { setBusy(""); } }}>
+    <form onSubmit={async e => { e.preventDefault(); setBusy(t("form.saving")); setError(""); try { await onSave({ name, profile, age: age.trim() ? Number(age) : null, synthetic_declared: synthetic, provenance, source_category: sourceCategory, rights_notes: rightsNotes, permitted_uses: permittedUses, lifecycle_state: lifecycle, platform_policy: { platforms: platformPolicy }, ppv_enabled: ppvEnabled, ppv_price_cents: Math.round(Number(ppvPrice || "0") * 100) }); } catch (err) { setError(String(err)); } finally { setBusy(""); } }}>
       <fieldset disabled={!!busy}><div className="editor-identity"><label>{t("form.name")}<input autoFocus value={name} onChange={e => setName(e.target.value)} required maxLength={120} /></label><label>{t("form.language")}<select value={profile.language} onChange={e => setProfile(p => ({ ...p, language: e.target.value }))}><option value="it">Italiano</option><option value="en">English</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="es">Español</option></select></label></div>
         <div className="editor-identity">
           <label>{t("form.age")}<input type="number" min={21} max={99} value={age} onChange={e => setAge(e.target.value)} placeholder="21+" /></label>
@@ -93,6 +95,13 @@ export default function CharacterForm({ character, models, onSave, onCancel }: {
           <label>{t("form.rightsNotes")}<textarea rows={2} value={rightsNotes} onChange={e => setRightsNotes(e.target.value)} maxLength={4000} /></label>
           <label>{t("form.permittedUses")}<input value={permittedUses} onChange={e => setPermittedUses(e.target.value)} maxLength={300} /></label>
         </div>
+        <fieldset className="platform-policy">
+          <legend>{t("form.monetization")}</legend>
+          <div className="platform-row">
+            <label className="auto-label"><input type="checkbox" checked={ppvEnabled} onChange={e => setPpvEnabled(e.target.checked)} /> {t("form.ppvEnabled")}</label>
+            <label className="ppv-price">{t("form.ppvPrice")} €<input type="number" min="0" max="1000" step="0.5" value={ppvPrice} disabled={!ppvEnabled} onChange={e => setPpvPrice(e.target.value)} /></label>
+          </div>
+        </fieldset>
         <fieldset className="platform-policy">
           <legend>{t("form.platformPolicy")}</legend>
           <p className="muted">{t("form.platformPolicyHint")}</p>

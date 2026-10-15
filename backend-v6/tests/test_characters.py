@@ -676,3 +676,23 @@ def test_platform_policy_checklists():
     assert updated.status_code == 200
     assert updated.json()["platform_policy"]["platforms"]["instagram"]["content_rules_ok"] is True
     assert "fanvue" not in updated.json()["platform_policy"]["platforms"]
+
+def test_conversation_ppv_override():
+    character = client.post("/api/characters", json={"name": "PPV Override", "profile": {"description": "x"}}).json()
+    fan = client.post("/api/fans", json={"name": "PPV Fan"}).json()
+    conversation = client.post(
+        f"/api/characters/{character['id']}/conversations",
+        json={"fan_id": fan["id"], "model": "test-model"},
+    ).json()
+    assert conversation["ppv_enabled"] is None and conversation["ppv_price_cents"] is None
+
+    updated = client.patch(
+        f"/api/conversations/{conversation['id']}",
+        json={"ppv_enabled": True, "ppv_price_cents": 1200},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["ppv_enabled"] is True and updated.json()["ppv_price_cents"] == 1200
+
+    cleared = client.patch(f"/api/conversations/{conversation['id']}", json={"ppv_enabled": None, "ppv_price_cents": None})
+    assert cleared.status_code == 200
+    assert cleared.json()["ppv_enabled"] is None and cleared.json()["ppv_price_cents"] is None

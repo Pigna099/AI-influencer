@@ -131,6 +131,8 @@ class Conversation(Base):
     memory_status: Mapped[str] = mapped_column(String(24), default="idle", server_default="idle")
     images_enabled: Mapped[bool] = mapped_column(default=True, server_default="1")
     human_mode: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    ppv_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    ppv_price_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_read_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     character_id: Mapped[str] = mapped_column(ForeignKey("influencers.id"))

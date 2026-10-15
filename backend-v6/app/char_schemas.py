@@ -51,6 +51,8 @@ class CharacterInput(StrictModel):
     source_reference: str = Field(default="", max_length=500)
     permitted_uses: str = Field(default="", max_length=300)
     lifecycle_state: Literal["draft", "active", "retired"] = "active"
+    ppv_enabled: bool = False
+    ppv_price_cents: int = Field(default=500, ge=0, le=100000)
 
 
 class CharacterOutput(StrictModel):
@@ -200,6 +202,8 @@ class CharacterUpdate(StrictModel):
     source_reference: str | None = Field(default=None, max_length=500)
     permitted_uses: str | None = Field(default=None, max_length=300)
     lifecycle_state: Literal["draft", "active", "retired"] | None = None
+    ppv_enabled: bool | None = None
+    ppv_price_cents: int | None = Field(default=None, ge=0, le=100000)
 
 
 class CharacterClone(StrictModel):
@@ -235,6 +239,8 @@ class ConversationPatch(StrictModel):
     model: str | None = Field(default=None, min_length=1, max_length=120)
     images_enabled: bool | None = None
     human_mode: bool | None = None
+    ppv_enabled: bool | None = None
+    ppv_price_cents: int | None = Field(default=None, ge=0, le=100000)
 
 
 class InitiateInput(StrictModel):

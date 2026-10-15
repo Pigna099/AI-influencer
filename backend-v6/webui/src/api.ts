@@ -70,6 +70,8 @@ export interface Character {
 export interface Conversation {
   fan_id?: string | null;
   memory_status?: string;
+  ppv_enabled?: boolean | null;
+  ppv_price_cents?: number | null;
   images_enabled?: boolean;
   human_mode?: boolean;
   greeting_error?: string;

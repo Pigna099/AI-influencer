@@ -839,6 +839,15 @@ const en = {
   "form.platform.terms": "Terms reviewed",
   "form.platform.rules": "Content rules ok",
   "form.platform.warning": "One or more platforms are missing the AI disclosure: do not publish there until it is set.",
+  "form.monetization": "Monetization (defaults)",
+  "form.ppvEnabled": "PPV enabled by default",
+  "form.ppvPrice": "Price",
+  "pg.ppvOverride": "PPV for this chat",
+  "pg.ppvDefault": "Character default ({state}, \u20ac{price})",
+  "pg.ppvOn": "On",
+  "pg.ppvOff": "Off",
+  "pg.ppvReset": "Clear price override",
+  "pg.ppvDefaultsInEditor": "PPV defaults are set in the character editor (LoRA tab).",
 } as const;
 
 type Catalog = typeof en;

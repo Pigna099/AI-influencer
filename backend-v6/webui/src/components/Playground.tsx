@@ -248,17 +248,17 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
     return () => window.clearTimeout(timeout);
   }, [autoNudge, conversation, busy, lastActivity, initiate, tab]);
 
-  const saveCharacter = async (data: { name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string; source_category?: string; rights_notes?: string; permitted_uses?: string; lifecycle_state?: string; platform_policy?: {platforms: Record<string, {ai_disclosure: boolean; terms_reviewed: boolean; content_rules_ok: boolean}>} }) => {
+  const saveCharacter = async (data: { name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string; source_category?: string; rights_notes?: string; permitted_uses?: string; lifecycle_state?: string; platform_policy?: {platforms: Record<string, {ai_disclosure: boolean; terms_reviewed: boolean; content_rules_ok: boolean}>}; ppv_enabled?: boolean; ppv_price_cents?: number }) => {
     const saved = editing && editing !== "new" ? await api.updateCharacter(editing.id, data) : await api.createCharacter(data);
     setCharacters(prev => [...prev.filter(c => c.id !== saved.id), saved]);
     setCharacterId(saved.id); setEditing(null);
   };
 
-  const savePpv = (enabled: boolean, priceCents: number) => {
-    if (!character) return;
+  const saveConvPpv = (patch: { ppv_enabled?: boolean | null; ppv_price_cents?: number | null }) => {
+    if (!conversation) return;
     void perform(t("pg.busy.ppv"), async () => {
-      const updated = await api.setPpv(character.id, { enabled, price_cents: Math.max(0, Math.min(100000, priceCents)) });
-      setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));
+      const updated = await api.request<Conversation>(`/api/conversations/${conversation.id}`, { method: "PATCH", body: JSON.stringify(patch) });
+      setConversation(updated);
     });
   };
 
@@ -315,10 +315,18 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
           const updated = await api.setImageCheckpoint(character.id, e.target.value || null);
           setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));
         })}><option value="">{t("pg.checkpointDefault")}</option>{checkpoints.filter(c => c.usable).map(checkpoint => <option key={checkpoint.name} value={checkpoint.name}>{checkpoint.name} · {checkpoint.family}</option>)}</select></label>}
-        {character && <div className="ppv-settings">
-          <label className="auto-label" title={t("pg.ppvHint")}>{t("pg.ppv")} <input type="checkbox" checked={!!character.ppv_enabled} disabled={!!busy} onChange={e => savePpv(e.target.checked, character.ppv_price_cents ?? 500)} /></label>
-          <label className="ppv-price">€<input key={character.id} type="number" min="0" max="1000" step="0.5" defaultValue={((character.ppv_price_cents ?? 500) / 100).toFixed(2)} disabled={!!busy || !character.ppv_enabled} onBlur={e => savePpv(true, Math.round(Number(e.target.value) * 100))} /></label>
+        {character && conversation && <div className="ppv-settings">
+          <label className="auto-label" title={t("pg.ppvHint")}>{t("pg.ppvOverride")}
+            <select value={conversation.ppv_enabled == null ? "default" : conversation.ppv_enabled ? "on" : "off"} disabled={!!busy} onChange={e => saveConvPpv({ ppv_enabled: e.target.value === "default" ? null : e.target.value === "on" })}>
+              <option value="default">{t("pg.ppvDefault", { state: character.ppv_enabled ? t("pg.ppvOn") : t("pg.ppvOff"), price: ((character.ppv_price_cents ?? 0) / 100).toFixed(2) })}</option>
+              <option value="on">{t("pg.ppvOn")}</option>
+              <option value="off">{t("pg.ppvOff")}</option>
+            </select>
+          </label>
+          <label className="ppv-price">€<input key={conversation.id} type="number" min="0" max="1000" step="0.5" defaultValue={(((conversation.ppv_price_cents ?? character.ppv_price_cents ?? 500)) / 100).toFixed(2)} disabled={!!busy} onBlur={e => saveConvPpv({ ppv_price_cents: Math.round(Number(e.target.value) * 100) })} /></label>
+          {conversation.ppv_price_cents != null && <button type="button" className="text-button" disabled={!!busy} onClick={() => saveConvPpv({ ppv_price_cents: null })}>{t("pg.ppvReset")}</button>}
         </div>}
+        {character && !conversation && <p className="muted">{t("pg.ppvDefaultsInEditor")}</p>}
         {character && <details className="realism-settings">
           <summary title={t("pg.realismHint")}>{t("pg.realism")}</summary>
           <div className="ppv-settings">

@@ -234,6 +234,13 @@ def messages_out(db, rows):
     ]
 
 
+def effective_ppv(conversation, character) -> tuple[bool, int]:
+    """Per-conversation PPV override falling back to the character default."""
+    enabled = conversation.ppv_enabled if conversation.ppv_enabled is not None else bool(character.ppv_enabled)
+    price = conversation.ppv_price_cents if conversation.ppv_price_cents is not None else (character.ppv_price_cents or 0)
+    return bool(enabled), int(price or 0)
+
+
 def conversation_out(db, item):
     unread_query = (
         select(func.count())
@@ -716,6 +723,8 @@ def create_character(body: CharacterInput):
             permitted_uses=body.permitted_uses,
             lifecycle_state=body.lifecycle_state,
             platform_policy=_platform_payload(body.platform_policy),
+            ppv_enabled=body.ppv_enabled,
+            ppv_price_cents=body.ppv_price_cents,
         )
         db.add(item)
         db.flush()
@@ -767,6 +776,10 @@ def update_character(character_id: str, body: CharacterUpdate):
                     _platform_payload(body.platform_policy)
                     if body.platform_policy is not None
                     else item.platform_policy
+                ),
+                ppv_enabled=body.ppv_enabled if body.ppv_enabled is not None else item.ppv_enabled,
+                ppv_price_cents=(
+                    body.ppv_price_cents if body.ppv_price_cents is not None else item.ppv_price_cents
                 ),
             )
         )
@@ -1265,6 +1278,12 @@ def patch_conversation(conversation_id: str, body: ConversationPatch):
             conv.images_enabled = body.images_enabled
         if body.human_mode is not None:
             conv.human_mode = body.human_mode
+        # Nullable overrides: distinguish "not provided" from an explicit null (clears the override).
+        provided = body.model_fields_set
+        if "ppv_enabled" in provided:
+            conv.ppv_enabled = body.ppv_enabled
+        if "ppv_price_cents" in provided:
+            conv.ppv_price_cents = body.ppv_price_cents
         conv.updated_at = now()
         db.flush()
         return conversation_out(db, conv)
@@ -1299,12 +1318,12 @@ def run_turn(
             choices = []
             with Session() as db:
                 character = db.get(Influencer, conv.character_id)
-                video_price = character.ppv_price_cents if character else 0
+                ppv_on, video_price = effective_ppv(conv, character) if character else (False, 0)
                 allowed = bool(
                     settings.chat_video_enabled
                     and settings.ppv_enabled
                     and character is not None
-                    and character.ppv_enabled
+                    and ppv_on
                     and video_price > 0
                 )
                 if allowed:
@@ -1337,8 +1356,7 @@ def run_turn(
                 )
                 checkpoint = character.image_checkpoint if character else None
                 style = (character.image_style or "real") if character else "real"
-                ppv_enabled = bool(character.ppv_enabled) if character else False
-                ppv_price = character.ppv_price_cents if character else 0
+                ppv_enabled, ppv_price = effective_ppv(conv, character) if character else (False, 0)
             family = checkpoint_family(style, checkpoint)
             locked = bool(
                 metrics.get("photo_locked_requested")
@@ -1583,9 +1601,10 @@ def send_photo(conversation_id: str, body: PhotoInput):
         checkpoint = character.image_checkpoint
         style = character.image_style or "real"
         family = checkpoint_family(style, checkpoint)
+        ppv_on, ppv_default_price = effective_ppv(conv, character)
         locked_price = 0
-        if body.locked and settings.ppv_enabled:
-            locked_price = body.price_cents or character.ppv_price_cents or 500
+        if body.locked and settings.ppv_enabled and ppv_on:
+            locked_price = body.price_cents or ppv_default_price or 500
         chosen = required(db, ImageLibrary, body.library_id) if body.library_id else None
         if chosen is not None and chosen.character_id != conv.character_id:
             raise HTTPException(404, "Image unavailable")
