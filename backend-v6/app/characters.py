@@ -1435,6 +1435,14 @@ def run_turn(
                 created.append(item)
             assistant = created[-1]
             current.updated_at = now()
+            if metrics.get("policy_block"):
+                audit_record(
+                    db,
+                    "chat.policy_block",
+                    "conversation",
+                    conv.id,
+                    issues=metrics.get("policy_block"),
+                )
             db.flush()
             if video_item is not None:
                 db.add(

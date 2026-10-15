@@ -895,6 +895,8 @@ Progress log — 15 October 2026 (first slice):
   disclosure is missing. Test added.
 - Home "Needs attention" flags characters publishing without AI disclosure (`characters_undisclosed`
   in `/api/overview`).
+- Policy blocks are recorded in the audit log (`chat.policy_block` with the matched rules); test
+  extended.
 - Remaining: roles, per-conversation PPV override.
 - Audit UI: recent actions list on the Jobs & System page (time, action, object, counts).
 - Content labels (`sfw`/`suggestive`/`explicit`, migration `0032`) on library images and videos,

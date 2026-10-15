@@ -39,3 +39,6 @@ def test_chat_reply_blocked_by_policy(monkeypatch):
     body = response.json()
     assert "content policy" in body["content"]
     assert body["ollama_metrics"]["policy_block"]
+
+    events = client.get("/api/audit", params={"action": "chat.policy_block"}).json()
+    assert events and events[0]["object_id"] == conversation["id"]
