@@ -780,7 +780,9 @@ Progress log — 15 October 2026 (second slice):
   (`[PPV: price=12.50; <prompt>]`); the proposal is recorded in the message metrics
   (`proposal: {kind, locked, price_cents}`) and used for the locked photo when valid. Parsing and
   integration tests added.
-- Remaining: proposal display in the transcript, follow-up scheduling from proposals, full routing split.
+- Follow-up scheduling from proposals: `[FOLLOWUP: 3h]` (15m-72h) schedules one re-engage via the
+  scheduler; shown as a chip in the transcript. Parsing + scheduling tests added.
+- Remaining: full routing split.
 
 Progress log — 15 October 2026 (first slice):
 - Conversation state chip in the Chat heading: No chat selected / Generating reply (with seconds) /

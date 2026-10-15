@@ -155,6 +155,28 @@ def extract_photo_request(answer: str) -> tuple[str, str | None, bool, int | Non
     return clean, scene or None, locked, proposed
 
 
+FOLLOWUP_PATTERN = re.compile(r"\[FOLLOWUP:\s*(\d+(?:[.,]\d+)?)\s*(m|min|mins|minutes?|h|hours?)\s*\]", re.IGNORECASE)
+FOLLOWUP_INSTRUCTIONS = (
+    "\nOPTIONAL FOLLOW-UP: if the fan seems likely to disappear, you may schedule one follow-up "
+    "message with [FOLLOWUP: 3h] (between 15m and 72h). Use it rarely, never more than once per chat."
+)
+
+
+def extract_followup(answer: str) -> tuple[str, float | None]:
+    """Split an optional [FOLLOWUP: 3h] marker; returns (text, hours) with hours bounded 0.25-72."""
+    match = FOLLOWUP_PATTERN.search(answer)
+    if match is None:
+        return answer, None
+    value = float(match.group(1).replace(",", "."))
+    unit = match.group(2).lower()
+    hours = value / 60 if unit.startswith("m") else value
+    clean = FOLLOWUP_PATTERN.sub("", answer)
+    clean = re.sub(r"\n{3,}", "\n\n", clean).strip()
+    if not (0.25 <= hours <= 72):
+        return clean, None
+    return clean, round(hours, 2)
+
+
 VIDEO_REQUEST_PATTERN = re.compile(r"\[PPV-VIDEO:\s*(.*?)\]", re.IGNORECASE | re.DOTALL)
 VIDEO_INSTRUCTIONS = (
     "\nPREMIUM VIDEOS (PPV, simulated): you have a small library of ready video clips. Rarely, only when "
@@ -445,7 +467,7 @@ def build_context(conversation: Conversation, query: str, *, history: bool = Tru
         "directly, including names and preferences; they remain known in a new conversation): "
         + json.dumps(facts, ensure_ascii=False)
         + "\nWhen the answer is in these memories, use it confidently instead of saying you do not know. "
-        "Do not invent facts absent from the supplied context." + (PHOTO_INSTRUCTIONS if images else "") + (VIDEO_INSTRUCTIONS if videos else "")
+        "Do not invent facts absent from the supplied context." + (PHOTO_INSTRUCTIONS if images else "") + (VIDEO_INSTRUCTIONS if videos else "") + FOLLOWUP_INSTRUCTIONS
     )
     # Fan.notes intentionally stay out: they are the tester's answer key, not memory.
     history_messages = [
@@ -575,6 +597,9 @@ def generate_reply(conversation: Conversation, content: str, kind: str = "reply"
         metrics["video_requested"] = video_scene is not None
         if video_scene:
             metrics["video_scene"] = video_scene
+    answer, followup_hours = extract_followup(answer)
+    if followup_hours:
+        metrics["followup_hours"] = followup_hours
     if images:
         answer, scene, locked, proposed_price = extract_photo_request(answer)
         metrics["photo_requested"] = scene is not None

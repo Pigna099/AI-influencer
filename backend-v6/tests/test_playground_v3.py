@@ -1126,3 +1126,25 @@ def test_ppv_photo_proposed_price(monkeypatch):
     assert body["ollama_metrics"]["photo_price_cents"] == 1250
     assert body["ollama_metrics"]["proposal"] == {"kind": "photo", "locked": True, "price_cents": 1250}
     assert client.post(f"/api/chat-images/{body['images'][0]['id']}/unlock").status_code == 200
+
+def test_followup_marker_schedules_reengage(monkeypatch):
+    from app.chat_service import extract_followup
+
+    assert extract_followup("A dopo!\n[FOLLOWUP: 2h]") == ("A dopo!", 2.0)
+    assert extract_followup("[FOLLOWUP: 90m]") == ("", 1.5)
+    assert extract_followup("no marker") == ("no marker", None)
+    assert extract_followup("[FOLLOWUP: 200h]") == ("", None)
+
+    char, a, _ = setup_pair()
+    conv = conversation(char, a)
+    monkeypatch.setattr(
+        "app.chat_service.chat",
+        lambda *args, **kwargs: {"message": {"content": "Ci sentiamo dopo 😘\n[FOLLOWUP: 3h]"}},
+    )
+    response = client.post(f"/api/conversations/{conv['id']}/messages", json={"content": "ciao"})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["content"] == "Ci sentiamo dopo 😘"
+    assert body["ollama_metrics"]["followup_hours"] == 3.0
+    refreshed = client.get(f"/api/conversations/{conv['id']}").json()
+    assert (refreshed.get("pending_replies") or 0) >= 1

@@ -854,6 +854,7 @@ const en = {
   "chat.proposal.photo": "photo",
   "chat.proposal.video": "video",
   "chat.proposal.locked": "locked",
+  "chat.followup": "Follow-up in {hours}h",
 } as const;
 
 type Catalog = typeof en;

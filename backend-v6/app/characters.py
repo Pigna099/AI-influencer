@@ -1437,6 +1437,26 @@ def run_turn(
                 db.flush()
                 created.append(item)
             assistant = created[-1]
+            followup_hours = metrics.get("followup_hours")
+            if isinstance(followup_hours, (int, float)) and followup_hours > 0:
+                character_row = db.get(Influencer, conv.character_id)
+                if character_row is not None:
+                    from .scheduler import compute_deliver_at
+
+                    db.add(
+                        ScheduledReply(
+                            conversation_id=conv.id,
+                            character_id=conv.character_id,
+                            kind="reengage",
+                            content=None,
+                            absence_hours=48,
+                            deliver_at=compute_deliver_at(
+                                character_row, delay_seconds=float(followup_hours) * 3600
+                            ),
+                            status="scheduled",
+                            source_message_id=assistant.id,
+                        )
+                    )
             current.updated_at = now()
             if metrics.get("policy_block"):
                 audit_record(
