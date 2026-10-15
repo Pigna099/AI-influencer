@@ -562,6 +562,7 @@ def test_library_trash_and_restore():
     images = client.post(f"/api/characters/{character['id']}/library/generate", json={"prompt": "x", "count": 2}).json()
     first, second = images[0], images[1]
 
+    assert images[0]["policy"]["age_safety"] == "enforced"
     trashed = client.post(f"/api/library/{first['id']}/trash")
     assert trashed.status_code == 200 and trashed.json()["deleted_at"]
 

@@ -97,6 +97,7 @@ def video_out(item: VideoClip) -> dict:
         "params": item.params or {},
         "status": item.status,
         "review_status": item.review_status,
+        "policy": item.policy or {},
         "error": item.error,
         "seed": item.seed,
         "created_at": item.created_at.isoformat(),
@@ -261,6 +262,7 @@ def generate_video(character_id: str, body: VideoGenerateInput):
             model=str(meta.get("model") or ""),
             params=meta,
             status="ready",
+            policy={"age_safety": "enforced", "adult_only": True, "checked_at": now().isoformat()},
             seed=int(meta.get("seed") or 0),
             created_at=now(),
         )

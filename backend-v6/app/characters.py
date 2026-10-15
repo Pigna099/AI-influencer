@@ -441,6 +441,7 @@ def generate_library_images(character_id: str, body: LibraryGenerateInput):
                 source="playground",
                 embedding=embedding,
                 embedding_model=embedding_model,
+                policy={"age_safety": "enforced", "adult_only": True, "checked_at": now().isoformat()},
             )
             db.add(item)
             db.flush()

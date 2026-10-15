@@ -742,6 +742,8 @@ Progress log — 15 October 2026 (first slice):
   (exact phash grouping, "Duplicates (N)" filter + per-card ×N badge).
 - Bulk review: `POST /api/library/bulk-status` + bulk Approve/Reject/Draft in the selection bar
   (test added); always-visible effective-recipe line before Generate (Images and Video).
+- Content policy metadata: `policy` JSON on library images and videos (age-safety enforced, adult
+  only, timestamp) recorded at generation (migration `0029`), exposed in the API.
 
 ### Steps
 
