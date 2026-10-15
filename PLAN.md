@@ -862,6 +862,14 @@ Store secrets encrypted and never return them to the browser.
 
 ## 18. Phase 12 — Policy, provenance, and security
 
+Progress log — 15 October 2026 (first slice):
+- Content policy metadata on assets (age safety enforced, adult only, timestamp).
+- **Audit log** (`audit_events`, migration `0031`): library approve/reject (single + bulk), trash,
+  restore, delete-forever, video review, LoRA activate/rollback, identity freeze with override
+  reason; `GET /api/audit` with filters. Test added.
+- Remaining: content labels (SFW/suggestive/explicit), roles, session expiry/key rotation, rate
+  limits, per-platform policy checklists.
+
 ### Required controls
 
 1. Require adult age and synthetic/consented identity status.

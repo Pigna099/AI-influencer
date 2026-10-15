@@ -246,6 +246,16 @@ class ImageLibrary(Base):
     updated_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
 
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    action: Mapped[str] = mapped_column(String(40), index=True)
+    object_type: Mapped[str] = mapped_column(String(32), index=True)
+    object_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now, index=True)
+
+
 class LibraryCollection(Base):
     __tablename__ = "library_collections"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)

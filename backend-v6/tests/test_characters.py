@@ -621,3 +621,17 @@ def test_library_collections():
     assert client.delete(f"/api/collections/{collection['id']}").status_code == 200
     assert client.get("/api/collections").json() == []
     assert client.post("/api/collections/missing/items", json={"ids": [ids[0]]}).status_code == 404
+
+def test_audit_log_records_actions():
+    character = client.post("/api/characters", json={"name": "Audit", "profile": {"description": "x"}}).json()
+    images = client.post(f"/api/characters/{character['id']}/library/generate", json={"prompt": "x", "count": 1}).json()
+    image_id = images[0]["id"]
+
+    client.patch(f"/api/library/{image_id}", json={"status": "approved"})
+    client.post(f"/api/library/{image_id}/trash")
+    client.post(f"/api/library/{image_id}/restore")
+
+    events = client.get("/api/audit", params={"object_id": image_id}).json()
+    actions = [event["action"] for event in events]
+    assert actions[:3] == ["library.restore", "library.trash", "library.approved"]
+    assert all(event["object_type"] == "image" for event in events)

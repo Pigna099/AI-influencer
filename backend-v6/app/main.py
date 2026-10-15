@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, text, update
 
+from .audit import router as audit_router
 from .auth import authorize
 from .characters import router as characters_router
 from .config import settings
@@ -267,6 +268,7 @@ app.include_router(consistency_router)
 app.include_router(jobs_router)
 app.include_router(identity_router)
 app.include_router(metrics_router)
+app.include_router(audit_router)
 
 
 @app.get("/{spa_path:path}", response_class=HTMLResponse, include_in_schema=False, dependencies=[])

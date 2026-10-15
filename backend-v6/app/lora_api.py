@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import Field
 from sqlalchemy import func, select, update
 
+from .audit import record as audit_record
 from .auth import authorize
 from .char_schemas import BulkIdsInput, StrictModel
 from .chat_service import build_negative_prompt, translate_scene
@@ -308,6 +309,7 @@ def activate_lora(lora_id: str):
         item.is_active = True
         item.previous_active_id = previous.id if previous is not None else None
         item.updated_at = now()
+        audit_record(db, "lora.activate", "lora", item.id, previous=previous.id if previous else None)
     return lora_out(item)
 
 
@@ -326,6 +328,7 @@ def rollback_lora(lora_id: str):
         previous.is_active = True
         previous.updated_at = now()
         item.updated_at = now()
+        audit_record(db, "lora.rollback", "lora", previous.id, from_lora=item.id)
         result = lora_out(previous)
     return result
 

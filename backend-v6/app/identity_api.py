@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import Field
 from sqlalchemy import select
 
+from .audit import record as audit_record
 from .auth import authorize
 from .char_schemas import StrictModel
 from .config import settings
@@ -545,5 +546,13 @@ def freeze_run(run_id: str, body: FreezeInput):
         run.status = "frozen"
         run.frozen_at = now()
         run.override_reason = body.override_reason.strip()
+        audit_record(
+            db,
+            "identity.freeze",
+            "identity_run",
+            run.id,
+            accepted=len(accepted),
+            override=body.override_reason.strip() or None,
+        )
         result = run_out(run)
     return result

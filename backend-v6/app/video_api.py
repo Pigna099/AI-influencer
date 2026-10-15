@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from pydantic import Field
 from sqlalchemy import select
 
+from .audit import record as audit_record
 from .auth import authorize
 from .char_schemas import StrictModel
 from .config import settings
@@ -131,6 +132,7 @@ def review_video(video_id: str, body: VideoReviewInput):
         if item is None:
             raise HTTPException(404, "Video not found")
         item.review_status = body.review_status
+        audit_record(db, f"video.{body.review_status}", "video", item.id)
         result = video_out(item)
     return result
 

@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, Response
 from pydantic import ValidationError
 from sqlalchemy import delete, func, or_, select, update
 
+from .audit import record as audit_record
 from .auth import authorize
 from .char_schemas import (
     AvatarEditInput,
@@ -500,6 +501,8 @@ def patch_library_item(item_id: str, body: LibraryPatch):
             embedding, embedding_model = embed_library_text(library_text(item))
             item.embedding = embedding
             item.embedding_model = embedding_model
+        if body.status is not None:
+            audit_record(db, f"library.{body.status}", "image", item.id)
         return library_out(item)
 
 
@@ -509,6 +512,7 @@ def trash_library_item(item_id: str):
     with Session.begin() as db:
         item = required(db, ImageLibrary, item_id)
         item.deleted_at = now()
+        audit_record(db, "library.trash", "image", item.id)
         db.flush()
         result = library_out(item)
     return result
@@ -519,6 +523,7 @@ def restore_library_item(item_id: str):
     with Session.begin() as db:
         item = required(db, ImageLibrary, item_id)
         item.deleted_at = None
+        audit_record(db, "library.restore", "image", item.id)
         db.flush()
         result = library_out(item)
     return result
@@ -535,6 +540,7 @@ def delete_library_item(item_id: str):
             update(LoraDataset).where(LoraDataset.anchor_image_id == item_id).values(anchor_image_id=None)
         )
         db.delete(item)
+        audit_record(db, "library.delete", "image", item_id)
     unlink_media([filename])
     return {"deleted": True}
 
@@ -615,6 +621,7 @@ def set_library_items_status(body: BulkStatusInput):
             .where(ImageLibrary.id.in_(body.ids))
             .values(status=body.status, updated_at=now())
         )
+        audit_record(db, f"library.bulk_{body.status}", "image", None, count=changed.rowcount or 0)
     return {"updated": changed.rowcount or 0}
 
 
