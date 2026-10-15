@@ -539,6 +539,29 @@ Progress log — 15 October 2026 (slice 1):
 
 ## 12. Phase 6 — Build the 60-image training dataset
 
+### Dataset workflow redesign (DISCUSSION OPEN — 16 October 2026)
+
+Goal: the **initial LoRA dataset must be built starting from the profile picture (anchor)**, not
+from plain text-to-image. Today it does not behave that way:
+
+- `generate_dataset_candidates` calls `generate_image(...)` with the anchor as `reference_path`, but
+  for the diffusion families (`qwen-image`, `z-image`, `flux2`) the reference is **ignored** in
+  `generate_image` (only `playground` uses IPAdapter; SDXL `real/pony/anime` uses the IPAdapter
+  reference workflow). So with a Qwen checkpoint the candidates are pure txt2img: identity is lost.
+- The identity-preserving paths that DO start from the anchor are **Variations** and the
+  **Identity set** (Qwen-Image-Edit from the anchor / canonical references).
+
+Open questions for the redesign:
+1. Default the dataset generation to an Edit-based flow (Qwen-Image-Edit from a canonical
+   reference) instead of txt2img candidates? Keep txt2img only as a secondary "scene variety" tool?
+2. For SDXL families: keep IPAdapter candidates (with pose/ControlNet) and require a frozen
+   canonical identity set as the reference source?
+3. Should the flow enforce the sequence anchor → identity set (frozen) → dataset generation, with
+   the dataset generator refusing to start without canonical references?
+4. How to cover pose/angle variety in the Edit flow (prompt-driven angles vs. canonical set
+   coverage vs. ControlNet where available)?
+5. Should the blueprint categories drive the scene list automatically (fill-the-gap generation)?
+
 ### Dataset blueprint
 
 Generate 70–90 candidates and curate to 50–70. Default target: 60 selected items.
