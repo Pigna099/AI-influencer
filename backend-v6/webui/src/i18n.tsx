@@ -795,6 +795,9 @@ const en = {
   "pg.chatState.generating": "Generating reply",
   "pg.chatState.waiting": "Waiting for reply",
   "pg.chatState.active": "Active",
+  "ip.savedFilters": "Saved filters",
+  "ip.savedFilters.name": "Filter name",
+  "ip.savedFilters.delete": "Delete saved filter",
 } as const;
 
 type Catalog = typeof en;

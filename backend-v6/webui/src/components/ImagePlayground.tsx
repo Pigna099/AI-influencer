@@ -155,6 +155,15 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   const [mode, setMode] = useState<"grid" | "review">("grid");
   const [trashView, setTrashView] = useState(false);
   const [dupOnly, setDupOnly] = useState(false);
+  const [savedFilters, setSavedFilters] = useState<{ name: string; status: string; style: string }[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("ip_saved_filters") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [savedName, setSavedName] = useState("");
+  const [appliedFilter, setAppliedFilter] = useState("");
   const [reviewId, setReviewId] = useState("");
   const [anchorOverlay, setAnchorOverlay] = useState(false);
   const [anchorUrl, setAnchorUrl] = useState("");
@@ -241,6 +250,32 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [mode, reviewItem, library, reviewIndex]);
+
+  const persistFilters = (next: { name: string; status: string; style: string }[]) => {
+    setSavedFilters(next);
+    localStorage.setItem("ip_saved_filters", JSON.stringify(next));
+  };
+
+  const saveFilter = () => {
+    const name = savedName.trim();
+    if (!name) return;
+    persistFilters([...savedFilters.filter(entry => entry.name !== name), { name, status: statusFilter, style: styleFilter }]);
+    setSavedName("");
+  };
+
+  const applyFilter = (name: string) => {
+    const found = savedFilters.find(entry => entry.name === name);
+    if (!found) return;
+    setStatusFilter(found.status);
+    setStyleFilter(found.style);
+    setAppliedFilter(name);
+  };
+
+  const deleteFilter = () => {
+    if (!appliedFilter) return;
+    persistFilters(savedFilters.filter(entry => entry.name !== appliedFilter));
+    setAppliedFilter("");
+  };
 
   const loadMoreLibrary = () => {
     if (!characterId) return;
@@ -462,7 +497,16 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
               <button disabled={!!busy || !selectedIds.length} onClick={() => bulkStatus("draft")}>{t("ip.statusDraft")}</button>
               <button className="danger" disabled={!!busy || !selectedIds.length} onClick={removeSelected}>{t("bulk.deleteSelected", { count: selectedIds.length })}</button>
             </> : <label className="auto-label"><input type="checkbox" checked={anchorOverlay} onChange={e => setAnchorOverlay(e.target.checked)} disabled={!anchorUrl} /> {t("ip.review.overlay")} <kbd>O</kbd></label>}
-            {mode === "grid" && !trashView && <label className="auto-label"><input type="checkbox" checked={dupOnly} onChange={e => setDupOnly(e.target.checked)} disabled={!duplicateGroups} /> {t("ip.duplicates", { count: duplicateGroups })}</label>}
+            {mode === "grid" && !trashView && <>
+              <label className="auto-label"><input type="checkbox" checked={dupOnly} onChange={e => setDupOnly(e.target.checked)} disabled={!duplicateGroups} /> {t("ip.duplicates", { count: duplicateGroups })}</label>
+              <select className="saved-filter-select" value="" disabled={!!busy || !savedFilters.length} onChange={e => applyFilter(e.target.value)} aria-label={t("ip.savedFilters")}>
+                <option value="">{t("ip.savedFilters")}</option>
+                {savedFilters.map(entry => <option key={entry.name} value={entry.name}>{entry.name}</option>)}
+              </select>
+              {appliedFilter && <button type="button" className="danger" disabled={!!busy} onClick={deleteFilter} aria-label={t("ip.savedFilters.delete")}>×</button>}
+              <input className="saved-filter-name" value={savedName} disabled={!!busy} onChange={e => setSavedName(e.target.value)} placeholder={t("ip.savedFilters.name")} maxLength={40} />
+              <button type="button" disabled={!!busy || !savedName.trim()} onClick={saveFilter}>{t("common.save")}</button>
+            </>}
           </div>
           <AsyncBoundary
             loading={!libraryLoaded}

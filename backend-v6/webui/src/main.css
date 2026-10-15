@@ -397,3 +397,6 @@
 .badge.dup-badge { left: auto; right: 8px; background: var(--st-busy-bg); color: var(--st-busy-fg); }
 
 .recipe-line { font-size: .68rem; color: #8ba0bd; line-height: 1.5; }
+
+.saved-filter-select { width: auto; font-size: .72rem; padding: .25rem .4rem; }
+.saved-filter-name { width: 130px; font-size: .72rem; padding: .25rem .4rem; }
