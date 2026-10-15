@@ -561,6 +561,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
           </div>
           <label className="auto-label">{t("ip.classify")} <input type="checkbox" checked={classify} disabled={!!busy} onChange={e => setClassify(e.target.checked)} /></label>
           {busy && <p className="memory-status" role="status"><span className="spinner" />{busy} <b>{elapsed.toFixed(0)} s</b> <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
+          <p className="recipe-line" role="note">{[style === "anime" ? t("pg.style.anime") : t("pg.style.real"), checkpoint || t("ip.default"), `${Object.values(loraSel).filter(item => item?.on).length} LoRA`, poseIds.length ? `${poseIds.length} ${t("lp.poses")}` : null, seed ? `${t("ip.seed")} ${seed}` : null].filter(Boolean).join(" · ")}</p>
           <button className="primary" disabled={!!busy || !character || !prompt.trim()} onClick={generate}>{t("ip.generate")}</button>
           {!busy && !prompt.trim() && <small className="hint">{t("hint.enterPrompt")}</small>}
           {!busy && !character && <small className="hint">{t("hint.selectCharacter")}</small>}
