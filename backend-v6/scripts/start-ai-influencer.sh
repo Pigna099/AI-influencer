@@ -58,7 +58,7 @@ done
 
 # 3b. vLLM (modello testo su due GPU dedicate: 2 e 3)
 if [ -x /data/data_ssd/pigni/vllm_start.sh ]; then
-  echo "==> Avvio vLLM (GPU 2,3)..."
+  echo "==> Avvio vLLM (GPU 2,3) in background..."
   /data/data_ssd/pigni/vllm_start.sh || echo "[!!] vLLM non avviato: il backend usera' Ollama come fallback"
 fi
 
