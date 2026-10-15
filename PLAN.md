@@ -343,6 +343,10 @@ Progress log — 15 October 2026 (second slice):
 - Concurrency + retention: per-character video guard (409 while a video job is active for the
   character), finished jobs auto-pruned after 30 days (events included) from the summary endpoint.
   Tests added (prune, guard); 155 backend tests.
+- Orphan reconciliation: `POST /api/system/reconcile` (report, or delete with `?delete=true`)
+  removes media files nobody references that are older than 24 h; button + result in the Jobs page.
+  Test added. Phase 3 acceptance met: every long-running operation is in one job list, refresh keeps
+  progress (SPA fallback + persistent jobs), cancel/retry auditable, old failures do not dominate.
 - **SPA fallback**: direct loads/refreshes of `/images`, `/video`, `/dataset`, `/loras`, `/jobs` now
   serve the SPA (registered after all API routes so endpoints keep returning JSON) — refreshing a
   page no longer 404s.

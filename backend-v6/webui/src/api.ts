@@ -689,6 +689,10 @@ export class ApiClient {
     return this.request(`/api/jobs/${id}/retry`, { method: "POST" });
   }
 
+  reconcileMedia(deleteOrphans = false): Promise<{ orphans: number; removed: number; freed_bytes: number; sample: string[] }> {
+    return this.request(`/api/system/reconcile${deleteOrphans ? "?delete=true" : ""}`, { method: "POST" });
+  }
+
   getOverview(): Promise<{ characters: number; draft_images: number; draft_videos: number; jobs_running: number; jobs_failed: number; loras_ready: number }> {
     return this.request("/api/overview");
   }

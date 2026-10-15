@@ -332,3 +332,6 @@
 .gpu-card .gpu-bar { height: 18px; position: relative; border-radius: 6px; }
 .gpu-card .gpu-bar i { position: absolute; top: 0; bottom: 0; left: 0; }
 .gpu-bar-label { position: absolute; inset: 0; display: grid; place-items: center; font-size: .64rem; font-weight: 550; color: #f2f7fd; text-shadow: 0 1px 2px #000e, 0 0 3px #0009; letter-spacing: .02em; }
+
+.maintenance-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: .78rem; color: #9db2cf; margin-bottom: 12px; }
+.maintenance-row .danger { font-size: .72rem; padding: .3rem .55rem; }

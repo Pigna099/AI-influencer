@@ -109,6 +109,14 @@ def free_vram():
     return {"ollama_unloaded": unload_models(), "comfyui": free_memory()}
 
 
+@app.post("/api/system/reconcile", tags=["System"], dependencies=[Depends(authorize)])
+def reconcile(delete: bool = False):
+    """Report (or remove) media files no longer referenced by any record."""
+    from .reconcile import reconcile_media
+
+    return reconcile_media(delete=delete)
+
+
 @app.post("/influencers", status_code=201, tags=["Influencers"], dependencies=[Depends(authorize)])
 def create_influencer(body: InfluencerInput):
     with Session.begin() as db:

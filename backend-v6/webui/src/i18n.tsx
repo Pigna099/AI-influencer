@@ -707,6 +707,11 @@ const en = {
   "home.plan.role": "Role",
   "home.gpu.mem": "mem",
   "home.gpu.noData": "no data",
+  "jobs.scanOrphans": "Scan orphaned files",
+  "jobs.orphansFound": "{count} orphaned files found (older than 24 h).",
+  "jobs.deleteOrphans": "Delete them",
+  "jobs.orphansRemoved": "Removed {count} files ({gb} GB freed).",
+  "jobs.noOrphans": "No orphaned files.",
 } as const;
 
 type Catalog = typeof en;

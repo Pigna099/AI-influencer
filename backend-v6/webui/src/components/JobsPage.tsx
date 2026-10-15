@@ -80,6 +80,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
   const [hasMore, setHasMore] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [reconcileReport, setReconcileReport] = useState<{ orphans: number; removed: number; freed_bytes: number; sample: string[] } | null>(null);
 
   const load = useCallback(async (offset = 0) => {
     const data = await api.getJobs({
@@ -105,6 +106,19 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     api.getCharacters().then(setCharacters).catch(() => undefined);
   }, []);
+
+  const reconcile = (deleteOrphans: boolean) => {
+    setBusy(true);
+    void (async () => {
+      try {
+        setReconcileReport(await api.reconcileMedia(deleteOrphans));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(false);
+      }
+    })();
+  };
 
   const act = (job: ExecutionJob, action: "cancel" | "retry") => {
     setBusy(true);
@@ -146,6 +160,12 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
             </select>
           </div>}
         />
+        <div className="maintenance-row">
+          <button disabled={busy} onClick={() => reconcile(false)}>{t("jobs.scanOrphans")}</button>
+          {reconcileReport && (reconcileReport.orphans > 0
+            ? <span>{t("jobs.orphansFound", { count: reconcileReport.orphans })} <button disabled={busy} className="danger" onClick={() => reconcile(true)}>{t("jobs.deleteOrphans")}</button></span>
+            : <span>{reconcileReport.removed > 0 ? t("jobs.orphansRemoved", { count: reconcileReport.removed, gb: (reconcileReport.freed_bytes / 1024 ** 3).toFixed(2) }) : t("jobs.noOrphans")}</span>)}
+        </div>
         <AsyncBoundary
           loading={!loaded}
           empty={!jobs.length}
