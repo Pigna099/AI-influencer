@@ -704,6 +704,9 @@ const en = {
   "jobs.type.consistency_check": "Consistency check",
   "jobs.type.pose_extract": "Pose extraction",
   "jobs.type.avatar": "Profile picture",
+  "home.plan.role": "Role",
+  "home.gpu.mem": "mem",
+  "home.gpu.noData": "no data",
 } as const;
 
 type Catalog = typeof en;

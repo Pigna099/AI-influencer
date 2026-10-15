@@ -309,3 +309,22 @@
 .job-log ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 3px; }
 .job-log li { font-size: .68rem; color: #a8bcd6; }
 .job-log li span { color: #6f86a8; margin-right: 6px; }
+
+.gpu-list { grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
+.gpu-card { padding: 14px 16px; display: grid; gap: 10px; }
+.gpu-card-main { display: flex; gap: 14px; align-items: center; }
+.gpu-gauge { width: 112px; height: 70px; flex-shrink: 0; }
+.gpu-gauge-placeholder { height: 70px; border-radius: 10px; background: #0f1a2c; }
+.gpu-gauge-value { fill: #dce8f8; font-size: 18px; font-weight: 650; }
+.gpu-card-side { flex: 1; min-width: 0; display: grid; gap: 7px; }
+.gpu-card-side header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.gpu-card-side header strong { font-size: .78rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gpu-temp { color: #9fc2c0; font-size: .72rem; flex-shrink: 0; }
+.gpu-role { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid #2b3850; border-radius: 8px; background: #172336; width: fit-content; }
+.gpu-role button { border: 0; background: transparent; padding: .22rem .55rem; font-size: .68rem; border-radius: 6px; color: #b9cbe2; }
+.gpu-role button.selected { background: var(--accent-soft); color: #fff; }
+.gpu-card .gpu-bar { height: 8px; margin: 0; }
+.gpu-bar.tone-ok i { background: linear-gradient(90deg, #2f8f85, #59c6c6); }
+.gpu-bar.tone-warn i { background: linear-gradient(90deg, #b8862c, #e0b25f); }
+.gpu-bar.tone-bad i { background: linear-gradient(90deg, #b04a46, #e0736f); }
+.gpu-plan-status { margin: -4px 0 10px; font-size: .74rem; }

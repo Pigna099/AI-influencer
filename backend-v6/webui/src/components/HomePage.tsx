@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, AppDefaults, Character, CheckpointInfo, GpuPlan, GpuReport, OllamaModel } from "../api";
 import {useI18n} from "../i18n";
+import GpuCard from "./ui/GpuCard";
 import AppHeader from "./ui/AppHeader";
 import CharacterAvatar from "./CharacterAvatar";
 import Lightbox from "./Lightbox";
@@ -13,10 +14,6 @@ interface Flag {
   label: string;
   state: FlagState;
   detail: string;
-}
-
-function gb(bytes: number) {
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
 }
 
 export default function HomePage({ onLogout }: { onLogout: () => void }) {
@@ -266,26 +263,13 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
       <section>
         <div className="section-title"><h2>{t("home.gpus")}</h2><div className="section-actions">
           <span>{gpu?.gpus.length ?? 0}</span>
+          <button disabled={savingPlan || !gpuPlan.media.length || !(gpuPlan.text.length === 0 || gpuPlan.text.length === 2)} onClick={() => void savePlan((gpu?.gpus ?? [{ index: 0 }, { index: 1 }, { index: 2 }, { index: 3 }]).map(item => item.index))}>{t("home.plan.apply")}</button>
           <button disabled={loading} onClick={() => void freeVram()}>{t("pg.gpu.free")}</button>
         </div></div>
-        <div className="gpu-plan">
-          {(gpu?.gpus ?? [{ index: 0 }, { index: 1 }, { index: 2 }, { index: 3 }]).map(item => <label key={item.index}>
-            <span>GPU {item.index}</span>
-            <select value={planUsage(item.index)} disabled={savingPlan} onChange={e => setPlanUsage(item.index, e.target.value as "media" | "text" | "off")}>
-              <option value="media">{t("home.plan.media")}</option>
-              <option value="text">{t("home.plan.text")}</option>
-              <option value="off">{t("home.plan.off")}</option>
-            </select>
-          </label>)}
-          <button disabled={savingPlan || !gpuPlan.media.length || !(gpuPlan.text.length === 0 || gpuPlan.text.length === 2)} onClick={() => void savePlan((gpu?.gpus ?? [{ index: 0 }, { index: 1 }, { index: 2 }, { index: 3 }]).map(item => item.index))}>{t("home.plan.apply")}</button>
-          <small>{gpuPlan.pending ? t("home.plan.pending") : gpuPlan.applied?.applied_at ? t("home.plan.applied", { time: new Date(gpuPlan.applied.applied_at).toLocaleTimeString() }) : t("home.plan.hint")}</small>
-        </div>
-        {gpu?.available ? <div className="gpu-list">{gpu.gpus.map(item => <article className="gpu-card" key={item.index}>
-          <header><strong>GPU {item.index} · {item.name.replace("NVIDIA GeForce ", "")}</strong><span>{item.temperature != null ? `${item.temperature}°C` : ""}</span></header>
-          <div className="gpu-bar" title={`${gb(item.memory_used)} / ${gb(item.memory_total)}`}><i style={{ width: `${Math.min(100, (item.memory_used / item.memory_total) * 100)}%` }} /></div>
-          <small>{gb(item.memory_used)} / {gb(item.memory_total)} · {item.utilization}% util{item.power_watts != null ? ` · ${item.power_watts} W` : ""}</small>
-          {!!item.processes.length && <ul>{item.processes.map(process => <li key={`${item.index}-${process.pid}-${process.name}`}><span title={process.name}>{process.name}</span><b>{gb(process.vram)}</b></li>)}</ul>}
-        </article>)}</div> : <p className="muted">{gpu === null ? t("pg.gpu.loading") : t("pg.gpu.unavailable")}</p>}
+        <p className="gpu-plan-status muted">{gpuPlan.pending ? t("home.plan.pending") : gpuPlan.applied?.applied_at ? t("home.plan.applied", { time: new Date(gpuPlan.applied.applied_at).toLocaleTimeString() }) : t("home.plan.hint")}</p>
+        {gpu?.available ? <div className="gpu-list">{gpu.gpus.map(item => <GpuCard key={item.index} gpu={item} role={planUsage(item.index)} busy={savingPlan} onRole={role => setPlanUsage(item.index, role)} />)}</div>
+          : <div className="gpu-list">{[0, 1, 2, 3].map(index => <GpuCard key={index} gpu={{ index }} role={planUsage(index)} busy={savingPlan} onRole={role => setPlanUsage(index, role)} />)}</div>}
+        {gpu && !gpu.available && <p className="muted">{gpu.error || t("pg.gpu.unavailable")}</p>}
       </section>
       <section>
         <details className="home-section" open>

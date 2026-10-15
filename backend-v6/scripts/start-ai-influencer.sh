@@ -29,38 +29,28 @@ echo "==> Avvio container Docker..."
 cd "$PROJECT_DIR"
 ./start.sh
 
-# 3. ComfyUI (istanze sulle GPU riservate a foto/video: 0 e 1)
-cd "$COMFYUI_DIR"
-for port in 8188 8189; do
-  gpu=$((port - 8188))
-  if curl -s -o /dev/null --max-time 3 "http://127.0.0.1:$port/"; then
-    echo "[ok] ComfyUI $port gia' attivo (GPU $gpu)"
-    continue
-  fi
-  echo "==> Avvio ComfyUI $port (GPU $gpu)..."
-  CUDA_VISIBLE_DEVICES=$gpu setsid nohup ./venv/bin/python main.py --listen 127.0.0.1 --port "$port" --database-url "sqlite:///$COMFYUI_DIR/user/comfyui_$port.db" \
-    > "/data/data_ssd/pigni/comfyUI/comfyui-$port.log" 2>&1 < /dev/null &
-done
-echo "[..] Attendo ComfyUI (log: /data/data_ssd/pigni/comfyUI/comfyui-*.log)..."
-for _ in $(seq 1 60); do
+# 3. ComfyUI + vLLM secondo l'ultimo piano GPU salvato (Home -> GPU)
+PLAN_FILE="$PROJECT_DIR/data/gpu_plan.json"
+if [ ! -f "$PLAN_FILE" ]; then
+  echo '{"media": [0, 1], "text": [2, 3]}' > "$PLAN_FILE"
+  echo "[..] Piano GPU assente: creato default media=[0,1] text=[2,3]"
+fi
+echo "==> Applico il piano GPU salvato (media/text per GPU)..."
+bash /data/data_ssd/pigni/apply_gpu_plan.sh "$PLAN_FILE" || echo "[!!] apply_gpu_plan fallito: controlla i log"
+
+MEDIA_PORTS=$(python3 -c "import json,sys; print(' '.join(str(8188+g) for g in json.load(open(sys.argv[1])).get('media',[0,1])))" "$PLAN_FILE")
+echo "[..] Attendo ComfyUI (porte: $MEDIA_PORTS, log: /data/data_ssd/pigni/comfyUI/comfyui-*.log)..."
+for _ in $(seq 1 30); do
   ready=1
-  for port in 8188 8189; do
+  for port in $MEDIA_PORTS; do
     curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$port/" || ready=0
   done
   if [ "$ready" -eq 1 ]; then
-    echo "[ok] ComfyUI attivo su 8188-8191"
+    echo "[ok] ComfyUI pronto"
     break
   fi
   sleep 2
 done
-
-
-
-# 3b. vLLM (modello testo su due GPU dedicate: 2 e 3)
-if [ -x /data/data_ssd/pigni/vllm_start.sh ]; then
-  echo "==> Avvio vLLM (GPU 2,3) in background..."
-  /data/data_ssd/pigni/vllm_start.sh || echo "[!!] vLLM non avviato: il backend usera' Ollama come fallback"
-fi
 
 # 4. Trainer LoRA (worker lato host per i job di training)
 if pgrep -f '[t]rain_worker.py' >/dev/null; then
