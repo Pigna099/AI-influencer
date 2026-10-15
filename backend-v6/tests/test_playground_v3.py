@@ -218,7 +218,7 @@ def test_character_clone_is_independent():
     assert updated["version"] == 2
     assert client.get(f"/api/characters/{char['id']}").json()["profile"]["tone_of_voice"] != "ironico"
     default = client.post(f"/api/characters/{char['id']}/clone").json()
-    assert default["name"].endswith("(copia)")
+    assert default["name"].endswith("(copy)")
 
 
 def test_benchmark_personality_variants_freeze_separate_contexts():
