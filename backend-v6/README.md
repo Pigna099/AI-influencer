@@ -357,6 +357,19 @@ I test automatici usano un database temporaneo SQLite con chiavi esterne attive.
 - **Metriche di sistema** (pagina Jobs): job per tipo con tempi medi, copertura asset, controllo
   LoRA con checkpoint mancante, stato ultimo backup, spazio su disco e file orfani.
 
+## Novita del 15 ottobre 2026 (sera)
+
+- **Sessione e chiavi**: la chiave API resta in `sessionStorage` con scadenza 12 h; la rotazione
+  supporta `API_KEY_PREVIOUS` (la vecchia chiave continua a funzionare finche' i client migrano).
+- **Checklist policy per piattaforma** (Instagram/Fanvue/X/Reddit/TikTok) nell'editor personaggio:
+  AI disclosure, termini rivisti, regole contenuto; la Home segnala i personaggi che pubblicano
+  senza disclosure.
+- **PPV**: i default (attivo + prezzo) sono nell'editor personaggio (sezione Monetization);
+  l'override **per conversazione** (attivo/disattivo e prezzo, con reset) e' nel rail della chat e
+  vale per foto e video PPV.
+- **Chat**: le impostazioni del personaggio (stile, checkpoint, PPV, tempi, attivita') sono
+  nell'inspector di destra; il rail resta per personaggi, fan e conversazioni.
+
 ## Limiti attuali
 
 Il playground usa una chiave condivisa per il proprietario: i fan sono identità simulate, non utenti autenticati reali. L'estrazione memoria è un'attività in background non persistente: se l'API si arresta durante l'estrazione, la risposta salvata resta disponibile ma il ricordo potrebbe dover essere aggiunto manualmente. Le varianti di personalità del confronto non vengono salvate come personaggi: sono temporanee e servono a decidere cosa applicare con l'editor o con **Duplica**. Non sono implementati invio su OnlyFans/Fanvue, pagamenti, campagne o notifiche esterne. La pipeline immagini preesistente resta disponibile, ma non è il focus della v3.
