@@ -616,7 +616,8 @@ Progress log — 15 October 2026 (first slice):
   re-activates the previous artifact (toggle-safe) with a Rollback button on the active LoRA; test added.
 - Traceability hashes: every queued job stores `spec_sha256` (canonical training spec) and every
   completed artifact stores `artifact_sha256` in the LoRA metrics/job params. Test added.
-- Remaining in Phase 7: auto-recommended hyperparameters.
+- Auto-recommended hyperparameters (`GET /api/loras/{id}/recommendation`): rank/steps/LR/resolution/
+  repeats from family and dataset size with a rationale string; test added. UI prefill next block.
 
 ### Preflight
 

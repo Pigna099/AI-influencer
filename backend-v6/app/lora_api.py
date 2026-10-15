@@ -1125,6 +1125,48 @@ def _dataset_references(db, dataset_id: str) -> list[Path]:
     return paths
 
 
+@router.get("/loras/{lora_id}/recommendation")
+def lora_recommendation(lora_id: str, dataset_id: str | None = None):
+    """Auto-recommended training hyperparameters from family and dataset size."""
+    with Session() as db:
+        lora = required(db, CharacterLora, lora_id)
+        selected = 0
+        if dataset_id:
+            selected = db.scalar(
+                select(func.count())
+                .select_from(LoraDatasetItem)
+                .join(ImageLibrary, LoraDatasetItem.image_id == ImageLibrary.id)
+                .where(LoraDatasetItem.dataset_id == dataset_id, LoraDatasetItem.selected.is_(True))
+            ) or 0
+        family = lora.family
+
+    images = max(selected, 4)
+    if family == "qwen-image":
+        rank = 16 if images < 30 else 24
+        steps = max(1000, min(2500, images * 30))
+        learning_rate = 0.00005
+        resolution = 1024
+        repeats = 1
+        rationale = "qwen-image: lower rank and LR, one pass per image, more steps."
+    else:
+        rank = 16 if images < 20 else 24 if images <= 40 else 32
+        steps = max(800, min(3000, images * 40))
+        learning_rate = 0.0001
+        resolution = 1024
+        repeats = max(1, round(60 / images))
+        rationale = "SDXL family: rank by dataset size, ~40 steps per image, repeats to reach ~60 images per epoch."
+    return {
+        "family": family,
+        "selected": selected,
+        "rank": rank,
+        "steps": steps,
+        "learning_rate": learning_rate,
+        "resolution": resolution,
+        "repeats": repeats,
+        "rationale": rationale,
+    }
+
+
 @router.get("/loras/{lora_id}/preflight")
 def lora_preflight(lora_id: str, dataset_id: str | None = None):
     """Preflight checks shown before queueing training, as remediation cards."""

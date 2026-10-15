@@ -730,3 +730,16 @@ def test_lora_rollback():
 
     plain = make_lora(character_id, name="Roll Plain")
     assert client.post(f"/api/loras/{plain['id']}/rollback").status_code == 409
+
+def test_lora_recommendation():
+    character_id = make_character("Recommend")
+    lora = make_lora(character_id, "Rec LoRA")
+    small = client.get(f"/api/loras/{lora['id']}/recommendation").json()
+    assert small["family"] == "real"
+    assert small["rank"] == 16 and small["resolution"] == 1024
+    assert small["steps"] >= 800 and small["repeats"] >= 1
+
+    qwen = make_lora(character_id, "Rec Qwen", family="qwen-image")
+    recommendation = client.get(f"/api/loras/{qwen['id']}/recommendation").json()
+    assert recommendation["learning_rate"] == 0.00005
+    assert recommendation["repeats"] == 1
