@@ -78,7 +78,7 @@ DWPose extraction via ComfyUI (`app/pose_api.py`, `POST /api/poses/extract`), sk
 ```bash
 cd backend-v6
 uv run ruff check .
-uv run pytest -q            # 177 tests, mock providers, temporary DB
+uv run pytest -q            # 180 tests, mock providers, temporary DB
 cd webui && npm run lint && npm test && npm run build
 ```
 

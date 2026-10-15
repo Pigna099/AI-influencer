@@ -1601,9 +1601,10 @@ def send_photo(conversation_id: str, body: PhotoInput):
         checkpoint = character.image_checkpoint
         style = character.image_style or "real"
         family = checkpoint_family(style, checkpoint)
-        ppv_on, ppv_default_price = effective_ppv(conv, character)
+        _ppv_on, ppv_default_price = effective_ppv(conv, character)
         locked_price = 0
-        if body.locked and settings.ppv_enabled and ppv_on:
+        if body.locked and settings.ppv_enabled:
+            # Manual photos can be locked explicitly; the price falls back to the effective default.
             locked_price = body.price_cents or ppv_default_price or 500
         chosen = required(db, ImageLibrary, body.library_id) if body.library_id else None
         if chosen is not None and chosen.character_id != conv.character_id:
