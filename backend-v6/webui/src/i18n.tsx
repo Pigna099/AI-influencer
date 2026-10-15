@@ -819,6 +819,17 @@ const en = {
   "ip.label.explicit": "Explicit",
   "jobs.metrics.missingCheckpoints": "{count} LoRAs missing checkpoint",
   "jobs.metrics.backup": "Last backup {date} ({mb} MB)",
+  "jobs.metrics.details": "System metrics",
+  "jobs.metrics.byType": "Jobs by type",
+  "jobs.metrics.avgRun": "avg run",
+  "jobs.metrics.avgQueue": "avg queue",
+  "jobs.metrics.assets": "Assets & coverage",
+  "jobs.metrics.libraryLine": "Library approved / total",
+  "jobs.metrics.trashedLine": "In trash",
+  "jobs.metrics.videosLine": "Videos approved / total",
+  "jobs.metrics.datasetsLine": "Dataset images selected",
+  "jobs.metrics.identityLine": "Identity sets frozen / runs",
+  "jobs.metrics.charactersLine": "Characters with ready LoRA",
 } as const;
 
 type Catalog = typeof en;

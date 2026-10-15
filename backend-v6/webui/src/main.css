@@ -421,3 +421,14 @@
 .review-label select { width: auto; font-size: .72rem; padding: .2rem .35rem; }
 
 .video-label-select { width: auto; font-size: .66rem; padding: .2rem .3rem; }
+
+.metrics-detail { margin-bottom: 12px; font-size: .74rem; color: #9db2cf; }
+.metrics-detail summary { cursor: pointer; color: #8ba0bd; }
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 8px; }
+.metrics-grid h3 { font-size: .78rem; margin-bottom: 6px; }
+.metrics-grid table { width: 100%; border-collapse: collapse; }
+.metrics-grid th, .metrics-grid td { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--border-1); }
+.metrics-grid th { color: #6f86a8; font-weight: 500; font-size: .68rem; }
+.metrics-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.metrics-list li { display: flex; justify-content: space-between; gap: 8px; }
+.metrics-list b { color: #cfe9e6; }

@@ -186,6 +186,38 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
             ? <span>{t("jobs.orphansFound", { count: reconcileReport.orphans })} <button disabled={busy} className="danger" onClick={() => reconcile(true)}>{t("jobs.deleteOrphans")}</button></span>
             : <span>{reconcileReport.removed > 0 ? t("jobs.orphansRemoved", { count: reconcileReport.removed, gb: (reconcileReport.freed_bytes / 1024 ** 3).toFixed(2) }) : t("jobs.noOrphans")}</span>)}
         </div>
+        {metrics && <details className="metrics-detail">
+          <summary>{t("jobs.metrics.details")}</summary>
+          <div className="metrics-grid">
+            <section>
+              <h3>{t("jobs.metrics.byType")}</h3>
+              <table>
+                <thead><tr><th>{t("jobs.filterType")}</th><th>✓</th><th>✕</th><th>⨯</th><th>{t("jobs.metrics.avgRun")}</th><th>{t("jobs.metrics.avgQueue")}</th></tr></thead>
+                <tbody>
+                  {Object.entries(metrics.jobs.by_type).map(([type, states]) => <tr key={type}>
+                    <td>{t(`jobs.type.${type}` as "jobs.type.training")}</td>
+                    <td>{states.succeeded ?? 0}</td>
+                    <td>{states.failed ?? 0}</td>
+                    <td>{states.canceled ?? 0}</td>
+                    <td>{metrics.jobs.avg_run_seconds[type] != null ? `${metrics.jobs.avg_run_seconds[type]}s` : "—"}</td>
+                    <td>{metrics.jobs.avg_queue_seconds[type] != null ? `${metrics.jobs.avg_queue_seconds[type]}s` : "—"}</td>
+                  </tr>)}
+                </tbody>
+              </table>
+            </section>
+            <section>
+              <h3>{t("jobs.metrics.assets")}</h3>
+              <ul className="metrics-list">
+                <li><span>{t("jobs.metrics.libraryLine")}</span><b>{metrics.library.approved}/{metrics.library.total}</b></li>
+                <li><span>{t("jobs.metrics.trashedLine")}</span><b>{metrics.library.trashed}</b></li>
+                <li><span>{t("jobs.metrics.videosLine")}</span><b>{metrics.videos.approved}/{metrics.videos.total}</b></li>
+                <li><span>{t("jobs.metrics.datasetsLine")}</span><b>{metrics.datasets.selected_items}</b></li>
+                <li><span>{t("jobs.metrics.identityLine")}</span><b>{metrics.identity.frozen}/{metrics.identity.runs}</b></li>
+                <li><span>{t("jobs.metrics.charactersLine")}</span><b>{metrics.characters.with_ready_lora}/{metrics.characters.total}</b></li>
+              </ul>
+            </section>
+          </div>
+        </details>}
         {!!audit.length && <details className="audit-log">
           <summary>{t("jobs.audit")}</summary>
           <ul>{audit.map(event => <li key={event.id}>
