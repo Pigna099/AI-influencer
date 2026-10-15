@@ -647,3 +647,32 @@ def test_content_labels():
     assert client.patch(f"/api/library/{image_id}", json={"content_label": "nude"}).status_code == 422
     listing = client.get(f"/api/characters/{character['id']}/library").json()
     assert listing[0]["content_label"] == "explicit"
+
+def test_platform_policy_checklists():
+    created = client.post(
+        "/api/characters",
+        json={
+            "name": "Platform Policy",
+            "profile": {"description": "x"},
+            "platform_policy": {
+                "platforms": {
+                    "instagram": {"ai_disclosure": True, "terms_reviewed": True, "content_rules_ok": False},
+                    "fanvue": {"ai_disclosure": True, "terms_reviewed": False, "content_rules_ok": True},
+                }
+            },
+        },
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["platform_policy"]["platforms"]["instagram"]["ai_disclosure"] is True
+
+    bad = client.put(f"/api/characters/{body['id']}", json={"platform_policy": {"platforms": {"myspace": {}}}})
+    assert bad.status_code == 400
+
+    updated = client.put(
+        f"/api/characters/{body['id']}",
+        json={"platform_policy": {"platforms": {"instagram": {"ai_disclosure": True, "terms_reviewed": True, "content_rules_ok": True}}}},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["platform_policy"]["platforms"]["instagram"]["content_rules_ok"] is True
+    assert "fanvue" not in updated.json()["platform_policy"]["platforms"]

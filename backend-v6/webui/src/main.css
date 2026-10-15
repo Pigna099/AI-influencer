@@ -432,3 +432,10 @@
 .metrics-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .metrics-list li { display: flex; justify-content: space-between; gap: 8px; }
 .metrics-list b { color: #cfe9e6; }
+
+.platform-policy { border: 1px solid var(--border-1); border-radius: 10px; padding: 10px 12px; margin-top: 10px; }
+.platform-policy legend { font-size: .78rem; color: #b7c6dc; padding: 0 6px; }
+.platform-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 4px 0; border-bottom: 1px solid var(--border-1); }
+.platform-row:last-of-type { border-bottom: 0; }
+.platform-row strong { width: 74px; font-size: .74rem; text-transform: capitalize; }
+.platform-row label { font-size: .7rem; }

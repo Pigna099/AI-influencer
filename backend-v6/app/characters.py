@@ -168,6 +168,7 @@ def character_out(item):
         source_hash=item.source_hash,
         permitted_uses=item.permitted_uses,
         lifecycle_state=item.lifecycle_state,
+        platform_policy=item.platform_policy or {},
         avatar_sha256=item.avatar_sha256,
         created_at=item.created_at.isoformat(),
     )
@@ -689,6 +690,17 @@ def augment_library_prompt(character_id: str, body: PromptAugmentInput):
     return {"prompt": content[:1500]}
 
 
+def _platform_payload(policy) -> dict:
+    from .char_schemas import PLATFORMS
+
+    data = policy.model_dump() if hasattr(policy, "model_dump") else dict(policy or {})
+    platforms = data.get("platforms", {}) or {}
+    unknown = [name for name in platforms if name not in PLATFORMS]
+    if unknown:
+        raise HTTPException(400, f"Unknown platform(s): {', '.join(sorted(unknown))}")
+    return {"platforms": platforms}
+
+
 @router.post("/characters", status_code=201)
 def create_character(body: CharacterInput):
     with Session.begin() as db:
@@ -703,6 +715,7 @@ def create_character(body: CharacterInput):
             source_reference=body.source_reference,
             permitted_uses=body.permitted_uses,
             lifecycle_state=body.lifecycle_state,
+            platform_policy=_platform_payload(body.platform_policy),
         )
         db.add(item)
         db.flush()
@@ -750,6 +763,11 @@ def update_character(character_id: str, body: CharacterUpdate):
                 source_reference=body.source_reference if body.source_reference is not None else item.source_reference,
                 permitted_uses=body.permitted_uses if body.permitted_uses is not None else item.permitted_uses,
                 lifecycle_state=body.lifecycle_state or item.lifecycle_state,
+                platform_policy=(
+                    _platform_payload(body.platform_policy)
+                    if body.platform_policy is not None
+                    else item.platform_policy
+                ),
             )
         )
         if changed.rowcount != 1:
@@ -1076,6 +1094,7 @@ def clone_character(character_id: str, body: CharacterClone | None = None):
             source_reference=source.source_reference,
             permitted_uses=source.permitted_uses,
             lifecycle_state=source.lifecycle_state,
+            platform_policy=source.platform_policy,
         )
         db.add(item)
         db.flush()

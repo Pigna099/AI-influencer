@@ -13,7 +13,7 @@ const fields: [keyof CharacterProfile, TranslationKey, number][] = [
   ["relationship_style", "form.field.relationship_style", 1000], ["boundaries", "form.field.boundaries", 2000], ["custom_instructions", "form.field.custom_instructions", 5000],
 ];
 
-export default function CharacterForm({ character, models, onSave, onCancel }: { character?: Character; models: OllamaModel[]; onSave: (data: {name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string; source_category?: string; rights_notes?: string; permitted_uses?: string; lifecycle_state?: string}) => Promise<void>; onCancel: () => void }) {
+export default function CharacterForm({ character, models, onSave, onCancel }: { character?: Character; models: OllamaModel[]; onSave: (data: {name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string; source_category?: string; rights_notes?: string; permitted_uses?: string; lifecycle_state?: string; platform_policy?: {platforms: Record<string, {ai_disclosure: boolean; terms_reviewed: boolean; content_rules_ok: boolean}>}}) => Promise<void>; onCancel: () => void }) {
   const { t } = useI18n();
   const [available, setAvailable] = useState<OllamaModel[]>(() => chatModels(models));
   const [name, setName] = useState(character?.name || "");
@@ -24,6 +24,25 @@ export default function CharacterForm({ character, models, onSave, onCancel }: {
   const [rightsNotes, setRightsNotes] = useState(character?.rights_notes || "");
   const [permittedUses, setPermittedUses] = useState(character?.permitted_uses || "");
   const [lifecycle, setLifecycle] = useState(character?.lifecycle_state || "active");
+  const [platformPolicy, setPlatformPolicy] = useState<Record<string, { ai_disclosure: boolean; terms_reviewed: boolean; content_rules_ok: boolean }>>(
+    () => (character?.platform_policy?.platforms as Record<string, { ai_disclosure: boolean; terms_reviewed: boolean; content_rules_ok: boolean }>) || {},
+  );
+  const setPlatformCheck = (platform: string, key: "ai_disclosure" | "terms_reviewed" | "content_rules_ok", value: boolean) => {
+    setPlatformPolicy(current => {
+      const next = { ...current };
+      if (key === "ai_disclosure" && !value && !next[platform]?.terms_reviewed && !next[platform]?.content_rules_ok) {
+        delete next[platform];
+        return next;
+      }
+      next[platform] = {
+        ai_disclosure: next[platform]?.ai_disclosure ?? false,
+        terms_reviewed: next[platform]?.terms_reviewed ?? false,
+        content_rules_ok: next[platform]?.content_rules_ok ?? false,
+        [key]: value,
+      };
+      return next;
+    });
+  };
   const [profile, setProfile] = useState<CharacterProfile>({ ...profileDefaults, ...character?.profile });
   const [model, setModel] = useState(available.find(m => m.name === "llama3.1:8b")?.name || available[0]?.name || "");
   useEffect(() => {
@@ -45,7 +64,7 @@ export default function CharacterForm({ character, models, onSave, onCancel }: {
     catch (e) { setError(e instanceof Error ? e.message : t("form.enhance.error")); } finally { setBusy(""); }
   };
   return <div className="character-editor"><header><div><span className="eyebrow">PERSONALITY</span><h2>{character ? t("form.title.edit", { name: character.name }) : t("form.title.new")}</h2></div><button onClick={onCancel} disabled={!!busy} aria-label={t("common.close")}>×</button></header>
-    <form onSubmit={async e => { e.preventDefault(); setBusy(t("form.saving")); setError(""); try { await onSave({ name, profile, age: age.trim() ? Number(age) : null, synthetic_declared: synthetic, provenance, source_category: sourceCategory, rights_notes: rightsNotes, permitted_uses: permittedUses, lifecycle_state: lifecycle }); } catch (err) { setError(String(err)); } finally { setBusy(""); } }}>
+    <form onSubmit={async e => { e.preventDefault(); setBusy(t("form.saving")); setError(""); try { await onSave({ name, profile, age: age.trim() ? Number(age) : null, synthetic_declared: synthetic, provenance, source_category: sourceCategory, rights_notes: rightsNotes, permitted_uses: permittedUses, lifecycle_state: lifecycle, platform_policy: { platforms: platformPolicy } }); } catch (err) { setError(String(err)); } finally { setBusy(""); } }}>
       <fieldset disabled={!!busy}><div className="editor-identity"><label>{t("form.name")}<input autoFocus value={name} onChange={e => setName(e.target.value)} required maxLength={120} /></label><label>{t("form.language")}<select value={profile.language} onChange={e => setProfile(p => ({ ...p, language: e.target.value }))}><option value="it">Italiano</option><option value="en">English</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="es">Español</option></select></label></div>
         <div className="editor-identity">
           <label>{t("form.age")}<input type="number" min={21} max={99} value={age} onChange={e => setAge(e.target.value)} placeholder="21+" /></label>
@@ -74,6 +93,18 @@ export default function CharacterForm({ character, models, onSave, onCancel }: {
           <label>{t("form.rightsNotes")}<textarea rows={2} value={rightsNotes} onChange={e => setRightsNotes(e.target.value)} maxLength={4000} /></label>
           <label>{t("form.permittedUses")}<input value={permittedUses} onChange={e => setPermittedUses(e.target.value)} maxLength={300} /></label>
         </div>
+        <fieldset className="platform-policy">
+          <legend>{t("form.platformPolicy")}</legend>
+          <p className="muted">{t("form.platformPolicyHint")}</p>
+          {["instagram", "fanvue", "x", "reddit", "tiktok"].map(platform => <div className="platform-row" key={platform}>
+            <strong>{platform}</strong>
+            <label className="auto-label"><input type="checkbox" checked={platform in platformPolicy} onChange={e => setPlatformCheck(platform, "ai_disclosure", e.target.checked)} /> {t("form.platform.inUse")}</label>
+            <label className="auto-label"><input type="checkbox" disabled={!(platform in platformPolicy)} checked={platformPolicy[platform]?.ai_disclosure || false} onChange={e => setPlatformCheck(platform, "ai_disclosure", e.target.checked)} /> {t("form.platform.aiDisclosure")}</label>
+            <label className="auto-label"><input type="checkbox" disabled={!(platform in platformPolicy)} checked={platformPolicy[platform]?.terms_reviewed || false} onChange={e => setPlatformCheck(platform, "terms_reviewed", e.target.checked)} /> {t("form.platform.terms")}</label>
+            <label className="auto-label"><input type="checkbox" disabled={!(platform in platformPolicy)} checked={platformPolicy[platform]?.content_rules_ok || false} onChange={e => setPlatformCheck(platform, "content_rules_ok", e.target.checked)} /> {t("form.platform.rules")}</label>
+          </div>)}
+          {Object.entries(platformPolicy).some(([, checks]) => !checks.ai_disclosure) && <p className="warning" role="note">{t("form.platform.warning")}</p>}
+        </fieldset>
         <div className="profile-fields">{fields.map(([key, labelKey, max]) => <label key={key}>{t(labelKey)}<textarea value={profile[key]} onChange={e => setProfile(p => ({ ...p, [key]: e.target.value }))} rows={key === "description" ? 3 : 2} maxLength={max} required={key === "description"} /></label>)}</div>
         <p className="muted">{t("form.appearanceNote")}</p>
         <div className="enhance-box"><h3>{t("form.enhance.title")}</h3><label>{t("form.enhance.model")}<select value={model} onChange={e => setModel(e.target.value)}>{!available.length && <option value="">{t("pg.chooseModel")}</option>}{available.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}</select></label><label>{t("form.enhance.direction")}<textarea rows={2} value={direction} onChange={e => setDirection(e.target.value)} maxLength={2000} /></label><button type="button" disabled={!name.trim() || !profile.description.trim() || !model} onClick={() => void enhance()}>{t("form.enhance.generate")}</button><small>{t("form.enhance.note")}</small></div>

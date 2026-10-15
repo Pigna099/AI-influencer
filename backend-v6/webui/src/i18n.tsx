@@ -832,6 +832,13 @@ const en = {
   "jobs.metrics.charactersLine": "Characters with ready LoRA",
   "jobs.purgeTrash": "Purge trash (>30 days)",
   "jobs.purgeTrashConfirm": "Permanently delete trashed assets older than 30 days? This cannot be undone.",
+  "form.platformPolicy": "Platform policy checklists",
+  "form.platformPolicyHint": "For each platform you publish on, confirm the disclosure and rule checks before posting.",
+  "form.platform.inUse": "In use",
+  "form.platform.aiDisclosure": "AI disclosure",
+  "form.platform.terms": "Terms reviewed",
+  "form.platform.rules": "Content rules ok",
+  "form.platform.warning": "One or more platforms are missing the AI disclosure: do not publish there until it is set.",
 } as const;
 
 type Catalog = typeof en;

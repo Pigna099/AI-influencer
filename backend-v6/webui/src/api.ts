@@ -57,6 +57,7 @@ export interface Character {
   synthetic_declared?: boolean;
   provenance?: string;
   source_category?: string;
+  platform_policy?: { platforms: Record<string, { ai_disclosure: boolean; terms_reviewed: boolean; content_rules_ok: boolean }> };
   rights_notes?: string;
   source_reference?: string;
   source_hash?: string;
@@ -571,11 +572,11 @@ export class ApiClient {
     return this.request("/api/characters");
   }
 
-  async createCharacter(data: {name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string; source_category?: string; rights_notes?: string; source_reference?: string; permitted_uses?: string; lifecycle_state?: string}): Promise<Character> {
+  async createCharacter(data: {name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string; source_category?: string; rights_notes?: string; source_reference?: string; permitted_uses?: string; lifecycle_state?: string; platform_policy?: {platforms: Record<string, {ai_disclosure: boolean; terms_reviewed: boolean; content_rules_ok: boolean}>}}): Promise<Character> {
     return this.request("/api/characters", {method: "POST", body: JSON.stringify(data)});
   }
 
-  async updateCharacter(id: string, data: {name?: string; profile?: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string; source_category?: string; rights_notes?: string; source_reference?: string; permitted_uses?: string; lifecycle_state?: string}): Promise<Character> {
+  async updateCharacter(id: string, data: {name?: string; profile?: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string; source_category?: string; rights_notes?: string; source_reference?: string; permitted_uses?: string; lifecycle_state?: string; platform_policy?: {platforms: Record<string, {ai_disclosure: boolean; terms_reviewed: boolean; content_rules_ok: boolean}>}}): Promise<Character> {
     return this.request(`/api/characters/${id}`, {method: "PUT", body: JSON.stringify(data)});
   }
 

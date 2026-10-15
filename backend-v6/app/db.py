@@ -45,6 +45,7 @@ class Influencer(Base):
     source_hash: Mapped[str] = mapped_column(String(64), default="", server_default="")
     permitted_uses: Mapped[str] = mapped_column(String(300), default="", server_default="")
     lifecycle_state: Mapped[str] = mapped_column(String(24), default="active", server_default="active")
+    platform_policy: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     avatar_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     avatar_filename: Mapped[str | None] = mapped_column(String(120), nullable=True)
     avatar_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)

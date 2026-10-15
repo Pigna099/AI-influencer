@@ -7,6 +7,19 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
+PLATFORMS = ("instagram", "fanvue", "x", "reddit", "tiktok")
+
+
+class PlatformChecks(StrictModel):
+    ai_disclosure: bool = False
+    terms_reviewed: bool = False
+    content_rules_ok: bool = False
+
+
+class PlatformPolicy(StrictModel):
+    platforms: dict[str, PlatformChecks] = Field(default_factory=dict)
+
+
 class CharacterProfile(StrictModel):
     description: str = Field(min_length=1, max_length=5000)
     appearance: str = Field(default="", max_length=2000)
@@ -33,6 +46,7 @@ class CharacterInput(StrictModel):
     synthetic_declared: bool = False
     provenance: Literal["original", "synthetic", "consented"] = "synthetic"
     source_category: Literal["generated", "owned", "consented", "reference_only"] = "generated"
+    platform_policy: PlatformPolicy = Field(default_factory=PlatformPolicy)
     rights_notes: str = Field(default="", max_length=4000)
     source_reference: str = Field(default="", max_length=500)
     permitted_uses: str = Field(default="", max_length=300)
@@ -60,6 +74,7 @@ class CharacterOutput(StrictModel):
     synthetic_declared: bool = False
     provenance: str = "synthetic"
     source_category: str = "generated"
+    platform_policy: dict = Field(default_factory=dict)
     rights_notes: str = ""
     source_reference: str = ""
     source_hash: str = ""
@@ -180,6 +195,7 @@ class CharacterUpdate(StrictModel):
     synthetic_declared: bool | None = None
     provenance: Literal["original", "synthetic", "consented"] | None = None
     source_category: Literal["generated", "owned", "consented", "reference_only"] | None = None
+    platform_policy: PlatformPolicy | None = None
     rights_notes: str | None = Field(default=None, max_length=4000)
     source_reference: str | None = Field(default=None, max_length=500)
     permitted_uses: str | None = Field(default=None, max_length=300)
