@@ -912,6 +912,7 @@ Progress log — 15 October 2026 (first slice):
 - Trash retention: `POST /api/system/purge-trash?days=30` permanently deletes trashed assets
   older than the window (rows + files, dataset/video references cleaned) with a button on the Jobs
   page; test added.
+- "Empty trash now" button in the Trash tab (`days=0` purge, with confirmation); test extended.
 - Session security: API key stays in sessionStorage with a 12 h expiry (cleared on expiry/logout);
   key rotation supported via `API_KEY_PREVIOUS` (old key keeps working while clients migrate).
   Test added.

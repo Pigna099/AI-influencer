@@ -523,6 +523,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
               <button role="tab" aria-selected={!trashView && mode === "review"} disabled={!!busy} onClick={() => { setTrashView(false); setMode("review"); }}>{t("ip.mode.review")}</button>
               <button role="tab" aria-selected={trashView} disabled={!!busy} onClick={() => { setTrashView(true); setMode("grid"); }}>{t("ip.mode.trash")}</button>
             </div>
+            {trashView && <button className="danger" disabled={!!busy || !library.length} onClick={() => { if (window.confirm(t("ip.emptyTrashConfirm"))) { setBusy(t("ip.emptyTrash")); void api.purgeTrash(0).then(() => setLibrary([])).catch(() => undefined).finally(() => setBusy("")); } }}>{t("ip.emptyTrash")}</button>}
             {mode === "grid" ? <>
               <label><input type="checkbox" disabled={!!busy || !library.length} checked={selectedIds.length > 0 && selectedIds.length === library.length} onChange={e => setSelectedIds(e.target.checked ? library.map(entry => entry.id) : [])} /> {t("bulk.selectAll")}</label>
               <button disabled={!!busy || !selectedIds.length} onClick={() => bulkStatus("approved")}>{t("ip.approve")}</button>

@@ -873,6 +873,8 @@ const en = {
   "jobs.etaMinutes": "ETA {minutes}m",
   "vd.lastFrame": "Last frame (optional)",
   "vd.lastFrameNone": "None (first frame only)",
+  "ip.emptyTrash": "Empty trash now",
+  "ip.emptyTrashConfirm": "Permanently delete everything in the trash? This cannot be undone.",
 } as const;
 
 type Catalog = typeof en;

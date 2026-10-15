@@ -74,3 +74,9 @@ def test_purge_trash():
     with Session() as db:
         assert db.get(ImageLibrary, old_id) is None
         assert db.get(ImageLibrary, fresh_id) is not None
+
+    # Empty trash now (days=0) purges everything currently trashed.
+    emptied = client.post("/api/system/purge-trash", params={"days": 0}).json()
+    assert emptied["purged"] >= 1
+    with Session() as db:
+        assert db.get(ImageLibrary, fresh_id) is None
