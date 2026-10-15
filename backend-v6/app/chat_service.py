@@ -26,6 +26,7 @@ from .db import (
 )
 from .integrations.comfyui import checkpoint_meta, comfyui_available
 from .integrations.text import OllamaNotAvailable, chat
+from .policy import scan_policy
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,10 @@ FAN_MESSAGE_REMINDER = (
 BLOCKED_RESPONSE = (
     "[Reply blocked by the anti-injection filter: the model tried to follow instructions contained "
     "in the fan message or reveal the internal prompt. Try again or pick another model.]"
+)
+POLICY_BLOCKED_RESPONSE = (
+    "[Reply blocked by the content policy: age-safety rules are non-negotiable. "
+    "Regenerate or pick another model.]"
 )
 INJECTION_HINTS = re.compile(
     r"ignore (all )?(previous|prior|above)|disregard .{0,30}instructions|system prompt|system update|"
@@ -448,6 +453,10 @@ def measured_chat(model: str, messages: list[dict], temperature: float, kind: st
     if guard_reason:
         logger.warning("Injection guard blocked a %s response for kind=%s", guard_reason, kind)
         content = BLOCKED_RESPONSE
+    policy_issues = scan_policy(content)
+    if policy_issues:
+        logger.warning("Policy guard blocked a %s response: %s", kind, policy_issues)
+        content = POLICY_BLOCKED_RESPONSE
     metrics = {
         key: response.get(key)
         for key in (
@@ -469,6 +478,7 @@ def measured_chat(model: str, messages: list[dict], temperature: float, kind: st
         context_tokens=8192,
         guarded=guard_reason is not None,
         guard_reason=guard_reason,
+        policy_block=policy_issues or None,
     )
     return content, metrics
 

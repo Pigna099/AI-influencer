@@ -773,7 +773,10 @@ Progress log — 15 October 2026 (first slice):
   Waiting for reply (with seconds) / Active — derived from conversation, busy and pending replies.
 - Asset composer: the chat photo modal can now send an approved library photo (source picker;
   backend `library_id` already supported), or generate a new one. 
-- Remaining: rail/inspector split, structured assistant proposals, policy validation.
+- **Policy validation** on outbound chat text (`app/policy.py`): hard block for underage references,
+  soft block for child/kid/minor/teen terms combined with sexual content; blocked replies are
+  replaced with a policy message and flagged in the message metrics. Unit + integration tests.
+- Remaining: rail/inspector split, structured assistant proposals.
 
 ### UI redesign
 
