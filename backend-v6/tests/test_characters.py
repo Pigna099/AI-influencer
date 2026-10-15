@@ -595,3 +595,29 @@ def test_library_bulk_status():
     assert rejected.status_code == 200 and rejected.json()["updated"] == 1
     assert client.post("/api/library/bulk-status", json={"ids": [], "status": "draft"}).status_code == 422
     assert client.post("/api/library/bulk-status", json={"ids": [ids[0]], "status": "archived"}).status_code == 422
+
+def test_library_collections():
+    character = client.post("/api/characters", json={"name": "Collections", "profile": {"description": "x"}}).json()
+    images = client.post(f"/api/characters/{character['id']}/library/generate", json={"prompt": "x", "count": 3}).json()
+    ids = [item["id"] for item in images]
+
+    created = client.post("/api/collections", json={"name": "Favorites"})
+    assert created.status_code == 201
+    collection = created.json()
+    assert client.post("/api/collections", json={"name": "Favorites"}).json()["id"] == collection["id"]
+
+    added = client.post(f"/api/collections/{collection['id']}/items", json={"ids": ids[:2]})
+    assert added.status_code == 200 and added.json()["added"] == 2
+    assert client.post(f"/api/collections/{collection['id']}/items", json={"ids": ids[:2]}).json()["added"] == 0
+
+    listing = client.get("/api/collections").json()
+    assert listing == [{"id": collection["id"], "name": "Favorites", "count": 2}]
+
+    filtered = client.get(f"/api/characters/{character['id']}/library", params={"collection_id": collection["id"]}).json()
+    assert {item["id"] for item in filtered} == set(ids[:2])
+
+    removed = client.request("DELETE", f"/api/collections/{collection['id']}/items", json={"ids": [ids[0]]})
+    assert removed.json()["removed"] == 1
+    assert client.delete(f"/api/collections/{collection['id']}").status_code == 200
+    assert client.get("/api/collections").json() == []
+    assert client.post("/api/collections/missing/items", json={"ids": [ids[0]]}).status_code == 404

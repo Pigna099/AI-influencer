@@ -685,11 +685,12 @@ export class ApiClient {
     return this.request(`/api/videos/${id}`, { method: "DELETE" });
   }
 
-  async getLibrary(characterId: string, params: {status?: string; style?: string; limit?: number; offset?: number; trash?: boolean} = {}): Promise<LibraryImage[]> {
+  async getLibrary(characterId: string, params: {status?: string; style?: string; limit?: number; offset?: number; trash?: boolean; collection_id?: string} = {}): Promise<LibraryImage[]> {
     const query = new URLSearchParams();
     if (params.status) query.set("status", params.status);
     if (params.style) query.set("style", params.style);
     if (params.trash) query.set("trash", "true");
+    if (params.collection_id) query.set("collection_id", params.collection_id);
     query.set("limit", String(params.limit ?? 60));
     if (params.offset) query.set("offset", String(params.offset));
     return this.request(`/api/characters/${characterId}/library?${query.toString()}`);
@@ -800,6 +801,22 @@ export class ApiClient {
 
   restoreLibraryItem(id: string): Promise<LibraryImage> {
     return this.request(`/api/library/${id}/restore`, { method: "POST" });
+  }
+
+  getCollections(): Promise<{ id: string; name: string; count: number }[]> {
+    return this.request("/api/collections");
+  }
+
+  createCollection(name: string): Promise<{ id: string; name: string }> {
+    return this.request("/api/collections", { method: "POST", body: JSON.stringify({ name }) });
+  }
+
+  addCollectionItems(collectionId: string, ids: string[]): Promise<{ added: number }> {
+    return this.request(`/api/collections/${collectionId}/items`, { method: "POST", body: JSON.stringify({ ids }) });
+  }
+
+  deleteCollection(collectionId: string): Promise<{ deleted: boolean }> {
+    return this.request(`/api/collections/${collectionId}`, { method: "DELETE" });
   }
 
   async setLibraryItemsStatus(ids: string[], status: "draft" | "approved" | "rejected"): Promise<{updated: number}> {

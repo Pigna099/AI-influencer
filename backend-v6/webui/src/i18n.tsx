@@ -798,6 +798,10 @@ const en = {
   "ip.savedFilters": "Saved filters",
   "ip.savedFilters.name": "Filter name",
   "ip.savedFilters.delete": "Delete saved filter",
+  "ip.addToCollection": "Add to collection\u2026",
+  "ip.collectionAdd": "Add",
+  "ip.collection": "Collection",
+  "ip.collectionAll": "All collections",
 } as const;
 
 type Catalog = typeof en;

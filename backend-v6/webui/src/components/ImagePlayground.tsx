@@ -164,6 +164,9 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   });
   const [savedName, setSavedName] = useState("");
   const [appliedFilter, setAppliedFilter] = useState("");
+  const [collections, setCollections] = useState<{ id: string; name: string; count: number }[]>([]);
+  const [collectionFilter, setCollectionFilter] = useState("");
+  const [addToCollection, setAddToCollection] = useState("");
   const [reviewId, setReviewId] = useState("");
   const [anchorOverlay, setAnchorOverlay] = useState(false);
   const [anchorUrl, setAnchorUrl] = useState("");
@@ -175,7 +178,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
     setSelectedIds([]);
     const epoch = generation.current;
     try {
-      const items = await api.getLibrary(id, { status: statusFilter, style: styleFilter, limit: LIBRARY_PAGE, trash: trashView });
+      const items = await api.getLibrary(id, { status: statusFilter, style: styleFilter, limit: LIBRARY_PAGE, trash: trashView, collection_id: collectionFilter || undefined });
       if (epoch === generation.current) {
         setLibrary(items);
         setLibraryHasMore(items.length === LIBRARY_PAGE);
@@ -183,7 +186,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
     } finally {
       if (epoch === generation.current) setLibraryLoaded(true);
     }
-  }, [statusFilter, styleFilter, trashView]);
+  }, [statusFilter, styleFilter, trashView, collectionFilter]);
 
   useEffect(() => {
     let objectUrl = "";
@@ -250,6 +253,19 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [mode, reviewItem, library, reviewIndex]);
+
+  useEffect(() => {
+    api.getCollections().then(setCollections).catch(() => undefined);
+  }, []);
+
+  const addSelectedToCollection = () => {
+    if (!addToCollection || !selectedIds.length) return;
+    void perform("", async () => {
+      await api.addCollectionItems(addToCollection, selectedIds);
+      setCollections(await api.getCollections());
+      setSelectedIds([]);
+    });
+  };
 
   const persistFilters = (next: { name: string; status: string; style: string }[]) => {
     setSavedFilters(next);
@@ -495,10 +511,19 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
               <button disabled={!!busy || !selectedIds.length} onClick={() => bulkStatus("approved")}>{t("ip.approve")}</button>
               <button disabled={!!busy || !selectedIds.length} onClick={() => bulkStatus("rejected")}>{t("ip.reject")}</button>
               <button disabled={!!busy || !selectedIds.length} onClick={() => bulkStatus("draft")}>{t("ip.statusDraft")}</button>
+              <select className="saved-filter-select" value={addToCollection} disabled={!!busy || !collections.length || !selectedIds.length} onChange={e => setAddToCollection(e.target.value)} aria-label={t("ip.addToCollection")}>
+                <option value="">{t("ip.addToCollection")}</option>
+                {collections.map(entry => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
+              </select>
+              <button type="button" disabled={!!busy || !addToCollection || !selectedIds.length} onClick={addSelectedToCollection}>{t("ip.collectionAdd")}</button>
               <button className="danger" disabled={!!busy || !selectedIds.length} onClick={removeSelected}>{t("bulk.deleteSelected", { count: selectedIds.length })}</button>
             </> : <label className="auto-label"><input type="checkbox" checked={anchorOverlay} onChange={e => setAnchorOverlay(e.target.checked)} disabled={!anchorUrl} /> {t("ip.review.overlay")} <kbd>O</kbd></label>}
             {mode === "grid" && !trashView && <>
               <label className="auto-label"><input type="checkbox" checked={dupOnly} onChange={e => setDupOnly(e.target.checked)} disabled={!duplicateGroups} /> {t("ip.duplicates", { count: duplicateGroups })}</label>
+              <select className="saved-filter-select" value={collectionFilter} disabled={!!busy || !collections.length} onChange={e => setCollectionFilter(e.target.value)} aria-label={t("ip.collection")}>
+                <option value="">{t("ip.collectionAll")}</option>
+                {collections.map(entry => <option key={entry.id} value={entry.id}>{entry.name} ({entry.count})</option>)}
+              </select>
               <select className="saved-filter-select" value="" disabled={!!busy || !savedFilters.length} onChange={e => applyFilter(e.target.value)} aria-label={t("ip.savedFilters")}>
                 <option value="">{t("ip.savedFilters")}</option>
                 {savedFilters.map(entry => <option key={entry.name} value={entry.name}>{entry.name}</option>)}

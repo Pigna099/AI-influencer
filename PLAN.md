@@ -744,6 +744,8 @@ Progress log — 15 October 2026 (first slice):
   (test added); always-visible effective-recipe line before Generate (Images and Video).
 - Content policy metadata: `policy` JSON on library images and videos (age-safety enforced, adult
   only, timestamp) recorded at generation (migration `0029`), exposed in the API.
+- Collections (migration `0030`): `GET/POST /api/collections`, add/remove items, delete; library
+  filter by collection; bulk "Add to collection" in the selection bar. Test added.
 
 ### Steps
 

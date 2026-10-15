@@ -78,6 +78,14 @@ class AvatarInput(StrictModel):
     style: Literal["anime", "real"] | None = None
 
 
+class CollectionInput(StrictModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
+class CollectionItemsInput(StrictModel):
+    ids: list[str] = Field(min_length=1, max_length=200)
+
+
 class BulkStatusInput(StrictModel):
     ids: list[str] = Field(min_length=1, max_length=200)
     status: Literal["draft", "approved", "rejected"]

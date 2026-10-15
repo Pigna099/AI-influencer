@@ -31,6 +31,8 @@ from .char_schemas import (
     CharacterProfile,
     CharacterUpdate,
     ChatMessageInput,
+    CollectionInput,
+    CollectionItemsInput,
     ConversationInput,
     ConversationPatch,
     EnhanceInput,
@@ -78,6 +80,8 @@ from .db import (
     ImageLibrary,
     Influencer,
     Job,
+    LibraryCollection,
+    LibraryCollectionItem,
     LoraDataset,
     LoraDatasetItem,
     Memory,
@@ -294,8 +298,14 @@ def system_gpus():
     return gpu_status()
 
 
-def library_query(character_id: str, status: str | None, style: str | None, trash: bool = False):
+def library_query(character_id: str, status: str | None, style: str | None, trash: bool = False, collection_id: str | None = None):
     query = select(ImageLibrary).where(ImageLibrary.character_id == character_id)
+    if collection_id:
+        query = query.where(
+            ImageLibrary.id.in_(
+                select(LibraryCollectionItem.image_id).where(LibraryCollectionItem.collection_id == collection_id)
+            )
+        )
     if trash:
         query = query.where(ImageLibrary.deleted_at.is_not(None))
     else:
@@ -313,13 +323,14 @@ def list_library(
     status: str | None = None,
     style: str | None = None,
     trash: bool = False,
+    collection_id: str | None = None,
     limit: int = Query(60, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
     with Session() as db:
         required(db, Influencer, character_id)
         items = db.scalars(
-            library_query(character_id, status, style, trash)
+            library_query(character_id, status, style, trash, collection_id)
             .order_by(ImageLibrary.created_at.desc())
             .limit(limit)
             .offset(offset)
@@ -525,6 +536,74 @@ def delete_library_item(item_id: str):
         )
         db.delete(item)
     unlink_media([filename])
+    return {"deleted": True}
+
+
+@router.get("/collections")
+def list_collections():
+    with Session() as db:
+        collections = db.scalars(select(LibraryCollection).order_by(LibraryCollection.name)).all()
+        result = []
+        for collection in collections:
+            count = db.scalar(
+                select(func.count())
+                .select_from(LibraryCollectionItem)
+                .where(LibraryCollectionItem.collection_id == collection.id)
+            ) or 0
+            result.append({"id": collection.id, "name": collection.name, "count": count})
+        return result
+
+
+@router.post("/collections", status_code=201)
+def create_collection(body: CollectionInput):
+    with Session.begin() as db:
+        existing = db.scalar(select(LibraryCollection).where(LibraryCollection.name == body.name.strip()))
+        if existing is not None:
+            return {"id": existing.id, "name": existing.name}
+        collection = LibraryCollection(name=body.name.strip())
+        db.add(collection)
+        db.flush()
+        result = {"id": collection.id, "name": collection.name}
+    return result
+
+
+@router.post("/collections/{collection_id}/items")
+def add_collection_items(collection_id: str, body: CollectionItemsInput):
+    with Session.begin() as db:
+        collection = db.get(LibraryCollection, collection_id)
+        if collection is None:
+            raise HTTPException(404, "Collection not found")
+        present = set(
+            db.scalars(
+                select(LibraryCollectionItem.image_id).where(LibraryCollectionItem.collection_id == collection_id)
+            )
+        )
+        added = 0
+        for image_id in body.ids:
+            if image_id in present:
+                continue
+            db.add(LibraryCollectionItem(collection_id=collection_id, image_id=image_id))
+            added += 1
+    return {"added": added}
+
+
+@router.delete("/collections/{collection_id}/items")
+def remove_collection_items(collection_id: str, body: CollectionItemsInput):
+    with Session.begin() as db:
+        changed = db.execute(
+            delete(LibraryCollectionItem).where(
+                LibraryCollectionItem.collection_id == collection_id,
+                LibraryCollectionItem.image_id.in_(body.ids),
+            )
+        )
+    return {"removed": changed.rowcount or 0}
+
+
+@router.delete("/collections/{collection_id}")
+def delete_collection(collection_id: str):
+    with Session.begin() as db:
+        db.execute(delete(LibraryCollectionItem).where(LibraryCollectionItem.collection_id == collection_id))
+        db.execute(delete(LibraryCollection).where(LibraryCollection.id == collection_id))
     return {"deleted": True}
 
 
