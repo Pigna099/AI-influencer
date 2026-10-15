@@ -383,3 +383,13 @@
 .review-thumb.selected { border-color: var(--accent); }
 .review-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .review-thumb.status-rejected { opacity: .5; }
+
+.model-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.model-cards button { display: grid; gap: 2px; text-align: left; padding: .5rem .6rem; font-size: .72rem; border-radius: 10px; }
+.model-cards button strong { font-size: .75rem; }
+.model-cards button small { color: #8ba0bd; font-size: .64rem; }
+.model-cards button.selected { border-color: var(--accent); background: var(--accent-soft); }
+.model-cards button.selected small { color: #cfe9e6; }
+.motion-presets { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.motion-presets small { flex-basis: 100%; }
+.motion-presets button { font-size: .68rem; padding: .25rem .5rem; }

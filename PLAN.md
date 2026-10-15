@@ -733,6 +733,14 @@ Always show a compact “Effective recipe” before submission.
 
 ## 15. Phase 9 — Redesign video production
 
+Progress log — 15 October 2026 (first slice):
+- Model capability cards replace the model select (FPS, I2V+T2V, step range, LoRA notes);
+  duration expressed in seconds first, frames second (select + effective-recipe summary);
+  motion preset chips (subtle portrait, turn to camera, walking, hair/wind, camera push, orbit)
+  append to the prompt. Source preview and approved-only picker were already in place.
+- Remaining: first/last-frame support, ETA via unified jobs (progress is recorded), review
+  collections, poster/recipe fields (params already carry model/seed; adding fps/duration next).
+
 ### Steps
 
 1. Replace the HTML select with the shared visual Asset Picker.

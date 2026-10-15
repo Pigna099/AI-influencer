@@ -781,6 +781,15 @@ const en = {
   "ip.trash": "Move to Trash",
   "ip.restore": "Restore",
   "ip.deleteForever": "Delete forever",
+  "vd.cap.steps": "{range} steps",
+  "vd.secondsFrames": "{seconds}s \u00b7 {frames} frames",
+  "vd.motion.title": "Motion presets",
+  "vd.motion.subtle": "Subtle portrait",
+  "vd.motion.turn": "Turn to camera",
+  "vd.motion.walk": "Walking",
+  "vd.motion.hair": "Hair / wind",
+  "vd.motion.push": "Camera push",
+  "vd.motion.orbit": "Orbit",
 } as const;
 
 type Catalog = typeof en;

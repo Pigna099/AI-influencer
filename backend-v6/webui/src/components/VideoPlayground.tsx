@@ -185,6 +185,26 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   const lengthOptions = presets[family].lengthOptions;
   const stepOptions = presets[family].stepOptions;
 
+  const CAPABILITIES: Record<"wan" | "ltx-distilled" | "ltx-dev" | "hunyuan", { fps: number; modes: string; steps: string; loras: string }> = {
+    wan: { fps: 16, modes: "I2V + T2V", steps: "4-8", loras: "lightx2v auto" },
+    "ltx-distilled": { fps: 24, modes: "I2V + T2V", steps: "5-8", loras: "LTX LoRAs" },
+    "ltx-dev": { fps: 24, modes: "I2V + T2V", steps: "5-8", loras: "LTX LoRAs" },
+    hunyuan: { fps: 24, modes: "I2V + T2V", steps: "8-20", loras: "Hunyuan LoRAs" },
+  };
+  const fps = CAPABILITIES[model].fps;
+  const seconds = (frames: number) => (frames / fps).toFixed(1);
+  const MOTION_PRESETS: [string, string][] = [
+    ["vd.motion.subtle", "subtle portrait movement, natural micro-expressions"],
+    ["vd.motion.turn", "she slowly turns to the camera"],
+    ["vd.motion.walk", "she walks naturally toward the camera"],
+    ["vd.motion.hair", "light wind moves her hair"],
+    ["vd.motion.push", "slow camera push-in"],
+    ["vd.motion.orbit", "camera slowly orbits around her"],
+  ];
+  const addMotion = (fragment: string) => {
+    setPrompt(current => current.includes(fragment) ? current : [current.trim(), fragment].filter(Boolean).join(", "));
+  };
+
   useEffect(() => {
     setResolution(presets[family].resolution);
     setLength(presets[family].length);
@@ -293,19 +313,38 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
           </select></label>}
           {mode === "image" && <SourcePreview image={library.find(image => image.id === sourceId)} />}
           <label>{t("vd.prompt")}<textarea rows={3} value={prompt} disabled={!!busy} onChange={e => setPrompt(e.target.value)} placeholder={t("vd.promptPlaceholder")} maxLength={2000} /></label>
+          <div className="motion-presets" role="group" aria-label={t("vd.motion.title")}>
+            <small className="muted">{t("vd.motion.title")}</small>
+            {MOTION_PRESETS.map(([key, fragment]) => <button key={key} type="button" disabled={!!busy} onClick={() => addMotion(fragment)}>{t(key as "vd.motion.subtle")}</button>)}
+          </div>
           <AdvancedSettings title={t("ip.details")} summary={[
             resolution.replace("x", "×"),
-            t("vd.frames", { count: length }),
+            t("vd.secondsFrames", { seconds: seconds(length), frames: length }),
             `${steps} steps`,
             Object.keys(loraSel).length ? `${Object.keys(loraSel).length} LoRA` : null,
             seed ? `${t("vd.seed")} ${seed}` : null,
           ].filter(Boolean).join(" · ")}>
             <label>{t("vd.negative")}<textarea rows={2} value={negative} disabled={!!busy} onChange={e => setNegative(e.target.value)} maxLength={2000} /></label>
             <label>{t("vd.resolution")}<select value={resolution} disabled={!!busy} onChange={e => setResolution(e.target.value)}>{resolutionOptions.map(option => <option key={option} value={option}>{option.replace("x", "×")}</option>)}</select></label>
-            <label>{t("vd.length")}<select value={length} disabled={!!busy} onChange={e => setLength(Number(e.target.value))}>{lengthOptions.map(option => <option key={option} value={option}>{t("vd.frames", { count: option })}</option>)}</select></label>
+            <label>{t("vd.length")}<select value={length} disabled={!!busy} onChange={e => setLength(Number(e.target.value))}>{lengthOptions.map(option => <option key={option} value={option}>{t("vd.secondsFrames", { seconds: seconds(option), frames: option })}</option>)}</select></label>
             <label>{t("vd.steps")}<select value={steps} disabled={!!busy} onChange={e => setSteps(Number(e.target.value))}>{stepOptions.map(option => <option key={option} value={option}>{option}</option>)}</select></label>
             <label>{t("vd.seed")}<input value={seed} disabled={!!busy} onChange={e => setSeed(e.target.value)} inputMode="numeric" placeholder="random" /></label>
-            <label>{t("vd.model")}<select value={model} disabled={!!busy} onChange={e => setModel(e.target.value as "wan" | "ltx-distilled" | "ltx-dev" | "hunyuan")}><option value="wan">{t("vd.modelWan")}</option><option value="ltx-distilled">{t("vd.modelLtxDistilled")}</option><option value="ltx-dev">{t("vd.modelLtxDev")}</option><option value="hunyuan">{t("vd.modelHunyuan")}</option></select></label>
+            <span className="scope-label">{t("vd.model")}</span>
+            <div className="model-cards" role="radiogroup" aria-label={t("vd.model")}>
+              {(["wan", "ltx-distilled", "ltx-dev", "hunyuan"] as const).map(key => <button
+                key={key}
+                type="button"
+                role="radio"
+                aria-checked={model === key}
+                className={model === key ? "selected" : undefined}
+                disabled={!!busy}
+                onClick={() => setModel(key)}
+              >
+                <strong>{key === "wan" ? t("vd.modelWan") : key === "ltx-distilled" ? t("vd.modelLtxDistilled") : key === "ltx-dev" ? t("vd.modelLtxDev") : t("vd.modelHunyuan")}</strong>
+                <small>{CAPABILITIES[key].fps} fps · {CAPABILITIES[key].modes}</small>
+                <small>{t("vd.cap.steps", { range: CAPABILITIES[key].steps })} · {CAPABILITIES[key].loras}</small>
+              </button>)}
+            </div>
             <div className="lora-video">
               <span>{t("vd.loras")}</span>
               {!videoLoras.length && <small className="muted">{t("vd.lorasNone")}</small>}
