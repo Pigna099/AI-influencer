@@ -1,6 +1,7 @@
 """Per-character LoRA registry and training job queue (pipeline Phase A)."""
 
 import hashlib
+import json
 import random
 import re
 import secrets
@@ -393,6 +394,9 @@ def queue_training(lora_id: str, body: TrainingJobCreate):
             "save_every": body.save_every,
             "gpu": body.gpu,
         }
+        params["spec_sha256"] = hashlib.sha256(
+            json.dumps(params, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()
         job = TrainingJob(
             character_id=lora.character_id,
             lora_id=lora.id,
@@ -516,7 +520,9 @@ def complete_training_job(job_id: str, body: CompleteInput):
                 lora.status = "ready"
                 lora.filename = body.filename
                 lora.artifact_filename = body.artifact_filename
-                lora.metrics = body.metrics
+                artifact_sha = hashlib.sha256(artifact.read_bytes()).hexdigest()
+                lora.metrics = {**body.metrics, "artifact_sha256": artifact_sha}
+                job.params = {**(job.params or {}), "artifact_sha256": artifact_sha}
                 lora.error = None
                 lora.updated_at = now()
                 # Evaluation gate: a freshly trained LoRA stays inactive until the

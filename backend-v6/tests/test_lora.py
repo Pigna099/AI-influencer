@@ -117,6 +117,8 @@ def test_queue_claim_progress_complete():
     assert activated.status_code == 200 and activated.json()["is_active"] is True
     assert done["lora"]["filename"] == job["params"]["filename"]
     assert done["lora"]["metrics"]["final_loss"] == 0.08
+    assert len(done["lora"]["metrics"]["artifact_sha256"]) == 64
+    assert len(job["params"]["spec_sha256"]) == 64
 
 
 def test_second_lora_requires_activation():

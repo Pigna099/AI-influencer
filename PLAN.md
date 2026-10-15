@@ -614,7 +614,9 @@ Progress log — 15 October 2026 (first slice):
   validates and activates explicitly (tests updated). Test added.
 - Rollback: activation records `previous_active_id` (migration `0027`); `POST /api/loras/{id}/rollback`
   re-activates the previous artifact (toggle-safe) with a Rollback button on the active LoRA; test added.
-- Remaining in Phase 7: immutable training spec, auto-recommended hyperparameters, artifact hashing.
+- Traceability hashes: every queued job stores `spec_sha256` (canonical training spec) and every
+  completed artifact stores `artifact_sha256` in the LoRA metrics/job params. Test added.
+- Remaining in Phase 7: auto-recommended hyperparameters.
 
 ### Preflight
 
