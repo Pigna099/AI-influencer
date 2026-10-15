@@ -31,12 +31,8 @@ function Gauge({ value, label }: { value: number; label: string }) {
   );
 }
 
-function gbKb(value: number) {
-  return `${(value / 1024 / 1024).toFixed(1)} GB`;
-}
-
-function gbBytes(value: number) {
-  return `${(value / 1024 ** 3).toFixed(1)} GB`;
+function gb(value: number) {
+  return `${(value / 1024 ** 3).toFixed(2)} GB`;
 }
 
 export default function GpuCard({ gpu, role, busy, onRole }: {
@@ -86,9 +82,9 @@ export default function GpuCard({ gpu, role, busy, onRole }: {
           </div>
           {live && (
             <>
-              <div className={`gpu-bar tone-${tone(memoryPercent)}`} title={`${gbKb(gpu.memory_used)} / ${gbKb(gpu.memory_total)}`}>
+              <div className={`gpu-bar tone-${tone(memoryPercent)}`} title={`${gb(gpu.memory_used)} / ${gb(gpu.memory_total)}`}>
                 <i style={{ width: `${memoryPercent}%` }} />
-                <span className="gpu-bar-label">{gbKb(gpu.memory_used)} / {gbKb(gpu.memory_total)}</span>
+                <span className="gpu-bar-label">{gb(gpu.memory_used)} / {gb(gpu.memory_total)}</span>
               </div>
               {gpu.power_watts != null && (
                 <div className={`gpu-bar tone-${tone(powerPercent)}`} title={powerLabel}>
@@ -105,7 +101,7 @@ export default function GpuCard({ gpu, role, busy, onRole }: {
         <ul>{gpu.processes.map(process => (
           <li key={`${gpu.index}-${process.pid}-${process.name}`}>
             <span title={process.name}>{process.name}</span>
-            <b>{gbBytes(process.vram)}</b>
+            <b>{gb(process.vram)}</b>
           </li>
         ))}</ul>
       )}
