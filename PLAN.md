@@ -888,7 +888,10 @@ Store secrets encrypted and never return them to the browser.
 Progress log — 15 October 2026 (first slice):
 - Jobs page shows recent failures grouped by error code (not raw exceptions); `errors_by_code` in
   `/api/jobs/summary`.
-- Remaining: metrics endpoint, storage usage, model registry checks, backup status.
+- `GET /api/metrics`: jobs by state/type with average queue and run times, library approval rate,
+  video review counts, dataset coverage, identity runs, characters with ready LoRAs. Smoke test
+  covers the endpoint.
+- Remaining: metrics screen in the UI, storage usage, model registry checks, backup status.
 
 ### Metrics
 

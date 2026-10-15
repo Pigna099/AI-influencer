@@ -20,6 +20,7 @@ from .integrations.comfyui import free_memory
 from .integrations.ollama import unload_models
 from .jobs_api import router as jobs_router
 from .lora_api import router as lora_router
+from .metrics_api import router as metrics_router
 from .pose_api import router as pose_router
 from .presets_api import router as presets_router
 from .scheduler import scheduler_loop
@@ -265,6 +266,7 @@ app.include_router(settings_router)
 app.include_router(consistency_router)
 app.include_router(jobs_router)
 app.include_router(identity_router)
+app.include_router(metrics_router)
 
 
 @app.get("/{spa_path:path}", response_class=HTMLResponse, include_in_schema=False, dependencies=[])
