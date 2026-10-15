@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Character, CheckpointInfo, Conversation, Memory, Message, OllamaModel, CharacterProfile, RealismInput } from "../api";
+import { Link } from "react-router-dom";
 import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import EmptyState from "./ui/EmptyState";
@@ -305,7 +306,7 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
         <div className="character-list">{characters.map((c, index) => <button key={c.id} disabled={!!busy} onClick={() => setCharacterId(c.id)} className={`character-row ${characterId === c.id ? "selected" : ""}`}>
           <CharacterAvatar character={c} index={index} onView={(url, alt) => setViewer({ url, alt })} altTemplate={t("pg.avatarAlt")} /><span><strong>{c.name}</strong><small>{c.profile.personality_traits || t("pg.noTraits")}</small></span></button>)}
           {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}</div>
-        {character && <div className="character-actions"><button onClick={() => setEditing(character)} disabled={!!busy}>{t("pg.editPersonality")}</button></div>}
+        {character && <div className="character-actions"><button onClick={() => setEditing(character)} disabled={!!busy}>{t("pg.editPersonality")}</button><Link className="text-button" to="/loras">{t("pg.editInCharacterTab")}</Link></div>}
         {character && <label className="image-checkpoint">{t("pg.imageStyle")}<select value={character.image_style || "real"} disabled={!!busy} onChange={e => void perform(t("pg.busy.style"), async () => {
           const updated = await api.setImageStyle(character.id, e.target.value as "anime" | "real");
           setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));

@@ -805,6 +805,7 @@ const en = {
   "pg.photo.fromLibrary": "Photo source",
   "pg.photo.newPhoto": "Generate new photo",
   "jobs.type.identity_run": "Identity set",
+  "pg.editInCharacterTab": "Open in Character tab",
 } as const;
 
 type Catalog = typeof en;
