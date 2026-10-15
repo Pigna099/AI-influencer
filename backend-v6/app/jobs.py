@@ -26,6 +26,7 @@ STALE_AFTER_SECONDS = {
     "dataset_classify": 900,
     "consistency_check": 600,
     "identity_run": 1800,
+    "lora_validation": 1800,
     "pose_extract": 300,
     "avatar": 900,
 }

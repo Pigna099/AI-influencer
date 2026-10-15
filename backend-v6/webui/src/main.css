@@ -356,3 +356,9 @@
 .identity-thumb { position: relative; }
 .identity-overlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .5; pointer-events: none; }
 .identity-overlay-toggle { font-size: .72rem; color: #9db2cf; }
+
+.dataset-blueprint { margin: 8px 0; }
+.dataset-blueprint ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 3px; }
+.dataset-blueprint li { display: flex; justify-content: space-between; gap: 8px; font-size: .72rem; color: #b9cbe2; }
+.dataset-blueprint b { color: #8ba0bd; font-weight: 550; }
+.dataset-blueprint b.ok { color: #7fd7cf; }

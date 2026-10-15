@@ -616,3 +616,66 @@ def test_job_display_name_fallbacks():
     assert job_display_name(job, None) == "nikita_qwen_v2 (qwen-image)"
     bare = TrainingJob(character_id="c", params={})
     assert job_display_name(bare, None).startswith("job ")
+
+def test_dataset_blueprint(monkeypatch):
+    monkeypatch.setattr("app.lora_api.qwen_image_edit", fake_variation)
+    character_id = make_character("Blueprint")
+    assert client.post(f"/api/characters/{character_id}/avatar").status_code in (200, 201)
+    dataset = make_dataset(character_id)
+    response = client.post(
+        f"/api/datasets/{dataset['id']}/variations",
+        json={
+            "prompts": [
+                "same person, close-up portrait of the face",
+                "same person, full body standing in the street",
+                "same person, sitting on a chair, upper body",
+            ],
+            "count": 1,
+        },
+    )
+    assert response.status_code == 201, response.text
+    items = response.json()
+    for item in items:
+        client.patch(f"/api/dataset-items/{item['id']}", json={"selected": True})
+
+    blueprint = client.get(f"/api/datasets/{dataset['id']}/blueprint").json()
+    assert blueprint["target"] == 60 and blueprint["selected"] == 3
+    by_key = {category["key"]: category for category in blueprint["categories"]}
+    assert by_key["close_face"]["count"] == 1
+    assert by_key["front_full_body"]["count"] == 1
+    assert by_key["dynamic"]["count"] == 1
+    assert blueprint["missing_total"] == 57
+
+def test_lora_validation_grid(monkeypatch):
+    from app.db import CharacterLora, Session
+
+    def fake_generate(prompt, negative, **kwargs):
+        from io import BytesIO
+
+        from PIL import Image
+
+        buffer = BytesIO()
+        Image.new("RGB", (16, 16), (90, 120, 150)).save(buffer, format="PNG")
+        return buffer.getvalue(), {"provider": "mock", "seed": kwargs.get("seed", 0), "checkpoint": "mock"}
+
+    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
+    character_id = make_character("Validation")
+    lora = make_lora(character_id, "Val LoRA")
+    with Session.begin() as db:
+        stored = db.get(CharacterLora, lora["id"])
+        stored.filename = "ai_influencer/val_lora.safetensors"
+        stored.artifact_filename = "val_lora.safetensors"
+        stored.status = "ready"
+
+    response = client.post(f"/api/loras/{lora['id']}/validation", json={"weight": 0.8})
+    assert response.status_code == 201, response.text
+    images = response.json()
+    assert len(images) == 7
+    tags = {tag for image in images for tag in image["tags"]}
+    assert "validation" in tags and "ai_influencer/val_lora.safetensors" in tags
+    sources = {image["source"] for image in images}
+    assert sources == {"validation"}
+
+    # Not-ready LoRA cannot be validated.
+    pending = make_lora(character_id, "Pending LoRA")
+    assert client.post(f"/api/loras/{pending['id']}/validation", json={}).status_code == 400

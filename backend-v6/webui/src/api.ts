@@ -732,6 +732,10 @@ export class ApiClient {
     return this.request(`/api/system/reconcile${deleteOrphans ? "?delete=true" : ""}`, { method: "POST" });
   }
 
+  createLoraValidation(loraId: string, data: { weight?: number; seed?: number } = {}): Promise<{ id: string; filename: string; tags: string[] }[]> {
+    return this.request(`/api/loras/${loraId}/validation`, { method: "POST", body: JSON.stringify(data) });
+  }
+
   getIdentityTemplate(): Promise<{ version: string; angles: { key: string; prompt: string; role: string }[]; canonical_min: number; canonical_max: number; required_roles: string[] }> {
     return this.request("/api/identity-template");
   }
@@ -986,6 +990,10 @@ export class ApiClient {
 
   async getDataset(id: string): Promise<LoraDatasetDetail> {
     return this.request(`/api/datasets/${id}`);
+  }
+
+  async getDatasetBlueprint(id: string): Promise<{ target: number; selected: number; categories: { key: string; target: number; count: number }[]; other: number; missing_total: number }> {
+    return this.request(`/api/datasets/${id}/blueprint`);
   }
 
   async getDatasetAnalysis(id: string): Promise<DatasetAnalysis> {

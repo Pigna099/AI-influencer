@@ -26,6 +26,7 @@ function LoraCard({
   onToggleQueue,
   onDelete,
   onActivate,
+  onValidate,
   onQueue,
   checkpoints,
   datasets,
@@ -36,6 +37,7 @@ function LoraCard({
   onToggleQueue: (item: CharacterLora) => void;
   onDelete: (item: CharacterLora) => void;
   onActivate: (item: CharacterLora) => void;
+  onValidate: (item: CharacterLora) => void;
   onQueue: (item: CharacterLora, data: QueuePayload) => void;
   checkpoints: CheckpointInfo[];
   datasets: LoraDataset[];
@@ -81,6 +83,7 @@ function LoraCard({
     {!!Object.keys(item.metrics).length && <small>{t("lp.metrics")}: {Object.entries(item.metrics).map(([key, value]) => `${key}=${String(value)}`).join(" · ")}</small>}
     {item.error && <small className="lora-error">{item.error}</small>}
     <div className="lora-actions">
+      {item.status === "ready" && <button disabled={busy} onClick={() => onValidate(item)}>{t("lp.validate")}</button>}
       {item.status === "ready" && !item.is_active && <button disabled={busy} onClick={() => onActivate(item)}>{t("lp.activate")}</button>}
       {(item.status === "draft" || item.status === "ready" || item.status === "failed") && <button disabled={busy} onClick={() => onToggleQueue(item)}>{t("lp.queue")}</button>}
       {item.status !== "queued" && item.status !== "training" && <button className="danger" disabled={busy} onClick={() => onDelete(item)}>{t("common.delete")}</button>}
@@ -127,6 +130,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   const [checkpoints, setCheckpoints] = useState<CheckpointInfo[]>([]);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [name, setName] = useState("");
   const [family, setFamily] = useState<"real" | "pony" | "anime" | "qwen-image">("real");
   const [trigger, setTrigger] = useState("");
@@ -284,6 +288,13 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     setEditing(null);
   };
 
+  const validate = (item: CharacterLora) => {
+    void perform(t("lp.validating"), async () => {
+      const images = await api.createLoraValidation(item.id);
+      setNotice(t("lp.validationDone", { count: images.length }));
+    });
+  };
+
   const cancel = (job: TrainingJob) => {
     if (!window.confirm(`${t("lp.cancelJob")}?`)) return;
     void perform("", async () => {
@@ -321,6 +332,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   return <div className="playground theme-lora">
     <AppHeader current="/loras" onLogout={onLogout} busy={!!busy} />
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
+    {notice && <div className="info-banner" role="status">{notice}<button onClick={() => setNotice("")} aria-label={t("common.close")}>×</button></div>}
     <div className="workspace image-workspace" style={{ gridTemplateColumns: guideOpen ? "225px minmax(320px, 1fr) 340px" : "225px minmax(320px, 1fr)" }}>
       <aside className="character-rail">
         <div className="section-title"><h2>{t("ip.characters")}</h2><span>{characters.length}</span><button aria-label={t("lp.addCharacter")} disabled={!!busy} onClick={() => setEditing("new")}>+</button></div>
@@ -397,7 +409,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
           <section>
             <div className="section-title"><h2>{t("lp.title")}</h2><span>{loras.length}</span></div>
             {!loras.length && (loaded ? <p className="muted">{t("lp.empty")}</p> : <p className="muted"><span className="spinner" /> {t("common.loadingData")}</p>)}
-            <div className="lora-grid">{loras.map(item => <LoraCard key={item.id} item={item} busy={!!busy} queueOpen={queueFor === item.id} onToggleQueue={lora => setQueueFor(current => current === lora.id ? "" : lora.id)} onDelete={remove} onActivate={activate} onQueue={queue} checkpoints={checkpoints} datasets={datasets} />)}</div>
+            <div className="lora-grid">{loras.map(item => <LoraCard key={item.id} item={item} busy={!!busy} queueOpen={queueFor === item.id} onToggleQueue={lora => setQueueFor(current => current === lora.id ? "" : lora.id)} onDelete={remove} onActivate={activate} onValidate={validate} onQueue={queue} checkpoints={checkpoints} datasets={datasets} />)}</div>
           </section>
           <section>
             <div className="section-title"><h2>{t("lp.jobs")}</h2><div className="preset-actions">{hiddenJobs > 0 && <button disabled={!!busy} onClick={() => setShowAllJobs(value => !value)}>{showAllJobs ? t("lp.showRecentJobs") : t("lp.showAllJobs", { count: hiddenJobs })}</button>}<button disabled={!!busy} onClick={() => void refresh(characterId)}>{t("lp.refresh")}</button></div></div>

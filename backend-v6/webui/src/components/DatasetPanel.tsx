@@ -65,6 +65,7 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
   const [openId, setOpenId] = useState("");
   const [detail, setDetail] = useState<LoraDatasetDetail | null>(null);
   const [analysis, setAnalysis] = useState<DatasetAnalysis | null>(null);
+  const [blueprint, setBlueprint] = useState<Awaited<ReturnType<typeof api.getDatasetBlueprint>> | null>(null);
   const [trigger, setTrigger] = useState("");
   const [checkpoints, setCheckpoints] = useState<CheckpointInfo[]>([]);
   const [poses, setPoses] = useState<PoseReference[]>([]);
@@ -83,9 +84,10 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
   const [candidateStrength, setCandidateStrength] = useState("0.8");
 
   const loadDetail = useCallback(async (id: string) => {
-    if (!id) { setDetail(null); setAnalysis(null); return; }
+    if (!id) { setDetail(null); setAnalysis(null); setBlueprint(null); return; }
     setDetail(await api.getDataset(id));
     setAnalysis(await api.getDatasetAnalysis(id));
+    setBlueprint(await api.getDatasetBlueprint(id));
   }, []);
 
   useEffect(() => { void loadDetail(openId).catch(() => undefined); }, [openId, loadDetail]);
@@ -342,6 +344,13 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
         <section className="step-card" id="ds-step-5">
           {stepHead(4)}
           <p className="muted">{t("lp.stepCurate.hint")}</p>
+          {blueprint && <div className="dataset-blueprint">
+            <small className="muted">{t("lp.blueprint.title")}</small>
+            <ul>{blueprint.categories.map(category => <li key={category.key}>
+              <span>{t(`lp.blueprint.${category.key}` as "lp.blueprint.close_face")}</span>
+              <b className={category.count >= category.target ? "ok" : ""}>{category.count}/{category.target}</b>
+            </li>)}</ul>
+          </div>}
           {analysis && <div className="dataset-analysis">
             <div className="job-bar"><i style={{ width: `${Math.min(100, (analysis.selected / analysis.target) * 100)}%` }} /></div>
             <small>{t("lp.datasetProgress", { selected: analysis.selected, target: analysis.target })}</small>

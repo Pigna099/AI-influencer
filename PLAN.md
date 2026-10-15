@@ -600,6 +600,17 @@ Run after every candidate batch:
 
 ## 13. Phase 7 — LoRA training, evaluation, and activation
 
+Progress log — 15 October 2026 (first slice):
+- Validation grid (`POST /api/loras/{id}/validation`): seven fixed prompts (close face, profile,
+  upper body, full body, two lifestyle scenes, one difficult pose) rendered with the trained LoRA
+  before activation, stored as draft library images tagged `validation` + LoRA file; recorded in the
+  unified jobs (`lora_validation`). "Validate" button on ready LoRAs; test added.
+- Also this block: dataset blueprint (`GET /api/datasets/{id}/blueprint`) with per-category targets
+  (close face 12, three-quarter/profile 8, upper body 10, full body 15, dynamic 8 of 60) shown in
+  the dataset panel; test added.
+- Remaining in Phase 7: preflight remediation cards, immutable training spec, auto-recommended
+  hyperparameters, activation gate (no auto-activate) + rollback, artifact hashing.
+
 ### Preflight
 
 Before Queue training, validate:

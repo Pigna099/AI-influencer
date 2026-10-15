@@ -1062,6 +1062,13 @@ KEYWORD_GROUPS = {
 }
 
 DATASET_TARGET = 60
+BLUEPRINT = (
+    ("close_face", 12, ("close-up", "close up", "closeup", "portrait")),
+    ("three_quarter_face", 8, ("three-quarter", "three quarter", "profile", "side view", "from the side")),
+    ("upper_body", 10, ("upper body", "waist up", "half body")),
+    ("front_full_body", 15, ("full body", "full-body", "fullbody", "standing")),
+    ("dynamic", 8, ("walking", "sitting", "seated", "leaning", "lying", "reclining", "running")),
+)
 REFERENCE_ROLES = (
     "close_face",
     "three_quarter_face",
@@ -1090,6 +1097,174 @@ def _dataset_references(db, dataset_id: str) -> list[Path]:
         if candidate.is_file():
             paths.append(candidate)
     return paths
+
+
+VALIDATION_PROMPTS = (
+    ("close_face", "close-up portrait of the face, neutral expression, studio light"),
+    ("profile", "profile view, looking to the side, studio light"),
+    ("upper_body", "upper body portrait, front view, natural window light"),
+    ("full_body", "full body, standing, front view, natural light"),
+    ("lifestyle_street", "walking on a sunny city street, casual outfit, candid photo"),
+    ("lifestyle_home", "relaxing at home on a sofa, warm lamp light, candid photo"),
+    ("difficult_pose", "sitting on the floor, leaning against a wall, looking up at the camera"),
+)
+
+
+class ValidationInput(StrictModel):
+    weight: float = Field(default=0.85, ge=0, le=2)
+    seed: int | None = Field(default=None, ge=0, le=2**31 - 1)
+    checkpoint: str | None = Field(default=None, max_length=200)
+
+
+@router.post("/loras/{lora_id}/validation", status_code=201)
+def create_validation_grid(lora_id: str, body: ValidationInput):
+    """Render the fixed validation grid for a trained LoRA before activation."""
+    with Session() as db:
+        lora = required(db, CharacterLora, lora_id)
+        if not lora.filename:
+            raise HTTPException(400, "The LoRA has no trained artifact yet")
+        character = required(db, Influencer, lora.character_id)
+        checkpoint = body.checkpoint or lora.base_checkpoint or character.image_checkpoint
+        style = character.image_style or "real"
+        reference = (settings.media_dir / character.avatar_filename) if character.avatar_filename else None
+        identity = (character.avatar_prompt or "").strip()
+        trigger = lora.trigger
+        family = lora.family
+        filename = lora.filename
+        character_id = lora.character_id
+
+    with Session.begin() as db:
+        job = create_job(
+            db,
+            type="lora_validation",
+            character_id=character_id,
+            message=f"validation grid for {filename}",
+        )
+        start_job(db, job, worker="comfyui")
+        job_id = job.id
+
+    base_seed = body.seed if body.seed is not None else random.randrange(2**31)
+    prompts = [
+        (key, ", ".join(part for part in [trigger, identity, fragment] if part))
+        for key, fragment in VALIDATION_PROMPTS
+    ]
+
+    def render(entry: tuple[str, str], index: int):
+        key, prompt = entry
+        data, meta = generate_image(
+            prompt,
+            build_negative_prompt(family),
+            seed=base_seed + index,
+            reference_path=reference,
+            checkpoint=checkpoint,
+            style=style,
+            family=family,
+            loras=[{"name": filename, "weight": body.weight}],
+            base_url=pick_target(),
+        )
+        return key, prompt, data, meta
+
+    rendered = []
+    errors: list[Exception] = []
+    with ThreadPoolExecutor(max_workers=len(prompts)) as pool:
+        futures = [pool.submit(render, entry, index) for index, entry in enumerate(prompts)]
+        for future in futures:
+            try:
+                rendered.append(future.result())
+            except ComfyUIError as error:
+                errors.append(error)
+
+    created: list[dict] = []
+    for key, prompt, data, meta in rendered:
+        settings.media_dir.mkdir(parents=True, exist_ok=True)
+        out_name = f"{identifier()}.png"
+        (settings.media_dir / out_name).write_bytes(data)
+        with Session.begin() as db:
+            library = ImageLibrary(
+                character_id=character_id,
+                filename=out_name,
+                sha256=hashlib.sha256(data).hexdigest(),
+                phash=average_hash(data),
+                prompt=prompt,
+                negative_prompt=build_negative_prompt(family),
+                caption="",
+                tags=["validation", key, filename],
+                checkpoint=meta.get("checkpoint") or checkpoint,
+                loras=[{"name": filename, "weight": body.weight}],
+                seed=meta.get("seed", base_seed),
+                style=style,
+                status="draft",
+                rating=0,
+                source="validation",
+                used_count=0,
+                embedding=[],
+                embedding_model="",
+            )
+            db.add(library)
+            db.flush()
+            created.append({
+                "id": library.id,
+                "filename": library.filename,
+                "prompt": library.prompt,
+                "seed": library.seed,
+                "tags": library.tags,
+                "status": library.status,
+                "source": library.source,
+            })
+
+    with Session.begin() as db:
+        exec_job = db.get(ExecutionJob, job_id)
+        if exec_job is not None and exec_job.state == "running":
+            update_progress(db, exec_job, current=len(created), total=len(prompts), unit="image")
+            finish_job(
+                db,
+                exec_job,
+                state="succeeded" if created else "failed",
+                error_info=None
+                if created
+                else {
+                    "code": "lora_validation_failed",
+                    "summary": "Validation grid generation failed.",
+                    "remediation": "Check the ComfyUI instance and the LoRA file, then retry.",
+                    "technical_details": str(errors[0])[:800] if errors else "",
+                },
+                message=f"{len(created)} validation images",
+            )
+    if not created:
+        raise HTTPException(502, "Validation grid failed: no image produced")
+    return created
+
+
+@router.get("/datasets/{dataset_id}/blueprint")
+def dataset_blueprint(dataset_id: str):
+    """Per-category progress of the selected items against the 60-image blueprint."""
+    with Session() as db:
+        required(db, LoraDataset, dataset_id)
+        rows = list(
+            db.execute(
+                select(LoraDatasetItem, ImageLibrary)
+                .outerjoin(ImageLibrary, LoraDatasetItem.image_id == ImageLibrary.id)
+                .where(LoraDatasetItem.dataset_id == dataset_id, LoraDatasetItem.selected.is_(True))
+            )
+        )
+    selected = len(rows)
+    categories = []
+    matched_total = 0
+    for key, target, keywords in BLUEPRINT:
+        count = 0
+        for item, library in rows:
+            text_value = " ".join(filter(None, [item.caption, library.prompt if library else ""])).lower()
+            if any(keyword in text_value for keyword in keywords):
+                count += 1
+        matched_total += count
+        categories.append({"key": key, "target": target, "count": count})
+    return {
+        "target": DATASET_TARGET,
+        "selected": selected,
+        "categories": categories,
+        "other": max(0, selected - matched_total),
+        "missing_total": max(0, DATASET_TARGET - selected),
+    }
 
 
 @router.get("/datasets/{dataset_id}/analysis")

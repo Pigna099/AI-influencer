@@ -757,6 +757,16 @@ const en = {
   "idr.regenerate": "Regenerate rejected",
   "idr.regenerating": "Regenerating rejected candidates\u2026",
   "idr.overlay": "Overlay anchor",
+  "lp.blueprint.title": "Blueprint (60 selected)",
+  "lp.blueprint.close_face": "Close face",
+  "lp.blueprint.three_quarter_face": "Three-quarter / profile",
+  "lp.blueprint.upper_body": "Upper body",
+  "lp.blueprint.front_full_body": "Full body",
+  "lp.blueprint.dynamic": "Dynamic poses",
+  "lp.validate": "Validate",
+  "lp.validating": "Generating validation grid\u2026",
+  "lp.validationDone": "{count} validation images added to the library (draft)",
+  "jobs.type.lora_validation": "LoRA validation",
 } as const;
 
 type Catalog = typeof en;
