@@ -608,8 +608,12 @@ Progress log — 15 October 2026 (first slice):
 - Also this block: dataset blueprint (`GET /api/datasets/{id}/blueprint`) with per-category targets
   (close face 12, three-quarter/profile 8, upper body 10, full body 15, dynamic 8 of 60) shown in
   the dataset panel; test added.
-- Remaining in Phase 7: preflight remediation cards, immutable training spec, auto-recommended
-  hyperparameters, activation gate (no auto-activate) + rollback, artifact hashing.
+- Preflight (`GET /api/loras/{id}/preflight`): checkpoint presence/family, run conflicts, trainer
+  busy/stale, dataset size + trigger-in-captions, disk space — rendered as a remediation checklist in
+  the queue panel. Activation gate: successful training no longer auto-activates; the operator
+  validates and activates explicitly (tests updated). Test added.
+- Remaining in Phase 7: immutable training spec, auto-recommended hyperparameters, rollback to
+  previous active artifact, artifact hashing.
 
 ### Preflight
 

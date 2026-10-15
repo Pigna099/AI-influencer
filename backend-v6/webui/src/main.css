@@ -362,3 +362,7 @@
 .dataset-blueprint li { display: flex; justify-content: space-between; gap: 8px; font-size: .72rem; color: #b9cbe2; }
 .dataset-blueprint b { color: #8ba0bd; font-weight: 550; }
 .dataset-blueprint b.ok { color: #7fd7cf; }
+
+.preflight-list { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 3px; font-size: .72rem; }
+.preflight-list li.ok { color: #8fd6c9; }
+.preflight-list li.fail { color: #f5b6c1; }

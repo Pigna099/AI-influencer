@@ -732,6 +732,11 @@ export class ApiClient {
     return this.request(`/api/system/reconcile${deleteOrphans ? "?delete=true" : ""}`, { method: "POST" });
   }
 
+  getLoraPreflight(loraId: string, datasetId?: string): Promise<{ ok: boolean; checks: { code: string; ok: boolean; summary: string; remediation: string }[] }> {
+    const query = datasetId ? `?dataset_id=${encodeURIComponent(datasetId)}` : "";
+    return this.request(`/api/loras/${loraId}/preflight${query}`);
+  }
+
   createLoraValidation(loraId: string, data: { weight?: number; seed?: number } = {}): Promise<{ id: string; filename: string; tags: string[] }[]> {
     return this.request(`/api/loras/${loraId}/validation`, { method: "POST", body: JSON.stringify(data) });
   }

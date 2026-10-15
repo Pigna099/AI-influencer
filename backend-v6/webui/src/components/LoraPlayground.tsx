@@ -55,6 +55,16 @@ function LoraCard({
   const [caption, setCaption] = useState("");
   const [saveEvery, setSaveEvery] = useState("500");
   const [gpu, setGpu] = useState("");
+  const [preflight, setPreflight] = useState<Awaited<ReturnType<typeof api.getLoraPreflight>> | null>(null);
+
+  useEffect(() => {
+    if (!queueOpen) { setPreflight(null); return; }
+    let live = true;
+    api.getLoraPreflight(item.id, datasetId || undefined)
+      .then(report => { if (live) setPreflight(report); })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, [queueOpen, item.id, datasetId]);
 
   const submit = () => onQueue(item, {
     images_dir: datasetId ? undefined : imagesDir.trim(),
@@ -89,6 +99,9 @@ function LoraCard({
       {item.status !== "queued" && item.status !== "training" && <button className="danger" disabled={busy} onClick={() => onDelete(item)}>{t("common.delete")}</button>}
     </div>
     {queueOpen && <div className="lora-queue">
+      {preflight && <ul className="preflight-list">{preflight.checks.map(check => <li key={check.code} className={check.ok ? "ok" : "fail"}>
+        <span>{check.ok ? "✓" : "✕"}</span> {check.summary}{!check.ok && check.remediation ? ` — ${check.remediation}` : ""}
+      </li>)}</ul>}
       <label>{t("lp.datasetOption")}<select value={datasetId} disabled={busy} onChange={e => setDatasetId(e.target.value)}>
         <option value="">{t("lp.noDatasetOption")}</option>
         {datasets.map(dataset => <option key={dataset.id} value={dataset.id}>{dataset.trigger} · {dataset.selected_count}/{dataset.item_count}</option>)}

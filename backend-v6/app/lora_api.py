@@ -490,17 +490,8 @@ def complete_training_job(job_id: str, body: CompleteInput):
                 lora.metrics = body.metrics
                 lora.error = None
                 lora.updated_at = now()
-                active = db.scalars(
-                    select(CharacterLora)
-                    .where(
-                        CharacterLora.character_id == lora.character_id,
-                        CharacterLora.family == lora.family,
-                        CharacterLora.is_active.is_(True),
-                    )
-                    .limit(1)
-                ).first()
-                if active is None:
-                    lora.is_active = True
+                # Evaluation gate: a freshly trained LoRA stays inactive until the
+                # operator validates the grid and activates it explicitly.
         else:
             job.status = "failed"
             job.error = body.error
@@ -1097,6 +1088,93 @@ def _dataset_references(db, dataset_id: str) -> list[Path]:
         if candidate.is_file():
             paths.append(candidate)
     return paths
+
+
+@router.get("/loras/{lora_id}/preflight")
+def lora_preflight(lora_id: str, dataset_id: str | None = None):
+    """Preflight checks shown before queueing training, as remediation cards."""
+    checks: list[dict] = []
+
+    def add(code: str, ok: bool, summary: str, remediation: str = "") -> None:
+        checks.append({"code": code, "ok": ok, "summary": summary, "remediation": remediation})
+
+    with Session() as db:
+        lora = required(db, CharacterLora, lora_id)
+        character = db.get(Influencer, lora.character_id)
+        checkpoint = lora.base_checkpoint or (character.image_checkpoint if character else None)
+        if not checkpoint:
+            add("checkpoint_missing", False, "No base checkpoint selected.", "Set a base checkpoint on the LoRA or the character.")
+        else:
+            meta = checkpoint_meta(checkpoint)
+            if not meta.get("usable"):
+                add("checkpoint_missing", False, f"Checkpoint {checkpoint} is not installed in ComfyUI.", "Install it or pick another checkpoint.")
+            elif lora.family == "qwen-image" and meta.get("family") not in (None, "qwen-image"):
+                add("family_mismatch", False, f"Checkpoint family {meta.get('family')} does not match qwen-image.", "Pick a qwen-image checkpoint or change the LoRA family.")
+            elif lora.family != "qwen-image" and meta.get("family") in ("qwen-image", "flux2", "z-image"):
+                add("family_mismatch", False, f"Checkpoint family {meta.get('family')} does not match {lora.family}.", f"Set the LoRA family to {meta.get('family')} or pick a {lora.family} checkpoint.")
+            else:
+                add("checkpoint_ok", True, f"Checkpoint {checkpoint} is installed.")
+
+        if lora.status in LORA_BUSY:
+            add("no_conflict", False, "This LoRA already has a run in progress.", "Wait for it to finish or cancel the job first.")
+        else:
+            add("no_conflict", True, "No conflicting run for this LoRA.")
+
+        running = db.scalar(select(TrainingJob).where(TrainingJob.status == "running").limit(1))
+        if running is not None:
+            fresh = running.heartbeat_at is not None and (now() - running.heartbeat_at).total_seconds() < 600
+            add(
+                "worker_busy",
+                not fresh,
+                "The trainer is running another job." if fresh else "A stale run exists (worker not responding).",
+                "Queue now: the worker picks jobs in order." if fresh else "The stale run will be recovered automatically.",
+            )
+        else:
+            add("worker_idle", True, "The trainer queue is free.")
+
+        if dataset_id:
+            dataset = db.get(LoraDataset, dataset_id)
+            if dataset is None:
+                add("dataset_missing", False, "The dataset was not found.", "Pick an existing dataset.")
+            elif dataset.character_id != lora.character_id:
+                add("dataset_owner", False, "The dataset belongs to another character.", "Pick a dataset of this character.")
+            else:
+                usable = db.scalar(
+                    select(func.count())
+                    .select_from(LoraDatasetItem)
+                    .join(ImageLibrary, LoraDatasetItem.image_id == ImageLibrary.id)
+                    .where(LoraDatasetItem.dataset_id == dataset.id, LoraDatasetItem.selected.is_(True))
+                ) or 0
+                add(
+                    "dataset_size",
+                    usable >= 4,
+                    f"{usable} selected images are ready for training.",
+                    "Select at least 4 images (aim for 50-70).",
+                )
+                captions = db.scalars(
+                    select(LoraDatasetItem.caption)
+                    .where(LoraDatasetItem.dataset_id == dataset.id, LoraDatasetItem.selected.is_(True))
+                ).all()
+                trigger = dataset.trigger or ""
+                with_trigger = sum(1 for caption in captions if trigger and trigger.lower() in (caption or "").lower())
+                add(
+                    "trigger_in_captions",
+                    with_trigger > 0 or not trigger,
+                    f"Trigger appears in {with_trigger}/{len(captions)} selected captions.",
+                    "Add the trigger to captions before training.",
+                )
+        else:
+            add("dataset_none", True, "No dataset selected (training from an image folder).")
+
+        try:
+            import shutil
+
+            free = shutil.disk_usage(settings.lora_dir).free
+            add("disk_space", free > 5 * 1024**3, f"{free / 1024**3:.1f} GB free on the LoRA volume.", "Free disk space before training.")
+        except OSError:
+            add("disk_space", True, "Disk space not checked.")
+
+    return {"ok": all(check["ok"] for check in checks), "checks": checks}
 
 
 VALIDATION_PROMPTS = (

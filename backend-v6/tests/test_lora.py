@@ -111,7 +111,10 @@ def test_queue_claim_progress_complete():
     done = complete_job(job)
     assert done["status"] == "succeeded"
     assert done["lora"]["status"] == "ready"
-    assert done["lora"]["is_active"] is True
+    # Evaluation gate: activation is explicit, never automatic.
+    assert done["lora"]["is_active"] is False
+    activated = client.post(f"/api/loras/{job['lora_id']}/activate")
+    assert activated.status_code == 200 and activated.json()["is_active"] is True
     assert done["lora"]["filename"] == job["params"]["filename"]
     assert done["lora"]["metrics"]["final_loss"] == 0.08
 
@@ -122,7 +125,7 @@ def test_second_lora_requires_activation():
     first = make_lora(character_id, name="Anna V1")
     second = make_lora(character_id, name="Anna V2")
     first_done = complete_job(queue_job(first["id"], images_dir))
-    assert first_done["lora"]["is_active"] is True
+    assert first_done["lora"]["is_active"] is False
     second_done = complete_job(queue_job(second["id"], images_dir))
     assert second_done["lora"]["is_active"] is False
 
@@ -679,3 +682,23 @@ def test_lora_validation_grid(monkeypatch):
     # Not-ready LoRA cannot be validated.
     pending = make_lora(character_id, "Pending LoRA")
     assert client.post(f"/api/loras/{pending['id']}/validation", json={}).status_code == 400
+
+def test_lora_preflight(monkeypatch):
+    from app.db import CharacterLora, Session
+
+    character_id = make_character("Preflight")
+    lora = make_lora(character_id, "Preflight LoRA")
+    dataset = make_dataset(character_id)
+    response = client.get(f"/api/loras/{lora['id']}/preflight", params={"dataset_id": dataset["id"]})
+    assert response.status_code == 200, response.text
+    report = response.json()
+    codes = {check["code"]: check for check in report["checks"]}
+    assert codes["dataset_size"]["ok"] is False  # empty dataset
+    assert "checkpoint_ok" in codes or "checkpoint_missing" in codes
+
+    with Session.begin() as db:
+        stored = db.get(CharacterLora, lora["id"])
+        stored.status = "training"
+    blocked = client.get(f"/api/loras/{lora['id']}/preflight").json()
+    assert blocked["ok"] is False
+    assert {check["code"]: check["ok"] for check in blocked["checks"]}["no_conflict"] is False
