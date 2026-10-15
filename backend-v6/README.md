@@ -380,6 +380,17 @@ I test automatici usano un database temporaneo SQLite con chiavi esterne attive.
 - **Asset composer completo**: dalla chat puoi inviare una **foto approvata** o un **video approvato**
   della libreria (con prezzo PPV opzionale); per i video il picker mostra solo le clip revisionate.
 
+## Novita del 16 ottobre 2026
+
+- **Ancora da upload**: nella scheda LoRA puoi caricare una foto come immagine profilo ("Upload
+  photo"); viene validata dal modello vision locale (adulto 21+, una sola persona, volto visibile,
+  nitida) con motivazioni in caso di rifiuto; l'anchor salvato registra hash e validazione.
+- **Video LTX con primo e ultimo frame**: nel form video (modelli LTX) puoi scegliere anche il frame
+  finale; il grafo usa `LTXVAddGuide` sull'ultimo frame. Verificato dal vivo.
+- **ETA sui job**: stima del tempo rimanente per i job in corso (pagina Jobs e training LoRA).
+- **Griglie grandi**: virtualizzazione con `content-visibility` per libreria/video/dataset/identity.
+- **CORS**: origini consentite configurabili (`CORS_ORIGINS`), default locale.
+
 ## Limiti attuali
 
 Il playground usa una chiave condivisa per il proprietario: i fan sono identità simulate, non utenti autenticati reali. L'estrazione memoria è un'attività in background non persistente: se l'API si arresta durante l'estrazione, la risposta salvata resta disponibile ma il ricordo potrebbe dover essere aggiunto manualmente. Le varianti di personalità del confronto non vengono salvate come personaggi: sono temporanee e servono a decidere cosa applicare con l'editor o con **Duplica**. Non sono implementati invio su OnlyFans/Fanvue, pagamenti, campagne o notifiche esterne. La pipeline immagini preesistente resta disponibile, ma non è il focus della v3.
