@@ -65,6 +65,8 @@ function VideoCard({ item, sourceImage, busy, onDelete, onReview, onError }: {
 
   const seconds = Number(item.params?.seconds || 0);
   const length = Number(item.params?.length || 0);
+  const fps = Number(item.params?.fps || (String(item.params?.model || "").includes("wan") ? 16 : 24));
+  const duration = Number(item.params?.duration_seconds || (length ? length / fps : 0));
   return <article className="video-card">
     <div className="video-thumb">
       {url ? <video src={url} controls autoPlay playsInline /> : <>
@@ -74,7 +76,7 @@ function VideoCard({ item, sourceImage, busy, onDelete, onReview, onError }: {
     </div>
     <div className="video-meta">
       <p>{item.prompt}</p>
-      <small>{length ? t("vd.frames", { count: length }) : ""}{length ? ` · ${t("vd.clip", { seconds: (length / (String(item.params?.model || "").includes("wan") ? 16 : 24)).toFixed(1) })}` : ""}{seconds ? ` · gen ${seconds}s` : ""} · seed {item.seed}</small>
+      <small>{length ? t("vd.secondsFrames", { seconds: duration.toFixed(1), frames: length }) : ""}{seconds ? ` · gen ${seconds}s` : ""} · seed {item.seed}</small>
       <div className="library-actions">
         <StatusBadge status={item.review_status} label={t(`ip.status${item.review_status === "draft" ? "Draft" : item.review_status === "approved" ? "Approved" : "Rejected"}`)} />
         <button disabled={busy} onClick={() => onReview(item, item.review_status === "approved" ? "draft" : "approved")}>{t("ip.approve")}</button>

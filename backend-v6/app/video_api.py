@@ -238,6 +238,8 @@ def generate_video(character_id: str, body: VideoGenerateInput):
                     },
                 )
         raise HTTPException(502, f"Video generation failed: {error}") from error
+    fps = 16 if body.model == "wan" else 24
+    meta = {**meta, "fps": fps, "frames": length, "duration_seconds": round(length / fps, 2)}
     suffix = ".webm"
     base = identifier()
     filename = f"{base}{suffix}"
