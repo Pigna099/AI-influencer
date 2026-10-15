@@ -525,3 +525,34 @@ def test_character_policy_fields():
     updated = client.put(f"/api/characters/{body['id']}", json={"age": 30, "provenance": "original"})
     assert updated.status_code == 200, updated.text
     assert updated.json()["age"] == 30 and updated.json()["provenance"] == "original"
+
+
+def test_identity_provenance_and_reference_only_guard():
+    created = client.post(
+        "/api/characters",
+        json={
+            "name": "Reference Only",
+            "profile": {"description": "adult test", "boundaries": "adults only"},
+            "age": 24,
+            "synthetic_declared": True,
+            "provenance": "synthetic",
+            "source_category": "reference_only",
+            "rights_notes": "moodboard inspiration only",
+            "permitted_uses": "pose and style reference",
+        },
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["source_category"] == "reference_only"
+    assert body["rights_notes"] == "moodboard inspiration only"
+    assert body["lifecycle_state"] == "active"
+
+    avatar = client.post(f"/api/characters/{body['id']}/avatar", json={})
+    assert avatar.status_code == 400
+    assert "Reference-only" in avatar.json()["detail"]
+
+    promoted = client.put(f"/api/characters/{body['id']}", json={"source_category": "generated"})
+    assert promoted.status_code == 200 and promoted.json()["source_category"] == "generated"
+    generated = client.post(f"/api/characters/{body['id']}/avatar", json={})
+    assert generated.status_code == 201, generated.text
+    assert generated.json()["avatar_sha256"] and len(generated.json()["avatar_sha256"]) == 64

@@ -156,6 +156,13 @@ def character_out(item):
         age=item.age,
         synthetic_declared=item.synthetic_declared,
         provenance=item.provenance,
+        source_category=item.source_category,
+        rights_notes=item.rights_notes,
+        source_reference=item.source_reference,
+        source_hash=item.source_hash,
+        permitted_uses=item.permitted_uses,
+        lifecycle_state=item.lifecycle_state,
+        avatar_sha256=item.avatar_sha256,
         created_at=item.created_at.isoformat(),
     )
 
@@ -564,6 +571,11 @@ def create_character(body: CharacterInput):
             age=body.age,
             synthetic_declared=body.synthetic_declared,
             provenance=body.provenance,
+            source_category=body.source_category,
+            rights_notes=body.rights_notes,
+            source_reference=body.source_reference,
+            permitted_uses=body.permitted_uses,
+            lifecycle_state=body.lifecycle_state,
         )
         db.add(item)
         db.flush()
@@ -606,6 +618,11 @@ def update_character(character_id: str, body: CharacterUpdate):
                     body.synthetic_declared if body.synthetic_declared is not None else item.synthetic_declared
                 ),
                 provenance=body.provenance or item.provenance,
+                source_category=body.source_category or item.source_category,
+                rights_notes=body.rights_notes if body.rights_notes is not None else item.rights_notes,
+                source_reference=body.source_reference if body.source_reference is not None else item.source_reference,
+                permitted_uses=body.permitted_uses if body.permitted_uses is not None else item.permitted_uses,
+                lifecycle_state=body.lifecycle_state or item.lifecycle_state,
             )
         )
         if changed.rowcount != 1:
@@ -622,6 +639,10 @@ def generate_avatar(character_id: str, body: AvatarInput | None = None):
         raise HTTPException(503, "ComfyUI is unreachable: start the image service")
     with Session() as db:
         character = required(db, Influencer, character_id)
+        if character.source_category == "reference_only":
+            raise HTTPException(
+                400, "Reference-only material cannot be used as an identity anchor: change the source category first"
+            )
         name = character.name
         profile = normalize_bible_profile(character.bible)
         old_avatar = character.avatar_filename
@@ -675,6 +696,7 @@ def generate_avatar(character_id: str, body: AvatarInput | None = None):
         old = item.avatar_filename
         item.avatar_filename = filename
         item.avatar_prompt = identity_prompt
+        item.avatar_sha256 = hashlib.sha256(data).hexdigest()
         db.flush()
         result = character_out(item)
     with Session.begin() as db:
@@ -702,6 +724,10 @@ def edit_avatar(character_id: str, body: AvatarEditInput):
         raise HTTPException(503, "ComfyUI is unreachable: start the image service")
     with Session() as db:
         character = required(db, Influencer, character_id)
+        if character.source_category == "reference_only":
+            raise HTTPException(
+                400, "Reference-only material cannot be used as an identity anchor: change the source category first"
+            )
         old_avatar = character.avatar_filename
     if not old_avatar:
         raise HTTPException(400, "Generate a profile picture before editing it")
@@ -746,6 +772,7 @@ def edit_avatar(character_id: str, body: AvatarEditInput):
         item = required(db, Influencer, character_id)
         old = item.avatar_filename
         item.avatar_filename = filename
+        item.avatar_sha256 = hashlib.sha256(data).hexdigest()
         db.flush()
         result = character_out(item)
     with Session.begin() as db:
@@ -917,6 +944,11 @@ def clone_character(character_id: str, body: CharacterClone | None = None):
             age=source.age,
             synthetic_declared=source.synthetic_declared,
             provenance=source.provenance,
+            source_category=source.source_category,
+            rights_notes=source.rights_notes,
+            source_reference=source.source_reference,
+            permitted_uses=source.permitted_uses,
+            lifecycle_state=source.lifecycle_state,
         )
         db.add(item)
         db.flush()

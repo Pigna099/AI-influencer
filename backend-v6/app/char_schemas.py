@@ -32,6 +32,11 @@ class CharacterInput(StrictModel):
     age: int | None = Field(default=None, ge=21, le=99)
     synthetic_declared: bool = False
     provenance: Literal["original", "synthetic", "consented"] = "synthetic"
+    source_category: Literal["generated", "owned", "consented", "reference_only"] = "generated"
+    rights_notes: str = Field(default="", max_length=4000)
+    source_reference: str = Field(default="", max_length=500)
+    permitted_uses: str = Field(default="", max_length=300)
+    lifecycle_state: Literal["draft", "active", "retired"] = "active"
 
 
 class CharacterOutput(StrictModel):
@@ -54,6 +59,13 @@ class CharacterOutput(StrictModel):
     age: int | None = None
     synthetic_declared: bool = False
     provenance: str = "synthetic"
+    source_category: str = "generated"
+    rights_notes: str = ""
+    source_reference: str = ""
+    source_hash: str = ""
+    permitted_uses: str = ""
+    lifecycle_state: str = "active"
+    avatar_sha256: str | None = None
     created_at: str
 
 
@@ -153,6 +165,11 @@ class CharacterUpdate(StrictModel):
     age: int | None = Field(default=None, ge=21, le=99)
     synthetic_declared: bool | None = None
     provenance: Literal["original", "synthetic", "consented"] | None = None
+    source_category: Literal["generated", "owned", "consented", "reference_only"] | None = None
+    rights_notes: str | None = Field(default=None, max_length=4000)
+    source_reference: str | None = Field(default=None, max_length=500)
+    permitted_uses: str | None = Field(default=None, max_length=300)
+    lifecycle_state: Literal["draft", "active", "retired"] | None = None
 
 
 class CharacterClone(StrictModel):

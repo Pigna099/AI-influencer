@@ -222,7 +222,7 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
     return () => window.clearTimeout(timeout);
   }, [autoNudge, conversation, busy, lastActivity, initiate, tab]);
 
-  const saveCharacter = async (data: { name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string }) => {
+  const saveCharacter = async (data: { name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string; source_category?: string; rights_notes?: string; permitted_uses?: string; lifecycle_state?: string }) => {
     const saved = editing && editing !== "new" ? await api.updateCharacter(editing.id, data) : await api.createCharacter(data);
     setCharacters(prev => [...prev.filter(c => c.id !== saved.id), saved]);
     setCharacterId(saved.id); setEditing(null);

@@ -410,6 +410,11 @@ Progress log — 15 October 2026 (first slice):
   update); live-verified (migration 0024 applied, characters expose the fields).
 - Home "Needs attention" now flags characters missing policy details (adult age / declaration) and
   links to the editor; `/api/overview` exposes `characters_incomplete`.
+- Identity provenance (slice 2): `source_category` (generated/owned/consented/reference_only),
+  rights notes, source reference/hash, permitted uses, lifecycle state and `avatar_sha256`
+  (migration `0025`); reference-only characters cannot generate/edit an avatar (anchor guard, API
+  + UI); avatar hash stored on every generation/edit. Editor UI updated (source category, rights,
+  permitted uses, lifecycle, warning). Test added; live-verified.
 
 ### Character schema
 

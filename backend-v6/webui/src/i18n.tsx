@@ -720,6 +720,18 @@ const en = {
   "form.syntheticDeclaration": "This character is a fictional adult (21+) and its identity is declared as above. No real person's likeness is used without consent.",
   "home.attention.incompleteCharacters": "{count} characters need policy details (adult age, declaration)",
   "form.policyMissing": "policy details missing",
+  "form.sourceCategory": "Source category",
+  "form.source.generated": "Generated synthetic image",
+  "form.source.owned": "Owned self-image",
+  "form.source.consented": "Licensed / consented adult model",
+  "form.source.referenceOnly": "Reference-only inspiration",
+  "form.lifecycle": "Lifecycle",
+  "form.lifecycle.draft": "Draft",
+  "form.lifecycle.active": "Active",
+  "form.lifecycle.retired": "Retired",
+  "form.rightsNotes": "Rights notes (source, licence, reviewer)",
+  "form.permittedUses": "Permitted uses",
+  "form.referenceOnlyWarning": "Reference-only material cannot be used as an identity anchor: avatar generation is disabled until the source category changes.",
 } as const;
 
 type Catalog = typeof en;

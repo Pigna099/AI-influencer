@@ -276,7 +276,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     });
   };
 
-  const saveCharacter = async (data: { name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string }) => {
+  const saveCharacter = async (data: { name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string; source_category?: string; rights_notes?: string; permitted_uses?: string; lifecycle_state?: string }) => {
     const saved = editing && editing !== "new" ? await api.updateCharacter(editing.id, data) : await api.createCharacter(data);
     setCharacters(prev => [...prev.filter(item => item.id !== saved.id), saved]);
     setCharacterId(saved.id);
@@ -349,7 +349,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
                   {checkpoints.map(checkpoint => <option key={checkpoint.name} value={checkpoint.name}>{checkpoint.name} · {checkpoint.family}</option>)}
                 </select></label>
                 <div className="lora-actions">
-                  <button disabled={!!busy} onClick={generateAvatar}>{character.avatar_filename ? t("lp.avatarRegenerate") : t("lp.avatarGenerate")}</button>
+                  <button disabled={!!busy || character.source_category === "reference_only"} title={character.source_category === "reference_only" ? t("form.referenceOnlyWarning") : undefined} onClick={generateAvatar}>{character.avatar_filename ? t("lp.avatarRegenerate") : t("lp.avatarGenerate")}</button>
                   <button disabled={!!busy} title={t("pg.duplicateTitle")} onClick={duplicateCharacter}>{t("pg.duplicate")}</button>
                 </div>
                 {character.avatar_filename && <div className="avatar-edit">
