@@ -752,6 +752,10 @@ export class ApiClient {
     return this.request(`/api/identity-candidates/${candidateId}`, { method: "PATCH", body: JSON.stringify({ status }) });
   }
 
+  regenerateIdentityRun(runId: string, candidateIds: string[] = []): Promise<IdentityRun> {
+    return this.request(`/api/identity-runs/${runId}/regenerate`, { method: "POST", body: JSON.stringify({ candidate_ids: candidateIds }) });
+  }
+
   freezeIdentityRun(runId: string, overrideReason = ""): Promise<IdentityRun> {
     return this.request(`/api/identity-runs/${runId}/freeze`, { method: "POST", body: JSON.stringify({ override_reason: overrideReason }) });
   }

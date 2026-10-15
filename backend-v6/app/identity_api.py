@@ -141,6 +141,40 @@ def candidate_out(candidate: IdentityCandidate, library: ImageLibrary | None) ->
     }
 
 
+def score_candidates(anchor_bytes: bytes, entries: list[dict], candidate_data: dict[str, bytes]) -> int:
+    """Score candidates against the anchor with the local vision model; returns the scored count."""
+    scored = 0
+    anchor_b64 = resize_jpeg(anchor_bytes)
+    for entry in entries:
+        data = candidate_data.get(entry["id"])
+        if not data:
+            continue
+        try:
+            verdict = vision_json(
+                settings.consistency_model,
+                SCORE_PROMPT,
+                [anchor_b64, resize_jpeg(data)],
+                schema=SCORE_SCHEMA,
+                max_tokens=160,
+            )
+        except (OllamaNotAvailable, OSError, ValueError) as error:
+            logger.info("identity scoring failed for %s: %s", entry["id"], error)
+            continue
+        scores = {
+            "similarity": max(0, min(100, int(verdict.get("similarity", 0) or 0))),
+            "same_person": bool(verdict.get("same_person")),
+            "angle_accuracy": max(0, min(100, int(verdict.get("angle_accuracy", 0) or 0))),
+            "quality_notes": str(verdict.get("quality_notes") or "")[:200],
+        }
+        entry["scores"] = scores
+        with Session.begin() as db:
+            stored = db.get(IdentityCandidate, entry["id"])
+            if stored is not None:
+                stored.scores = scores
+        scored += 1
+    return scored
+
+
 @router.get("/identity-template")
 def get_identity_template():
     return {
@@ -278,36 +312,7 @@ def create_identity_run(character_id: str, body: IdentityRunInput):
             candidate_data[candidate.id] = data
             created.append(candidate_out(candidate, library))
 
-    scored = 0
-    if created:
-        anchor_b64 = resize_jpeg(anchor_bytes)
-        for entry in created:
-            data = candidate_data.get(entry["id"])
-            if not data:
-                continue
-            try:
-                verdict = vision_json(
-                    settings.consistency_model,
-                    SCORE_PROMPT,
-                    [anchor_b64, resize_jpeg(data)],
-                    schema=SCORE_SCHEMA,
-                    max_tokens=160,
-                )
-            except (OllamaNotAvailable, OSError, ValueError) as error:
-                logger.info("identity scoring failed for %s: %s", entry["id"], error)
-                continue
-            scores = {
-                "similarity": max(0, min(100, int(verdict.get("similarity", 0) or 0))),
-                "same_person": bool(verdict.get("same_person")),
-                "angle_accuracy": max(0, min(100, int(verdict.get("angle_accuracy", 0) or 0))),
-                "quality_notes": str(verdict.get("quality_notes") or "")[:200],
-            }
-            entry["scores"] = scores
-            with Session.begin() as db:
-                stored = db.get(IdentityCandidate, entry["id"])
-                if stored is not None:
-                    stored.scores = scores
-            scored += 1
+    scored = score_candidates(anchor_bytes, created, candidate_data)
 
     with Session.begin() as db:
         run = db.get(IdentityRun, run_id)
@@ -379,6 +384,136 @@ def patch_candidate(candidate_id: str, body: CandidatePatch):
         if library is not None:
             library.status = {"accepted": "approved", "rejected": "rejected"}.get(body.status, "draft")
         result = candidate_out(candidate, library)
+    return result
+
+
+class RegenerateInput(StrictModel):
+    candidate_ids: list[str] = Field(default_factory=list, max_length=64)
+
+
+@router.post("/identity-runs/{run_id}/regenerate", status_code=201)
+def regenerate_candidates(run_id: str, body: RegenerateInput):
+    """Regenerate rejected/uncertain candidates (or the given ids) with fresh seeds."""
+    with Session() as db:
+        run = db.get(IdentityRun, run_id)
+        if run is None:
+            raise HTTPException(404, "Identity run not found")
+        if run.status == "frozen":
+            raise HTTPException(409, "The canonical set is frozen: create a new run to change it")
+        if not run.anchor_filename:
+            raise HTTPException(400, "The run has no anchor")
+        anchor_path = (settings.media_dir / run.anchor_filename).resolve()
+        if not anchor_path.is_file():
+            raise HTTPException(404, "Anchor image unavailable")
+        anchor_bytes = anchor_path.read_bytes()
+        rows = list(
+            db.execute(
+                select(IdentityCandidate, ImageLibrary)
+                .outerjoin(ImageLibrary, IdentityCandidate.image_id == ImageLibrary.id)
+                .where(IdentityCandidate.run_id == run_id)
+            )
+        )
+        if body.candidate_ids:
+            wanted = set(body.candidate_ids)
+            targets = [(candidate, library) for candidate, library in rows if candidate.id in wanted]
+            if len(targets) != len(wanted):
+                raise HTTPException(404, "One or more candidates were not found")
+        else:
+            targets = [
+                (candidate, library) for candidate, library in rows if candidate.status in ("rejected", "uncertain")
+            ]
+        if not targets:
+            raise HTTPException(400, "Nothing to regenerate: reject or mark candidates uncertain first")
+        if any(candidate.status == "accepted" for candidate, _library in targets):
+            raise HTTPException(409, "Accepted candidates cannot be regenerated")
+        character_id = run.character_id
+        model = run.model
+        params = run.params or {}
+
+    with Session.begin() as db:
+        job = create_job(
+            db,
+            type="identity_run",
+            character_id=character_id,
+            message=f"regenerate {len(targets)} identity candidates",
+        )
+        start_job(db, job, worker="comfyui-edit")
+        job_id = job.id
+
+    created: list[dict] = []
+    candidate_data: dict[str, bytes] = {}
+    for candidate, _library in targets:
+        new_seed = (candidate.seed + 1000003) % (2**31)
+        try:
+            data, meta = qwen_image_edit(
+                anchor_path,
+                candidate.prompt,
+                seed=new_seed,
+                steps=int(params.get("steps", 4)),
+                cfg=float(params.get("cfg", 1.0)),
+                lora_weight=float(params.get("lora_weight", 1.0)),
+                unet_name=params.get("model") or None,
+                base_url=pick_target(),
+            )
+        except ComfyUIError as error:
+            logger.info("identity regenerate failed for %s: %s", candidate.id, error)
+            continue
+        settings.media_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"{identifier()}.png"
+        (settings.media_dir / filename).write_bytes(data)
+        with Session.begin() as db:
+            stored = db.get(IdentityCandidate, candidate.id)
+            if stored is not None:
+                stored.status = "replaced"
+            library = ImageLibrary(
+                character_id=character_id,
+                filename=filename,
+                sha256=hashlib.sha256(data).hexdigest(),
+                phash=average_hash(data),
+                prompt=candidate.prompt,
+                negative_prompt="",
+                caption="",
+                tags=["identity", candidate.angle],
+                checkpoint=meta.get("model") or model,
+                loras=[],
+                seed=meta.get("seed", new_seed),
+                style="real",
+                status="draft",
+                rating=0,
+                source="identity",
+                used_count=0,
+                embedding=[],
+                embedding_model="",
+            )
+            db.add(library)
+            db.flush()
+            replacement = IdentityCandidate(
+                run_id=run_id,
+                image_id=library.id,
+                angle=candidate.angle,
+                seed=meta.get("seed", new_seed),
+                prompt=candidate.prompt,
+            )
+            db.add(replacement)
+            db.flush()
+            candidate_data[replacement.id] = data
+            created.append(candidate_out(replacement, library))
+
+    scored = score_candidates(anchor_bytes, created, candidate_data)
+    with Session.begin() as db:
+        exec_job = db.get(ExecutionJob, job_id)
+        if exec_job is not None and exec_job.state == "running":
+            update_progress(db, exec_job, current=len(created), total=len(targets), unit="image")
+            finish_job(
+                db,
+                exec_job,
+                state="succeeded" if created else "failed",
+                message=f"{len(created)} replacements ready, {scored} scored",
+            )
+        run = db.get(IdentityRun, run_id)
+        result = run_out(run, created)
+    if not created:
+        raise HTTPException(502, "Regeneration produced no candidate")
     return result
 
 

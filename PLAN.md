@@ -517,7 +517,10 @@ Progress log — 15 October 2026 (slice 1):
 - Candidate scoring: each candidate is scored against the anchor with the local vision model
   (similarity, same_person, angle accuracy, quality notes), stored in `scores` and shown on the
   review cards (flagged below 60 / different person); mocked in tests.
-- Remaining: regenerate endpoint, anchor overlay comparison, face-embedding similarity.
+- Regenerate endpoint (`POST /api/identity-runs/{id}/regenerate`): rejected/uncertain candidates (or
+  explicit ids) get fresh seeds as new candidates, old ones marked `replaced`, replacements scored;
+  accepted candidates blocked; frozen runs immutable. UI button in the panel. 5 tests.
+- Remaining: anchor overlay comparison, face-embedding similarity, requested-angle check via pose.
 
 ### Acceptance criteria
 

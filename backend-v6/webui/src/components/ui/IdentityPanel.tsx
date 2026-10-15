@@ -75,6 +75,14 @@ export default function IdentityPanel({ character, busy, perform, onView, onErro
     })();
   };
 
+  const regenerate = () => {
+    if (!run) return;
+    void perform(t("idr.regenerating"), async () => {
+      await api.regenerateIdentityRun(run.id);
+      setRun(await api.getIdentityRun(run.id));
+    });
+  };
+
   const freeze = () => {
     if (!run) return;
     void perform(t("idr.freezing"), async () => {
@@ -94,6 +102,7 @@ export default function IdentityPanel({ character, busy, perform, onView, onErro
       <div className="preset-actions">
         <span className="library-count">{accepted}/{run?.candidates.length ?? 0} {t("idr.accepted")}</span>
         <button disabled={busy || referenceOnly || !hasAnchor} title={referenceOnly ? t("form.referenceOnlyWarning") : !hasAnchor ? t("idr.needAnchor") : undefined} onClick={generate}>{t("idr.generate")}</button>
+        {run && run.status !== "frozen" && run.candidates.some(candidate => candidate.status === "rejected" || candidate.status === "uncertain") && <button disabled={busy} onClick={regenerate}>{t("idr.regenerate")}</button>}
         {run && run.status !== "frozen" && <button disabled={busy} onClick={freeze}>{t("idr.freeze")}</button>}
       </div>
     </div>

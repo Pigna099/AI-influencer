@@ -754,6 +754,8 @@ const en = {
   "idr.status.uncertain": "Uncertain",
   "idr.similarity": "id",
   "idr.angleAccuracy": "angle",
+  "idr.regenerate": "Regenerate rejected",
+  "idr.regenerating": "Regenerating rejected candidates\u2026",
 } as const;
 
 type Catalog = typeof en;

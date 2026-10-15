@@ -109,3 +109,31 @@ def test_identity_run_requires_anchor(monkeypatch):
     response = client.post(f"/api/characters/{character['id']}/identity-runs", json={})
     assert response.status_code == 400
     assert "profile picture" in response.json()["detail"]
+
+def test_identity_regenerate_rejected(monkeypatch):
+    monkeypatch.setattr("app.identity_api.qwen_image_edit", fake_edit)
+    monkeypatch.setattr("app.identity_api.vision_json", fake_vision)
+    character_id = make_character("Identity Regen")
+    run = client.post(
+        f"/api/characters/{character_id}/identity-runs",
+        json={"angles": ["front_neutral", "profile_left"]},
+    ).json()
+    first = run["candidates"][0]
+    assert client.patch(f"/api/identity-candidates/{first['id']}", json={"status": "rejected"}).status_code == 200
+
+    accepted_id = run["candidates"][1]["id"]
+    assert client.patch(f"/api/identity-candidates/{accepted_id}", json={"status": "accepted"}).status_code == 200
+    blocked = client.post(f"/api/identity-runs/{run['id']}/regenerate", json={"candidate_ids": [accepted_id]})
+    assert blocked.status_code == 409
+
+    regenerated = client.post(f"/api/identity-runs/{run['id']}/regenerate", json={})
+    assert regenerated.status_code == 201, regenerated.text
+    replacements = regenerated.json()["candidates"]
+    assert len(replacements) == 1
+    assert replacements[0]["angle"] == first["angle"]
+    assert replacements[0]["scores"]["similarity"] == 82
+
+    detail = client.get(f"/api/identity-runs/{run['id']}").json()
+    statuses = {candidate["id"]: candidate["status"] for candidate in detail["candidates"]}
+    assert statuses[first["id"]] == "replaced"
+    assert len(detail["candidates"]) == 3
