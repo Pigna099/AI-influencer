@@ -748,6 +748,16 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
             if meta["usable"]:
                 family = meta["family"]
         reference_paths = _dataset_references(db, dataset_id)
+    with Session.begin() as db:
+        job = create_job(
+            db,
+            type="dataset_generate",
+            character_id=character_id,
+            dataset_id=dataset_id,
+            message=f"dataset candidates ({len(poses) or 1} poses x {body.count})",
+        )
+        start_job(db, job, worker="comfyui")
+        job_id = job.id
     if not reference_paths and anchor_path is not None:
         reference_paths = [anchor_path]
     scene = translate_scene(body.prompt, style)
@@ -793,6 +803,20 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
             except ComfyUIError as error:
                 errors.append(error)
     if not rendered:
+        with Session.begin() as db:
+            job = db.get(ExecutionJob, job_id)
+            if job is not None and job.state == "running":
+                finish_job(
+                    db,
+                    job,
+                    state="failed",
+                    error_info={
+                        "code": "dataset_generation_failed",
+                        "summary": "Dataset generation failed.",
+                        "remediation": "Check the ComfyUI instance and the anchor/reference images, then retry.",
+                        "technical_details": str(errors[0])[:800] if errors else "",
+                    },
+                )
         raise HTTPException(
             502, f"Dataset generation failed: {errors[0] if errors else 'unknown error'}"
         )
@@ -843,6 +867,11 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
             if row is not None:
                 row.updated_at = now()
             created.append(dataset_item_out(item, library))
+    with Session.begin() as db:
+        job = db.get(ExecutionJob, job_id)
+        if job is not None and job.state == "running":
+            update_progress(db, job, current=len(created), total=len(jobs), unit="image")
+            finish_job(db, job, state="succeeded", message=f"{len(created)} candidates ready")
     return created
 
 
@@ -894,11 +923,21 @@ def generate_dataset_variations(dataset_id: str, body: DatasetVariations):
                 anchor_path = candidate
         if anchor_path is None:
             raise HTTPException(
-                400, "Serve un'immagine anchor: genera la foto profilo o imposta l'anchor del dataset"
+                400, "An anchor image is required: generate the profile picture or set the dataset anchor"
             )
         character_id = dataset.character_id
         trigger = dataset.trigger
         reference_paths = _dataset_references(db, dataset_id)
+    with Session.begin() as db:
+        job = create_job(
+            db,
+            type="dataset_variation",
+            character_id=character_id,
+            dataset_id=dataset_id,
+            message=f"dataset variations ({len(body.prompts)} prompts x {body.count})",
+        )
+        start_job(db, job, worker="comfyui-edit")
+        job_id = job.id
     if not reference_paths and anchor_path is not None:
         reference_paths = [anchor_path]
     jobs: list[tuple[int, str, str, int]] = []
@@ -935,6 +974,20 @@ def generate_dataset_variations(dataset_id: str, body: DatasetVariations):
             except ComfyUIError as error:
                 errors.append(error)
     if not rendered:
+        with Session.begin() as db:
+            job = db.get(ExecutionJob, job_id)
+            if job is not None and job.state == "running":
+                finish_job(
+                    db,
+                    job,
+                    state="failed",
+                    error_info={
+                        "code": "variations_generation_failed",
+                        "summary": "Variations generation failed.",
+                        "remediation": "Check Qwen-Image-Edit and the reference images, then retry.",
+                        "technical_details": str(errors[0])[:800] if errors else "",
+                    },
+                )
         raise HTTPException(
             502, f"Variations generation failed: {errors[0] if errors else 'unknown error'}"
         )
@@ -985,6 +1038,11 @@ def generate_dataset_variations(dataset_id: str, body: DatasetVariations):
             if row is not None:
                 row.updated_at = now()
             created.append(dataset_item_out(item, library))
+    with Session.begin() as db:
+        job = db.get(ExecutionJob, job_id)
+        if job is not None and job.state == "running":
+            update_progress(db, job, current=len(created), total=len(jobs), unit="image")
+            finish_job(db, job, state="succeeded", message=f"{len(created)} variations ready")
     return created
 
 

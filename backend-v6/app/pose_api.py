@@ -11,8 +11,9 @@ from sqlalchemy import func, select
 from .auth import authorize
 from .char_schemas import StrictModel
 from .config import settings
-from .db import DatasetImage, ImageLibrary, PoseReference, Session, identifier
+from .db import DatasetImage, ExecutionJob, ImageLibrary, PoseReference, Session, identifier
 from .integrations.comfyui import ComfyUIError, extract_pose
+from .jobs import create_job, finish_job, start_job, update_progress
 
 router = APIRouter(prefix="/api", tags=["Pose"], dependencies=[Depends(authorize)])
 
@@ -93,9 +94,27 @@ def list_poses(
 def extract_pose_from_image(body: PoseExtractInput):
     with Session() as db:
         path = _source_path(db, body.source, body.source_image_id)
+    with Session.begin() as db:
+        job = create_job(db, type="pose_extract", asset_id=body.source_image_id, message="pose extraction")
+        start_job(db, job, worker="comfyui-dwpose")
+        job_id = job.id
     try:
         data = extract_pose(path, resolution=body.resolution)
     except ComfyUIError as error:
+        with Session.begin() as db:
+            job = db.get(ExecutionJob, job_id)
+            if job is not None and job.state == "running":
+                finish_job(
+                    db,
+                    job,
+                    state="failed",
+                    error_info={
+                        "code": "pose_extraction_failed",
+                        "summary": "Pose extraction failed.",
+                        "remediation": "Use an image with a clearly visible person and retry.",
+                        "technical_details": str(error)[:800],
+                    },
+                )
         raise HTTPException(502, f"Pose extraction failed: {error}") from error
     settings.pose_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{identifier()}.png"
@@ -117,6 +136,11 @@ def extract_pose_from_image(body: PoseExtractInput):
         )
         db.add(item)
         db.flush()
+    with Session.begin() as db:
+        job = db.get(ExecutionJob, job_id)
+        if job is not None and job.state == "running":
+            update_progress(db, job, current=1, total=1, unit="pose")
+            finish_job(db, job, state="succeeded", message="skeleton ready")
     return pose_out(item)
 
 

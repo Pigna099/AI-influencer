@@ -72,6 +72,7 @@ from .db import (
     ChatMessage,
     ChatVideo,
     Conversation,
+    ExecutionJob,
     Fan,
     ImageLibrary,
     Influencer,
@@ -113,6 +114,7 @@ from .integrations.comfyui import (
 )
 from .integrations.gpu import gpu_status
 from .integrations.text import OllamaNotAvailable, chat, get_models, validate_model
+from .jobs import create_job, finish_job, start_job, update_progress
 from .scheduler import maybe_schedule_proactive, pending_for_conversation, schedule_reply
 
 logger = logging.getLogger(__name__)
@@ -330,6 +332,10 @@ def generate_library_images(character_id: str, body: LibraryGenerateInput):
                 candidate = (settings.pose_dir / (pose.skeleton_filename or "")).resolve()
                 if candidate.is_file():
                     pose_paths.append(candidate)
+    with Session.begin() as db:
+        job = create_job(db, type="image", character_id=character_id, message=f"playground batch of {body.count}")
+        start_job(db, job, worker="comfyui")
+        job_id = job.id
     family = checkpoint_family(style, checkpoint)
     if body.loras:
         available = get_loras()
@@ -371,6 +377,20 @@ def generate_library_images(character_id: str, body: LibraryGenerateInput):
             except ComfyUIError as error:
                 errors.append(error)
     if not rendered:
+        with Session.begin() as db:
+            job = db.get(ExecutionJob, job_id)
+            if job is not None and job.state == "running":
+                finish_job(
+                    db,
+                    job,
+                    state="failed",
+                    error_info={
+                        "code": "image_generation_failed",
+                        "summary": "Photo generation failed.",
+                        "remediation": "Check the ComfyUI instance and the selected checkpoint, then retry.",
+                        "technical_details": str(errors[0])[:800] if errors else "",
+                    },
+                )
         raise HTTPException(502, f"Photo generation failed: {errors[0] if errors else 'unknown error'}")
 
     created = []
@@ -409,6 +429,11 @@ def generate_library_images(character_id: str, body: LibraryGenerateInput):
             db.add(item)
             db.flush()
             created.append(library_out(item))
+    with Session.begin() as db:
+        job = db.get(ExecutionJob, job_id)
+        if job is not None and job.state == "running":
+            update_progress(db, job, current=len(created), total=count, unit="image")
+            finish_job(db, job, state="succeeded", message=f"{len(created)} images ready")
     return created
 
 
@@ -585,6 +610,10 @@ def generate_avatar(character_id: str, body: AvatarInput | None = None):
         checkpoint = (body.checkpoint if body else None) or character.image_checkpoint
         style = (body.style if body else None) or character.image_style or "real"
         family = checkpoint_family(style, checkpoint)
+    with Session.begin() as db:
+        job = create_job(db, type="avatar", character_id=character_id, message="profile picture")
+        start_job(db, job, worker="comfyui")
+        job_id = job.id
     appearance = (profile.get("appearance") or profile.get("description") or "").strip()
     profile = {**profile, "appearance": translate_scene(appearance, style)}
     prompt = build_avatar_prompt(name, profile, style, family)
@@ -602,6 +631,20 @@ def generate_avatar(character_id: str, body: AvatarInput | None = None):
             size_label="NSFW DEMO AVATAR",
         )
     except ComfyUIError as error:
+        with Session.begin() as db:
+            job = db.get(ExecutionJob, job_id)
+            if job is not None and job.state == "running":
+                finish_job(
+                    db,
+                    job,
+                    state="failed",
+                    error_info={
+                        "code": "avatar_generation_failed",
+                        "summary": "Profile picture generation failed.",
+                        "remediation": "Check the ComfyUI instance and the checkpoint, then retry.",
+                        "technical_details": str(error)[:800],
+                    },
+                )
         raise HTTPException(502, f"Profile picture generation failed: {error}") from error
     settings.media_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{identifier()}.png"
@@ -616,6 +659,11 @@ def generate_avatar(character_id: str, body: AvatarInput | None = None):
         item.avatar_prompt = identity_prompt
         db.flush()
         result = character_out(item)
+    with Session.begin() as db:
+        job = db.get(ExecutionJob, job_id)
+        if job is not None and job.state == "running":
+            update_progress(db, job, current=1, total=1, unit="image")
+            finish_job(db, job, state="succeeded", message="profile picture ready")
     unlink_media([old] if old else [])
     return result
 
@@ -639,6 +687,10 @@ def edit_avatar(character_id: str, body: AvatarEditInput):
         old_avatar = character.avatar_filename
     if not old_avatar:
         raise HTTPException(400, "Generate a profile picture before editing it")
+    with Session.begin() as db:
+        job = create_job(db, type="avatar", character_id=character_id, message="profile picture edit")
+        start_job(db, job, worker="comfyui-edit")
+        job_id = job.id
     source = (settings.media_dir / old_avatar).resolve()
     if not source.is_file() or not source.is_relative_to(settings.media_dir.resolve()):
         raise HTTPException(404, "Profile picture unavailable")
@@ -651,6 +703,20 @@ def edit_avatar(character_id: str, body: AvatarEditInput):
             lora_weight=body.lora_weight,
         )
     except ComfyUIError as error:
+        with Session.begin() as db:
+            job = db.get(ExecutionJob, job_id)
+            if job is not None and job.state == "running":
+                finish_job(
+                    db,
+                    job,
+                    state="failed",
+                    error_info={
+                        "code": "avatar_edit_failed",
+                        "summary": "Profile picture edit failed.",
+                        "remediation": "Check the Qwen-Image-Edit model and the ComfyUI instance, then retry.",
+                        "technical_details": str(error)[:800],
+                    },
+                )
         raise HTTPException(502, f"Profile picture edit failed: {error}") from error
     settings.media_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{identifier()}.png"
@@ -664,6 +730,11 @@ def edit_avatar(character_id: str, body: AvatarEditInput):
         item.avatar_filename = filename
         db.flush()
         result = character_out(item)
+    with Session.begin() as db:
+        job = db.get(ExecutionJob, job_id)
+        if job is not None and job.state == "running":
+            update_progress(db, job, current=1, total=1, unit="image")
+            finish_job(db, job, state="succeeded", message="profile picture edited")
     unlink_media([old] if old and old != filename else [])
     return result
 

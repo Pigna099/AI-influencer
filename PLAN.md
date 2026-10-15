@@ -331,8 +331,15 @@ Progress log — 14 October 2026 (first slice):
   events behind a Technical details disclosure. 153 backend tests + 13 frontend tests; live-verified
   endpoints and migration.
 
-Remaining in Phase 3: wire image/dataset/pose/consistency producers, SSE or bounded polling for
-detail views, concurrency limits per GPU/family, orphan-file reconciliation task.
+Remaining in Phase 3: SSE for detail views, concurrency limits per GPU/family, orphan-file
+reconciliation task.
+
+Progress log — 15 October 2026 (second slice):
+- All remaining producers wired into the unified jobs: playground image batches, avatar
+  generation/edit, dataset candidates, dataset variations, pose extraction, consistency checks
+  (create → start → progress → finish with structured errors; live-verified with a real pose
+  extraction -> `pose_extract succeeded 1/1`).
+- Jobs page auto-refreshes every 5 s while any job is running/queued (bounded polling).
 - **SPA fallback**: direct loads/refreshes of `/images`, `/video`, `/dataset`, `/loras`, `/jobs` now
   serve the SPA (registered after all API routes so endpoints keep returning JSON) — refreshing a
   page no longer 404s.

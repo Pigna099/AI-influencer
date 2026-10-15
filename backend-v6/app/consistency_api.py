@@ -12,8 +12,9 @@ from sqlalchemy import select
 from .auth import authorize
 from .char_schemas import StrictModel
 from .config import settings
-from .db import ImageLibrary, Influencer, LoraDataset, LoraDatasetItem, Session
+from .db import ExecutionJob, ImageLibrary, Influencer, LoraDataset, LoraDatasetItem, Session
 from .integrations.text import OllamaNotAvailable, vision_json
+from .jobs import create_job, finish_job, start_job, update_progress
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,16 @@ def consistency_check(character_id: str, body: ConsistencyInput):
         if not candidates:
             raise HTTPException(400, "No images to check")
 
+    with Session.begin() as db:
+        job = create_job(
+            db,
+            type="consistency_check",
+            character_id=character_id,
+            dataset_id=body.dataset_id,
+            message=f"consistency check ({len(candidates)} images)",
+        )
+        start_job(db, job, worker=settings.consistency_model)
+        job_id = job.id
     model = settings.consistency_model
     results: list[dict] = []
     errors = 0
@@ -144,6 +155,11 @@ def consistency_check(character_id: str, body: ConsistencyInput):
         )
     results.sort(key=lambda entry: entry["score"])
     flagged = [entry for entry in results if entry["score"] < body.threshold or not entry["same_person"]]
+    with Session.begin() as db:
+        job = db.get(ExecutionJob, job_id)
+        if job is not None and job.state == "running":
+            update_progress(db, job, current=len(results), total=len(candidates), unit="image")
+            finish_job(db, job, state="succeeded", message=f"{len(flagged)} flagged")
     return {
         "reference": reference_label,
         "model": model,

@@ -96,6 +96,13 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => { void load(0).catch(e => setError(e instanceof Error ? e.message : String(e))); }, [load]);
   useEffect(() => {
+    if (!jobs.some(job => job.state === "running" || job.state === "queued")) return;
+    const timer = window.setInterval(() => {
+      void load(0).catch(() => undefined);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [jobs, load]);
+  useEffect(() => {
     api.getCharacters().then(setCharacters).catch(() => undefined);
   }, []);
 
