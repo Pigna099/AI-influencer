@@ -802,6 +802,8 @@ const en = {
   "ip.collectionAdd": "Add",
   "ip.collection": "Collection",
   "ip.collectionAll": "All collections",
+  "pg.photo.fromLibrary": "Photo source",
+  "pg.photo.newPhoto": "Generate new photo",
 } as const;
 
 type Catalog = typeof en;

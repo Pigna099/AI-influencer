@@ -41,6 +41,17 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
   const [photoScene, setPhotoScene] = useState("");
   const [photoCaption, setPhotoCaption] = useState("");
   const [photoLocked, setPhotoLocked] = useState(false);
+  const [photoLibraryId, setPhotoLibraryId] = useState("");
+  const [photoLibrary, setPhotoLibrary] = useState<{ id: string; caption?: string; prompt?: string; filename: string }[]>([]);
+
+  useEffect(() => {
+    if (!photoOpen || !characterId) return;
+    let live = true;
+    api.getLibrary(characterId, { status: "approved", limit: 100 })
+      .then(items => { if (live) setPhotoLibrary(items); })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, [photoOpen, characterId]);
   const [photoPrice, setPhotoPrice] = useState("5.00");
   const [viewer, setViewer] = useState<{ url: string; alt: string } | null>(null);
   const [absence, setAbsence] = useState(48);
@@ -409,9 +420,9 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
     </div>
     {editing && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={t("form.aria")}><CharacterForm character={editing === "new" ? undefined : editing} models={chatModels} onSave={saveCharacter} onCancel={() => setEditing(null)} /></div></div>}
     {photoOpen && conversation && <div className="modal-backdrop"><form className="modal fan-editor photo-editor" role="dialog" aria-modal="true" aria-label={t("pg.photo.title")} onSubmit={e => { e.preventDefault(); const scene = photoScene.trim() || undefined; const caption = photoCaption.trim() || undefined; setPhotoOpen(false); void perform(t("pg.busy.photo"), async () => {
-      await api.sendPhoto(conversation.id, { scene, caption, locked: photoLocked, price_cents: photoLocked ? Math.round(Number(photoPrice || "0") * 100) : undefined });
+      await api.sendPhoto(conversation.id, { scene, caption, locked: photoLocked, price_cents: photoLocked ? Math.round(Number(photoPrice || "0") * 100) : undefined, library_id: photoLibraryId || undefined });
       await refresh(conversation.id);
-    }); }}><h2>{t("pg.photo.title")}</h2><p className="muted">{t("pg.photo.note", { reference: character?.avatar_filename ? t("pg.photo.reference") : "" })}</p><label>{t("pg.photo.scene")}<textarea autoFocus rows={3} value={photoScene} onChange={e => setPhotoScene(e.target.value)} maxLength={1500} placeholder={t("pg.photo.scenePlaceholder")} /></label><label>{t("pg.photo.caption")}<input value={photoCaption} onChange={e => setPhotoCaption(e.target.value)} maxLength={1000} placeholder={t("pg.photo.captionPlaceholder")} /></label><div className="photo-ppv"><label className="auto-label">{t("pg.photo.locked")} <input type="checkbox" checked={photoLocked} disabled={!!busy} onChange={e => setPhotoLocked(e.target.checked)} /></label><label className="ppv-price">€<input type="number" min="0" max="1000" step="0.5" value={photoPrice} disabled={!!busy || !photoLocked} onChange={e => setPhotoPrice(e.target.value)} /></label></div><div className="modal-actions">{busy && <button type="button" className="danger" onClick={() => void api.interruptGeneration()}>{t("pg.photo.cancelGenerate")}</button>}<button type="button" onClick={() => setPhotoOpen(false)} disabled={!!busy}>{t("common.cancel")}</button><button className="primary" disabled={!!busy}>{t("pg.photo.generate")}</button></div></form></div>}
+    }); }}><h2>{t("pg.photo.title")}</h2><p className="muted">{t("pg.photo.note", { reference: character?.avatar_filename ? t("pg.photo.reference") : "" })}</p><label>{t("pg.photo.fromLibrary")}<select value={photoLibraryId} disabled={!!busy} onChange={e => setPhotoLibraryId(e.target.value)}><option value="">{t("pg.photo.newPhoto")}</option>{photoLibrary.map(image => <option key={image.id} value={image.id}>{(image.caption || image.prompt || image.filename).slice(0, 60)}</option>)}</select></label><label>{t("pg.photo.scene")}<textarea autoFocus rows={3} value={photoScene} disabled={!!photoLibraryId} onChange={e => setPhotoScene(e.target.value)} maxLength={1500} placeholder={t("pg.photo.scenePlaceholder")} /></label><label>{t("pg.photo.caption")}<input value={photoCaption} onChange={e => setPhotoCaption(e.target.value)} maxLength={1000} placeholder={t("pg.photo.captionPlaceholder")} /></label><div className="photo-ppv"><label className="auto-label">{t("pg.photo.locked")} <input type="checkbox" checked={photoLocked} disabled={!!busy} onChange={e => setPhotoLocked(e.target.checked)} /></label><label className="ppv-price">€<input type="number" min="0" max="1000" step="0.5" value={photoPrice} disabled={!!busy || !photoLocked} onChange={e => setPhotoPrice(e.target.value)} /></label></div><div className="modal-actions">{busy && <button type="button" className="danger" onClick={() => void api.interruptGeneration()}>{t("pg.photo.cancelGenerate")}</button>}<button type="button" onClick={() => setPhotoOpen(false)} disabled={!!busy}>{t("common.cancel")}</button><button className="primary" disabled={!!busy}>{t("pg.photo.generate")}</button></div></form></div>}
     {fanEditor && <div className="modal-backdrop"><form className="modal fan-editor" role="dialog" aria-modal="true" aria-label={t("pg.fanAccount")} onSubmit={e => { e.preventDefault(); void perform(t("pg.busy.saveFan"), async () => {
       const saved = await api.request<Fan>(fanEditor === "new" ? "/api/fans" : `/api/fans/${fanEditor.id}`, { method: fanEditor === "new" ? "POST" : "PUT", body: JSON.stringify({ name: fanName, notes: fanNotes }) });
       setFans(prev => [...prev.filter(f => f.id !== saved.id), saved]); setFanId(saved.id); setFanEditor(null);

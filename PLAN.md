@@ -771,7 +771,9 @@ Progress log — 15 October 2026 (first slice):
 Progress log — 15 October 2026 (first slice):
 - Conversation state chip in the Chat heading: No chat selected / Generating reply (with seconds) /
   Waiting for reply (with seconds) / Active — derived from conversation, busy and pending replies.
-- Remaining: rail/inspector split, asset composer, structured assistant proposals, policy validation.
+- Asset composer: the chat photo modal can now send an approved library photo (source picker;
+  backend `library_id` already supported), or generate a new one. 
+- Remaining: rail/inspector split, structured assistant proposals, policy validation.
 
 ### UI redesign
 

@@ -877,7 +877,7 @@ export class ApiClient {
     return this.request(`/api/dataset/images/${id}`, { method: "DELETE" });
   }
 
-  async sendPhoto(conversationId: string, data: {scene?: string; caption?: string; locked?: boolean; price_cents?: number}): Promise<Message> {
+  async sendPhoto(conversationId: string, data: {scene?: string; caption?: string; locked?: boolean; price_cents?: number; library_id?: string}): Promise<Message> {
     return this.request(`/api/conversations/${conversationId}/photo`, {
       method: "POST",
       body: JSON.stringify(data),
