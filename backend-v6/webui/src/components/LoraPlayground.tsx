@@ -68,6 +68,16 @@ function LoraCard({
     return () => { live = false; };
   }, [queueOpen, item.id, datasetId]);
 
+  const useRecommended = () => {
+    void api.getLoraRecommendation(item.id, datasetId || undefined).then(recommendation => {
+      setRank(recommendation.rank);
+      setSteps(String(recommendation.steps));
+      setLearningRate(String(recommendation.learning_rate));
+      setRepeats(String(recommendation.repeats));
+      setResolution(String(recommendation.resolution));
+    }).catch(() => undefined);
+  };
+
   const submit = () => onQueue(item, {
     images_dir: datasetId ? undefined : imagesDir.trim(),
     dataset_id: datasetId || undefined,
@@ -102,6 +112,7 @@ function LoraCard({
       {item.status !== "queued" && item.status !== "training" && <button className="danger" disabled={busy} onClick={() => onDelete(item)}>{t("common.delete")}</button>}
     </div>
     {queueOpen && <div className="lora-queue">
+      <button type="button" disabled={busy} onClick={useRecommended}>{t("lp.useRecommended")}</button>
       {preflight && <ul className="preflight-list">{preflight.checks.map(check => <li key={check.code} className={check.ok ? "ok" : "fail"}>
         <span>{check.ok ? "✓" : "✕"}</span> {check.summary}{!check.ok && check.remediation ? ` — ${check.remediation}` : ""}
       </li>)}</ul>}

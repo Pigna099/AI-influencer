@@ -737,6 +737,11 @@ export class ApiClient {
     return this.request(`/api/loras/${loraId}/rollback`, { method: "POST" });
   }
 
+  getLoraRecommendation(loraId: string, datasetId?: string): Promise<{ family: string; selected: number; rank: number; steps: number; learning_rate: number; resolution: number; repeats: number; rationale: string }> {
+    const query = datasetId ? `?dataset_id=${encodeURIComponent(datasetId)}` : "";
+    return this.request(`/api/loras/${loraId}/recommendation${query}`);
+  }
+
   getLoraPreflight(loraId: string, datasetId?: string): Promise<{ ok: boolean; checks: { code: string; ok: boolean; summary: string; remediation: string }[] }> {
     const query = datasetId ? `?dataset_id=${encodeURIComponent(datasetId)}` : "";
     return this.request(`/api/loras/${loraId}/preflight${query}`);

@@ -769,6 +769,7 @@ const en = {
   "jobs.type.lora_validation": "LoRA validation",
   "lp.rollback": "Rollback",
   "lp.rollbackBusy": "Rolling back to the previous artifact\u2026",
+  "lp.useRecommended": "Use recommended parameters",
 } as const;
 
 type Catalog = typeof en;
