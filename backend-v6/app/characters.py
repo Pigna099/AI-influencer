@@ -153,6 +153,9 @@ def character_out(item):
         activity_start_hour=item.activity_start_hour,
         activity_end_hour=item.activity_end_hour,
         activity_days=sorted(item.activity_days or []),
+        age=item.age,
+        synthetic_declared=item.synthetic_declared,
+        provenance=item.provenance,
         created_at=item.created_at.isoformat(),
     )
 
@@ -555,7 +558,13 @@ def augment_library_prompt(character_id: str, body: PromptAugmentInput):
 @router.post("/characters", status_code=201)
 def create_character(body: CharacterInput):
     with Session.begin() as db:
-        item = Influencer(name=body.name, bible={"profile": body.profile.model_dump()})
+        item = Influencer(
+            name=body.name,
+            bible={"profile": body.profile.model_dump()},
+            age=body.age,
+            synthetic_declared=body.synthetic_declared,
+            provenance=body.provenance,
+        )
         db.add(item)
         db.flush()
         db.add(BibleVersion(influencer_id=item.id, version=1, bible=item.bible))
@@ -588,7 +597,16 @@ def update_character(character_id: str, body: CharacterUpdate):
         changed = db.execute(
             update(Influencer)
             .where(Influencer.id == item.id, Influencer.version == item.version)
-            .values(name=body.name or item.name, bible=bible, version=version)
+            .values(
+                name=body.name or item.name,
+                bible=bible,
+                version=version,
+                age=body.age if body.age is not None else item.age,
+                synthetic_declared=(
+                    body.synthetic_declared if body.synthetic_declared is not None else item.synthetic_declared
+                ),
+                provenance=body.provenance or item.provenance,
+            )
         )
         if changed.rowcount != 1:
             raise HTTPException(409, "The character was modified: reload the page")
@@ -892,8 +910,14 @@ def clone_character(character_id: str, body: CharacterClone | None = None):
     with Session.begin() as db:
         source = required(db, Influencer, character_id)
         profile = normalize_bible_profile(source.bible)
-        name = body.name if body and body.name else f"{source.name} (copia)"
-        item = Influencer(name=name[:120], bible={"profile": profile})
+        name = body.name if body and body.name else f"{source.name} (copy)"
+        item = Influencer(
+            name=name[:120],
+            bible={"profile": profile},
+            age=source.age,
+            synthetic_declared=source.synthetic_declared,
+            provenance=source.provenance,
+        )
         db.add(item)
         db.flush()
         db.add(BibleVersion(influencer_id=item.id, version=1, bible=item.bible))

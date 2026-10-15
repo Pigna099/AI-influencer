@@ -335,3 +335,6 @@
 
 .maintenance-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: .78rem; color: #9db2cf; margin-bottom: 12px; }
 .maintenance-row .danger { font-size: .72rem; padding: .3rem .55rem; }
+
+.policy-declaration { font-size: .74rem; color: #a8bcd6; line-height: 1.5; align-items: flex-start; }
+.policy-declaration input { margin-top: 2px; }

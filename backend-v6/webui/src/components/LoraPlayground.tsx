@@ -276,7 +276,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     });
   };
 
-  const saveCharacter = async (data: { name: string; profile: CharacterProfile }) => {
+  const saveCharacter = async (data: { name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string }) => {
     const saved = editing && editing !== "new" ? await api.updateCharacter(editing.id, data) : await api.createCharacter(data);
     setCharacters(prev => [...prev.filter(item => item.id !== saved.id), saved]);
     setCharacterId(saved.id);

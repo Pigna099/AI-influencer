@@ -23,9 +23,15 @@ class CharacterProfile(StrictModel):
     custom_instructions: str = Field(default="", max_length=5000)
 
 
+PROVENANCE = ("original", "synthetic", "consented")
+
+
 class CharacterInput(StrictModel):
     name: str = Field(min_length=1, max_length=120)
     profile: CharacterProfile
+    age: int | None = Field(default=None, ge=21, le=99)
+    synthetic_declared: bool = False
+    provenance: Literal["original", "synthetic", "consented"] = "synthetic"
 
 
 class CharacterOutput(StrictModel):
@@ -45,6 +51,9 @@ class CharacterOutput(StrictModel):
     activity_start_hour: int = 9
     activity_end_hour: int = 23
     activity_days: list[int] = Field(default_factory=lambda: list(range(7)))
+    age: int | None = None
+    synthetic_declared: bool = False
+    provenance: str = "synthetic"
     created_at: str
 
 
@@ -141,6 +150,9 @@ class PromptAugmentInput(StrictModel):
 class CharacterUpdate(StrictModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     profile: CharacterProfile | None = None
+    age: int | None = Field(default=None, ge=21, le=99)
+    synthetic_declared: bool | None = None
+    provenance: Literal["original", "synthetic", "consented"] | None = None
 
 
 class CharacterClone(StrictModel):

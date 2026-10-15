@@ -402,6 +402,13 @@ Images, video, imports, classification, consistency checks, and training all hav
 
 ## 10. Phase 4 — Character foundation and identity intake
 
+Progress log — 15 October 2026 (first slice):
+- Character policy fields: `age` (validated 21-99), `synthetic_declared`, `provenance`
+  (original/synthetic/consented) — migration `0024`, schemas, create/update/clone and output.
+- Character editor UI: adult-age field, provenance select and the synthetic/consented-likeness
+  declaration checkbox; `(copia)` clone suffix fixed to `(copy)`. Test added (age validation +
+  update); live-verified (migration 0024 applied, characters expose the fields).
+
 ### Character schema
 
 Add required fields:

@@ -490,3 +490,38 @@ def test_app_defaults_roundtrip():
     again = client.get("/api/settings/defaults").json()
     assert again["chat_model"] == "qwen3.8"
     assert again["image_checkpoint"] == "flux-2-klein-4b.safetensors"
+
+def test_character_policy_fields():
+    created = client.post(
+        "/api/characters",
+        json={
+            "name": "Policy Fields",
+            "profile": {
+                "description": "adult test",
+                "appearance": "adult woman",
+                "personality_traits": "calm",
+                "tone_of_voice": "warm",
+                "boundaries": "adults only",
+            },
+            "age": 25,
+            "synthetic_declared": True,
+            "provenance": "synthetic",
+        },
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["age"] == 25 and body["synthetic_declared"] is True and body["provenance"] == "synthetic"
+
+    underage = client.post(
+        "/api/characters",
+        json={
+            "name": "Too Young",
+            "profile": {"description": "x"},
+            "age": 17,
+        },
+    )
+    assert underage.status_code == 422
+
+    updated = client.put(f"/api/characters/{body['id']}", json={"age": 30, "provenance": "original"})
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["age"] == 30 and updated.json()["provenance"] == "original"

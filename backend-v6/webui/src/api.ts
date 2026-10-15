@@ -53,6 +53,9 @@ export interface Character {
   activity_start_hour?: number;
   activity_end_hour?: number;
   activity_days?: number[];
+  age?: number | null;
+  synthetic_declared?: boolean;
+  provenance?: string;
   created_at: string;
 }
 
@@ -527,11 +530,11 @@ export class ApiClient {
     return this.request("/api/characters");
   }
 
-  async createCharacter(data: {name: string; profile: CharacterProfile}): Promise<Character> {
+  async createCharacter(data: {name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string}): Promise<Character> {
     return this.request("/api/characters", {method: "POST", body: JSON.stringify(data)});
   }
 
-  async updateCharacter(id: string, data: {name?: string; profile?: CharacterProfile}): Promise<Character> {
+  async updateCharacter(id: string, data: {name?: string; profile?: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string}): Promise<Character> {
     return this.request(`/api/characters/${id}`, {method: "PUT", body: JSON.stringify(data)});
   }
 

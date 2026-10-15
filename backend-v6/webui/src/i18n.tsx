@@ -712,6 +712,12 @@ const en = {
   "jobs.deleteOrphans": "Delete them",
   "jobs.orphansRemoved": "Removed {count} files ({gb} GB freed).",
   "jobs.noOrphans": "No orphaned files.",
+  "form.age": "Adult age",
+  "form.provenance": "Provenance",
+  "form.provenance.synthetic": "Synthetic (AI-generated)",
+  "form.provenance.original": "Original creation",
+  "form.provenance.consented": "Consented likeness",
+  "form.syntheticDeclaration": "This character is a fictional adult (21+) and its identity is declared as above. No real person's likeness is used without consent.",
 } as const;
 
 type Catalog = typeof en;

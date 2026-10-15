@@ -13,10 +13,13 @@ const fields: [keyof CharacterProfile, TranslationKey, number][] = [
   ["relationship_style", "form.field.relationship_style", 1000], ["boundaries", "form.field.boundaries", 2000], ["custom_instructions", "form.field.custom_instructions", 5000],
 ];
 
-export default function CharacterForm({ character, models, onSave, onCancel }: { character?: Character; models: OllamaModel[]; onSave: (data: {name: string; profile: CharacterProfile}) => Promise<void>; onCancel: () => void }) {
+export default function CharacterForm({ character, models, onSave, onCancel }: { character?: Character; models: OllamaModel[]; onSave: (data: {name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string}) => Promise<void>; onCancel: () => void }) {
   const { t } = useI18n();
   const [available, setAvailable] = useState<OllamaModel[]>(() => chatModels(models));
   const [name, setName] = useState(character?.name || "");
+  const [age, setAge] = useState(character?.age != null ? String(character.age) : "");
+  const [synthetic, setSynthetic] = useState(character?.synthetic_declared ?? true);
+  const [provenance, setProvenance] = useState(character?.provenance || "synthetic");
   const [profile, setProfile] = useState<CharacterProfile>({ ...profileDefaults, ...character?.profile });
   const [model, setModel] = useState(available.find(m => m.name === "llama3.1:8b")?.name || available[0]?.name || "");
   useEffect(() => {
@@ -38,8 +41,17 @@ export default function CharacterForm({ character, models, onSave, onCancel }: {
     catch (e) { setError(e instanceof Error ? e.message : t("form.enhance.error")); } finally { setBusy(""); }
   };
   return <div className="character-editor"><header><div><span className="eyebrow">PERSONALITY</span><h2>{character ? t("form.title.edit", { name: character.name }) : t("form.title.new")}</h2></div><button onClick={onCancel} disabled={!!busy} aria-label={t("common.close")}>×</button></header>
-    <form onSubmit={async e => { e.preventDefault(); setBusy(t("form.saving")); setError(""); try { await onSave({ name, profile }); } catch (err) { setError(String(err)); } finally { setBusy(""); } }}>
+    <form onSubmit={async e => { e.preventDefault(); setBusy(t("form.saving")); setError(""); try { await onSave({ name, profile, age: age.trim() ? Number(age) : null, synthetic_declared: synthetic, provenance }); } catch (err) { setError(String(err)); } finally { setBusy(""); } }}>
       <fieldset disabled={!!busy}><div className="editor-identity"><label>{t("form.name")}<input autoFocus value={name} onChange={e => setName(e.target.value)} required maxLength={120} /></label><label>{t("form.language")}<select value={profile.language} onChange={e => setProfile(p => ({ ...p, language: e.target.value }))}><option value="it">Italiano</option><option value="en">English</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="es">Español</option></select></label></div>
+        <div className="editor-identity">
+          <label>{t("form.age")}<input type="number" min={21} max={99} value={age} onChange={e => setAge(e.target.value)} placeholder="21+" /></label>
+          <label>{t("form.provenance")}<select value={provenance} onChange={e => setProvenance(e.target.value)}>
+            <option value="synthetic">{t("form.provenance.synthetic")}</option>
+            <option value="original">{t("form.provenance.original")}</option>
+            <option value="consented">{t("form.provenance.consented")}</option>
+          </select></label>
+        </div>
+        <label className="auto-label policy-declaration"><input type="checkbox" checked={synthetic} onChange={e => setSynthetic(e.target.checked)} /> {t("form.syntheticDeclaration")}</label>
         <div className="profile-fields">{fields.map(([key, labelKey, max]) => <label key={key}>{t(labelKey)}<textarea value={profile[key]} onChange={e => setProfile(p => ({ ...p, [key]: e.target.value }))} rows={key === "description" ? 3 : 2} maxLength={max} required={key === "description"} /></label>)}</div>
         <p className="muted">{t("form.appearanceNote")}</p>
         <div className="enhance-box"><h3>{t("form.enhance.title")}</h3><label>{t("form.enhance.model")}<select value={model} onChange={e => setModel(e.target.value)}>{!available.length && <option value="">{t("pg.chooseModel")}</option>}{available.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}</select></label><label>{t("form.enhance.direction")}<textarea rows={2} value={direction} onChange={e => setDirection(e.target.value)} maxLength={2000} /></label><button type="button" disabled={!name.trim() || !profile.description.trim() || !model} onClick={() => void enhance()}>{t("form.enhance.generate")}</button><small>{t("form.enhance.note")}</small></div>
