@@ -445,3 +445,5 @@
 .inspector-settings .image-checkpoint { display: block; margin-top: 8px; }
 
 .proposal-chip { background: var(--st-busy-bg); color: var(--st-busy-fg); border-radius: 6px; padding: 1px 7px; font-size: .68rem; }
+
+.library-card, .video-card, .dataset-card, .identity-card { content-visibility: auto; contain-intrinsic-size: auto 320px; }

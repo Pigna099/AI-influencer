@@ -740,6 +740,12 @@ Always show a compact “Effective recipe” before submission.
 
 ## 15. Phase 9 — Redesign video production
 
+Progress log — 15 October 2026 (second slice):
+- ETA on job progress: rate-based estimate shown for running jobs (Jobs page and LoRA training rows).
+- Large-grid virtualization: `content-visibility: auto` + intrinsic sizes on library/video/dataset/
+  identity cards (offscreen cards skip rendering).
+
+
 Progress log — 15 October 2026 (first slice):
 - Model capability cards replace the model select (FPS, I2V+T2V, step range, LoRA notes);
   duration expressed in seconds first, frames second (select + effective-recipe summary);

@@ -375,6 +375,17 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     `${t("lp.activeLora")} ${activeLora ? activeLora.name : "—"}`,
   ].join(" · ") : "";
 
+  const jobEtaText = (job: TrainingJob): string | null => {
+    const step = job.progress?.step ?? 0;
+    const total = job.progress?.total ?? 0;
+    if (!step || !total || !job.started_at) return null;
+    const elapsed = (Date.now() - new Date(job.started_at).getTime()) / 1000;
+    if (elapsed < 10) return null;
+    const remaining = (elapsed * (total - step)) / step;
+    if (remaining < 60) return t("jobs.etaSeconds", { seconds: Math.round(remaining) });
+    return t("jobs.etaMinutes", { minutes: Math.round(remaining / 60) });
+  };
+
   const progressPercent = (job: TrainingJob) => {
     const step = job.progress?.step ?? 0;
     const total = job.progress?.total ?? 0;
@@ -471,7 +482,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
             <div className="job-list">{visibleJobs.map(job => <div key={job.id} className={`job-row status-${job.status}`}>
               <header><strong>{job.name || job.lora?.name || job.lora_id || t("lp.jobs")}</strong><StatusBadge status={job.status} label={t(`lp.jobStatus.${job.status}`)} /><small>{new Date(job.created_at).toLocaleString()}</small></header>
               {job.status === "running" && <JobProgress percent={progressPercent(job)} label={job.name || `#${job.id}`} />}
-              {job.status === "running" && <small>{job.progress?.total ? t("lp.progressStep", { step: job.progress.step ?? 0, total: job.progress.total }) : ""}{job.progress?.loss != null ? ` · ${t("lp.loss")} ${job.progress.loss.toFixed(4)}` : ""}</small>}
+              {job.status === "running" && <small>{job.progress?.total ? t("lp.progressStep", { step: job.progress.step ?? 0, total: job.progress.total }) : ""}{job.progress?.loss != null ? ` · ${t("lp.loss")} ${job.progress.loss.toFixed(4)}` : ""}{jobEtaText(job) ? ` · ${jobEtaText(job)}` : ""}</small>}
               {job.worker && <small>{t("lp.worker")}: {job.worker}</small>}
               {job.error_info ? <div className="lora-error">
                 <b>{job.error_info.summary}</b>

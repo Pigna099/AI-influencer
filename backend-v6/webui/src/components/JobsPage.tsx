@@ -14,6 +14,17 @@ const JOB_TYPES = [
 ];
 const PAGE = 50;
 
+function jobEta(job: ExecutionJob, t: (key: "jobs.etaSeconds" | "jobs.etaMinutes", values?: Record<string, number>) => string): string | null {
+  const current = job.progress?.current;
+  const total = job.progress?.total;
+  if (!current || !total || !job.started_at || current <= 0) return null;
+  const elapsed = (Date.now() - new Date(job.started_at).getTime()) / 1000;
+  if (elapsed < 5) return null;
+  const remaining = (elapsed * (total - current)) / current;
+  if (remaining < 60) return t("jobs.etaSeconds", { seconds: Math.max(1, Math.round(remaining)) });
+  return t("jobs.etaMinutes", { minutes: Math.round(remaining / 60) });
+}
+
 function progressPercent(job: ExecutionJob) {
   const current = job.progress?.current ?? 0;
   const total = job.progress?.total ?? 0;
@@ -44,7 +55,7 @@ function JobRow({ job, characterName, busy, onAction }: {
       {job.state === "running" && job.progress?.total ? (
         <div className="job-progress-row">
           <JobProgress percent={progressPercent(job)} label={job.type} />
-          <small>{job.progress.current}/{job.progress.total} {job.progress.unit || ""}</small>
+          <small>{job.progress.current}/{job.progress.total} {job.progress.unit || ""}{jobEta(job, t) ? ` · ${jobEta(job, t)}` : ""}</small>
         </div>
       ) : job.state === "queued" && job.queue_position ? (
         <small className="muted">{t("jobs.queuePosition", { position: job.queue_position })}</small>

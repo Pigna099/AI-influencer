@@ -869,6 +869,8 @@ const en = {
   "lp.avatarCheck.onePerson": "one person",
   "lp.avatarCheck.face": "face visible",
   "lp.avatarCheck.sharp": "sharp",
+  "jobs.etaSeconds": "ETA {seconds}s",
+  "jobs.etaMinutes": "ETA {minutes}m",
 } as const;
 
 type Catalog = typeof en;
