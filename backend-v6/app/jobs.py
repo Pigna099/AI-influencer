@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from .db import ExecutionJob, JobEvent, identifier, now
 
@@ -203,6 +203,21 @@ def recover_stale(db, reference: datetime | None = None) -> int:
             )
             recovered += 1
     return recovered
+
+
+RETENTION_DAYS = 30
+
+
+def prune_finished_jobs(db, days: int = RETENTION_DAYS) -> int:
+    """Delete finished jobs (and their events) older than the retention window."""
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+    jobs = db.scalars(
+        select(ExecutionJob).where(ExecutionJob.state.in_(FINAL_STATES), ExecutionJob.finished_at < cutoff)
+    ).all()
+    for job in jobs:
+        db.execute(delete(JobEvent).where(JobEvent.job_id == job.id))
+        db.delete(job)
+    return len(jobs)
 
 
 def queue_position(db, job: ExecutionJob) -> int | None:

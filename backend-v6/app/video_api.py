@@ -157,6 +157,15 @@ def generate_video(character_id: str, body: VideoGenerateInput):
     with Session.begin() as db:
         required(db, Influencer, character_id)
         source = required(db, ImageLibrary, body.image_id) if body.image_id else None
+        running = db.scalar(
+            select(ExecutionJob).where(
+                ExecutionJob.type == "video",
+                ExecutionJob.character_id == character_id,
+                ExecutionJob.state.in_(("queued", "running")),
+            )
+        )
+        if running is not None:
+            raise HTTPException(409, "A video generation is already running for this character")
         exec_job = create_job(
             db,
             type="video",

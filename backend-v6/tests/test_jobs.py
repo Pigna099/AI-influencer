@@ -103,3 +103,39 @@ def test_jobs_summary_and_filters():
     assert by_character and all(entry["character_id"] == lora["character_id"] for entry in by_character)
 
     assert client.get("/api/jobs", params={"state": "succeeded"}).json() == []
+
+def test_job_pruning_removes_old_finished_jobs():
+    from datetime import UTC, datetime, timedelta
+
+    from app.db import ExecutionJob, Session
+    from app.jobs import prune_finished_jobs
+
+    _, lora = make_lora("Prune")
+    folder = make_images_dir("prune")
+    job = queue_training(lora["id"], folder)
+    entry = client.get("/api/jobs", params={"type": "training"}).json()[0]
+    client.post(f"/api/training-jobs/{job['id']}/cancel")
+
+    with Session.begin() as db:
+        stored = db.get(ExecutionJob, entry["id"])
+        stored.finished_at = datetime.now(UTC) - timedelta(days=40)
+        pruned = prune_finished_jobs(db)
+    assert pruned >= 1
+    assert client.get(f"/api/jobs/{entry['id']}").status_code == 404
+
+
+def test_video_concurrency_guard_per_character():
+    from app.db import Session
+    from app.jobs import create_job, start_job
+
+    character = client.post("/api/characters", json={"name": "Video Guard", "profile": PROFILE}).json()
+    with Session.begin() as db:
+        running = create_job(db, type="video", character_id=character["id"], message="busy")
+        start_job(db, running)
+
+    response = client.post(
+        f"/api/characters/{character['id']}/videos",
+        json={"prompt": "x", "mode": "text", "length": 49},
+    )
+    assert response.status_code == 409
+    assert "already running" in response.json()["detail"]

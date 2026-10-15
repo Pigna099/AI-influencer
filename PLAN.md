@@ -340,6 +340,9 @@ Progress log — 15 October 2026 (second slice):
   (create → start → progress → finish with structured errors; live-verified with a real pose
   extraction -> `pose_extract succeeded 1/1`).
 - Jobs page auto-refreshes every 5 s while any job is running/queued (bounded polling).
+- Concurrency + retention: per-character video guard (409 while a video job is active for the
+  character), finished jobs auto-pruned after 30 days (events included) from the summary endpoint.
+  Tests added (prune, guard); 155 backend tests.
 - **SPA fallback**: direct loads/refreshes of `/images`, `/video`, `/dataset`, `/loras`, `/jobs` now
   serve the SPA (registered after all API routes so endpoints keep returning JSON) — refreshing a
   page no longer 404s.

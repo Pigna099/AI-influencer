@@ -5,7 +5,15 @@ from sqlalchemy import select
 
 from .auth import authorize
 from .db import ExecutionJob, JobEvent, Session
-from .jobs import ACTIVE_STATES, event_out, job_out, queue_position, recover_stale, request_cancel
+from .jobs import (
+    ACTIVE_STATES,
+    event_out,
+    job_out,
+    prune_finished_jobs,
+    queue_position,
+    recover_stale,
+    request_cancel,
+)
 
 router = APIRouter(prefix="/api/jobs", tags=["ExecutionJobs"], dependencies=[Depends(authorize)])
 
@@ -36,6 +44,7 @@ def list_jobs(
 def jobs_summary():
     with Session() as db:
         recover_stale(db)
+        prune_finished_jobs(db)
         active = db.scalars(select(ExecutionJob).where(ExecutionJob.state.in_(ACTIVE_STATES))).all()
         failed = db.scalars(select(ExecutionJob).where(ExecutionJob.state == "failed").order_by(ExecutionJob.created_at.desc()).limit(20)).all()
         db.commit()
