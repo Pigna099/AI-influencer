@@ -740,6 +740,8 @@ Progress log — 15 October 2026 (first slice):
   append to the prompt. Source preview and approved-only picker were already in place.
 - Params now store fps/frames/duration (cards use them); duplicate detection in the library
   (exact phash grouping, "Duplicates (N)" filter + per-card ×N badge).
+- Bulk review: `POST /api/library/bulk-status` + bulk Approve/Reject/Draft in the selection bar
+  (test added); always-visible effective-recipe line before Generate (Images and Video).
 
 ### Steps
 

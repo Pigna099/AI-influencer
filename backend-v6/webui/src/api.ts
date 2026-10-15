@@ -802,6 +802,10 @@ export class ApiClient {
     return this.request(`/api/library/${id}/restore`, { method: "POST" });
   }
 
+  async setLibraryItemsStatus(ids: string[], status: "draft" | "approved" | "rejected"): Promise<{updated: number}> {
+    return this.request("/api/library/bulk-status", { method: "POST", body: JSON.stringify({ ids, status }) });
+  }
+
   async deleteLibraryItems(ids: string[]): Promise<{deleted: number}> {
     return this.request("/api/library/bulk-delete", { method: "POST", body: JSON.stringify({ ids }) });
   }

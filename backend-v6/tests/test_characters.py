@@ -579,3 +579,18 @@ def test_library_trash_and_restore():
     client.post(f"/api/library/{first['id']}/trash")
     assert client.delete(f"/api/library/{first['id']}").status_code == 200
     assert client.get(f"/api/characters/{character['id']}/library", params={"trash": True}).json() == []
+
+def test_library_bulk_status():
+    character = client.post("/api/characters", json={"name": "Bulk Status", "profile": {"description": "x"}}).json()
+    images = client.post(f"/api/characters/{character['id']}/library/generate", json={"prompt": "x", "count": 3}).json()
+    ids = [item["id"] for item in images]
+
+    approved = client.post("/api/library/bulk-status", json={"ids": ids[:2], "status": "approved"})
+    assert approved.status_code == 200 and approved.json()["updated"] == 2
+    listing = client.get(f"/api/characters/{character['id']}/library", params={"status": "approved"}).json()
+    assert {item["id"] for item in listing} == set(ids[:2])
+
+    rejected = client.post("/api/library/bulk-status", json={"ids": [ids[2]], "status": "rejected"})
+    assert rejected.status_code == 200 and rejected.json()["updated"] == 1
+    assert client.post("/api/library/bulk-status", json={"ids": [], "status": "draft"}).status_code == 422
+    assert client.post("/api/library/bulk-status", json={"ids": [ids[0]], "status": "archived"}).status_code == 422

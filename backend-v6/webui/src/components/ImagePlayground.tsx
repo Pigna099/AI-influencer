@@ -383,6 +383,14 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
     });
   };
 
+  const bulkStatus = (status: "draft" | "approved" | "rejected") => {
+    void perform("", async () => {
+      await api.setLibraryItemsStatus(selectedIds, status);
+      setLibrary(prev => prev.map(item => selectedIds.includes(item.id) ? { ...item, status } : item));
+      setSelectedIds([]);
+    });
+  };
+
   const removeSelected = () => {
     if (!selectedIds.length) return;
     if (!window.confirm(t("bulk.confirmDelete", { count: selectedIds.length }))) return;
@@ -449,6 +457,9 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
             </div>
             {mode === "grid" ? <>
               <label><input type="checkbox" disabled={!!busy || !library.length} checked={selectedIds.length > 0 && selectedIds.length === library.length} onChange={e => setSelectedIds(e.target.checked ? library.map(entry => entry.id) : [])} /> {t("bulk.selectAll")}</label>
+              <button disabled={!!busy || !selectedIds.length} onClick={() => bulkStatus("approved")}>{t("ip.approve")}</button>
+              <button disabled={!!busy || !selectedIds.length} onClick={() => bulkStatus("rejected")}>{t("ip.reject")}</button>
+              <button disabled={!!busy || !selectedIds.length} onClick={() => bulkStatus("draft")}>{t("ip.statusDraft")}</button>
               <button className="danger" disabled={!!busy || !selectedIds.length} onClick={removeSelected}>{t("bulk.deleteSelected", { count: selectedIds.length })}</button>
             </> : <label className="auto-label"><input type="checkbox" checked={anchorOverlay} onChange={e => setAnchorOverlay(e.target.checked)} disabled={!anchorUrl} /> {t("ip.review.overlay")} <kbd>O</kbd></label>}
             {mode === "grid" && !trashView && <label className="auto-label"><input type="checkbox" checked={dupOnly} onChange={e => setDupOnly(e.target.checked)} disabled={!duplicateGroups} /> {t("ip.duplicates", { count: duplicateGroups })}</label>}

@@ -24,6 +24,7 @@ from .char_schemas import (
     AvatarPromptInput,
     BenchmarkInput,
     BulkIdsInput,
+    BulkStatusInput,
     CharacterClone,
     CharacterInput,
     CharacterOutput,
@@ -524,6 +525,17 @@ def delete_library_item(item_id: str):
         db.delete(item)
     unlink_media([filename])
     return {"deleted": True}
+
+
+@router.post("/library/bulk-status")
+def set_library_items_status(body: BulkStatusInput):
+    with Session.begin() as db:
+        changed = db.execute(
+            update(ImageLibrary)
+            .where(ImageLibrary.id.in_(body.ids))
+            .values(status=body.status, updated_at=now())
+        )
+    return {"updated": changed.rowcount or 0}
 
 
 @router.post("/library/bulk-delete")
