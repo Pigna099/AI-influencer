@@ -153,6 +153,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
 
   const [libraryLoaded, setLibraryLoaded] = useState(false);
   const [mode, setMode] = useState<"grid" | "review">("grid");
+  const [trashView, setTrashView] = useState(false);
   const [reviewId, setReviewId] = useState("");
   const [anchorOverlay, setAnchorOverlay] = useState(false);
   const [anchorUrl, setAnchorUrl] = useState("");
@@ -164,7 +165,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
     setSelectedIds([]);
     const epoch = generation.current;
     try {
-      const items = await api.getLibrary(id, { status: statusFilter, style: styleFilter, limit: LIBRARY_PAGE });
+      const items = await api.getLibrary(id, { status: statusFilter, style: styleFilter, limit: LIBRARY_PAGE, trash: trashView });
       if (epoch === generation.current) {
         setLibrary(items);
         setLibraryHasMore(items.length === LIBRARY_PAGE);
@@ -172,7 +173,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
     } finally {
       if (epoch === generation.current) setLibraryLoaded(true);
     }
-  }, [statusFilter, styleFilter]);
+  }, [statusFilter, styleFilter, trashView]);
 
   useEffect(() => {
     let objectUrl = "";
@@ -353,6 +354,20 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
     setSelectedIds(prev => prev.includes(id) ? prev.filter(entry => entry !== id) : [...prev, id]);
   };
 
+  const trashItem = (item: LibraryImage) => {
+    void perform("", async () => {
+      await api.trashLibraryItem(item.id);
+      setLibrary(prev => prev.filter(entry => entry.id !== item.id));
+    });
+  };
+
+  const restoreItem = (item: LibraryImage) => {
+    void perform("", async () => {
+      await api.restoreLibraryItem(item.id);
+      setLibrary(prev => prev.filter(entry => entry.id !== item.id));
+    });
+  };
+
   const removeSelected = () => {
     if (!selectedIds.length) return;
     if (!window.confirm(t("bulk.confirmDelete", { count: selectedIds.length }))) return;
@@ -413,8 +428,9 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
         <div className="library-scroll">
           <div className="bulk-bar">
             <div className="view-tabs" role="tablist" aria-label={t("ip.mode")}>
-              <button role="tab" aria-selected={mode === "grid"} disabled={!!busy} onClick={() => setMode("grid")}>{t("ip.mode.grid")}</button>
-              <button role="tab" aria-selected={mode === "review"} disabled={!!busy} onClick={() => setMode("review")}>{t("ip.mode.review")}</button>
+              <button role="tab" aria-selected={!trashView && mode === "grid"} disabled={!!busy} onClick={() => { setTrashView(false); setMode("grid"); }}>{t("ip.mode.grid")}</button>
+              <button role="tab" aria-selected={!trashView && mode === "review"} disabled={!!busy} onClick={() => { setTrashView(false); setMode("review"); }}>{t("ip.mode.review")}</button>
+              <button role="tab" aria-selected={trashView} disabled={!!busy} onClick={() => { setTrashView(true); setMode("grid"); }}>{t("ip.mode.trash")}</button>
             </div>
             {mode === "grid" ? <>
               <label><input type="checkbox" disabled={!!busy || !library.length} checked={selectedIds.length > 0 && selectedIds.length === library.length} onChange={e => setSelectedIds(e.target.checked ? library.map(entry => entry.id) : [])} /> {t("bulk.selectAll")}</label>
@@ -455,10 +471,15 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
               {!!item.tags.length && <div className="library-tags">{item.tags.slice(0, 8).map(tag => <span key={tag}>{tag}</span>)}</div>}
               <small>{item.style} · {(item.checkpoint || "").replace(".safetensors", "")} · {t("ip.used")} {item.used_count} · {item.source === "chat" ? t("ip.sourceChat") : t("ip.sourcePlayground")}</small>
               <div className="library-actions">
-                <button disabled={!!busy} onClick={() => setStatus(item, item.status === "approved" ? "draft" : "approved")}>{t("ip.approve")}</button>
-                <button disabled={!!busy} onClick={() => setStatus(item, item.status === "rejected" ? "draft" : "rejected")}>{t("ip.reject")}</button>
-                <button disabled={!!busy} onClick={() => classifyItem(item)}>{t("ip.classifyNow")}</button>
-                <button className="danger" disabled={!!busy} onClick={() => removeItem(item)}>{t("common.delete")}</button>
+                {trashView ? <>
+                  <button disabled={!!busy} onClick={() => restoreItem(item)}>{t("ip.restore")}</button>
+                  <button className="danger" disabled={!!busy} onClick={() => removeItem(item)}>{t("ip.deleteForever")}</button>
+                </> : <>
+                  <button disabled={!!busy} onClick={() => setStatus(item, item.status === "approved" ? "draft" : "approved")}>{t("ip.approve")}</button>
+                  <button disabled={!!busy} onClick={() => setStatus(item, item.status === "rejected" ? "draft" : "rejected")}>{t("ip.reject")}</button>
+                  <button disabled={!!busy} onClick={() => classifyItem(item)}>{t("ip.classifyNow")}</button>
+                  <button disabled={!!busy} onClick={() => trashItem(item)}>{t("ip.trash")}</button>
+                </>}
               </div>
             </div>
           </article>)}</div>

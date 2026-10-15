@@ -189,6 +189,7 @@ export interface LibraryImage {
   rating: number;
   source: string;
   used_count: number;
+  deleted_at?: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -683,10 +684,11 @@ export class ApiClient {
     return this.request(`/api/videos/${id}`, { method: "DELETE" });
   }
 
-  async getLibrary(characterId: string, params: {status?: string; style?: string; limit?: number; offset?: number} = {}): Promise<LibraryImage[]> {
+  async getLibrary(characterId: string, params: {status?: string; style?: string; limit?: number; offset?: number; trash?: boolean} = {}): Promise<LibraryImage[]> {
     const query = new URLSearchParams();
     if (params.status) query.set("status", params.status);
     if (params.style) query.set("style", params.style);
+    if (params.trash) query.set("trash", "true");
     query.set("limit", String(params.limit ?? 60));
     if (params.offset) query.set("offset", String(params.offset));
     return this.request(`/api/characters/${characterId}/library?${query.toString()}`);
@@ -789,6 +791,14 @@ export class ApiClient {
 
   async deleteLibraryItem(id: string): Promise<{deleted: boolean}> {
     return this.request(`/api/library/${id}`, { method: "DELETE" });
+  }
+
+  trashLibraryItem(id: string): Promise<LibraryImage> {
+    return this.request(`/api/library/${id}/trash`, { method: "POST" });
+  }
+
+  restoreLibraryItem(id: string): Promise<LibraryImage> {
+    return this.request(`/api/library/${id}/restore`, { method: "POST" });
   }
 
   async deleteLibraryItems(ids: string[]): Promise<{deleted: number}> {

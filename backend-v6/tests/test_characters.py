@@ -556,3 +556,26 @@ def test_identity_provenance_and_reference_only_guard():
     generated = client.post(f"/api/characters/{body['id']}/avatar", json={})
     assert generated.status_code == 201, generated.text
     assert generated.json()["avatar_sha256"] and len(generated.json()["avatar_sha256"]) == 64
+
+def test_library_trash_and_restore():
+    character = client.post("/api/characters", json={"name": "Trash", "profile": {"description": "x"}}).json()
+    images = client.post(f"/api/characters/{character['id']}/library/generate", json={"prompt": "x", "count": 2}).json()
+    first, second = images[0], images[1]
+
+    trashed = client.post(f"/api/library/{first['id']}/trash")
+    assert trashed.status_code == 200 and trashed.json()["deleted_at"]
+
+    listing = client.get(f"/api/characters/{character['id']}/library").json()
+    assert [item["id"] for item in listing] == [second["id"]]
+    trash_listing = client.get(f"/api/characters/{character['id']}/library", params={"trash": True}).json()
+    assert [item["id"] for item in trash_listing] == [first["id"]]
+
+    restored = client.post(f"/api/library/{first['id']}/restore")
+    assert restored.status_code == 200 and restored.json()["deleted_at"] is None
+    listing = client.get(f"/api/characters/{character['id']}/library").json()
+    assert {item["id"] for item in listing} == {first["id"], second["id"]}
+
+    # Delete forever removes it for good.
+    client.post(f"/api/library/{first['id']}/trash")
+    assert client.delete(f"/api/library/{first['id']}").status_code == 200
+    assert client.get(f"/api/characters/{character['id']}/library", params={"trash": True}).json() == []

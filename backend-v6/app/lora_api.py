@@ -589,7 +589,11 @@ def materialize_dataset(db, dataset: LoraDataset, stem: str) -> Path:
         db.execute(
             select(LoraDatasetItem, ImageLibrary)
             .join(ImageLibrary, LoraDatasetItem.image_id == ImageLibrary.id)
-            .where(LoraDatasetItem.dataset_id == dataset.id, LoraDatasetItem.selected.is_(True))
+            .where(
+                LoraDatasetItem.dataset_id == dataset.id,
+                LoraDatasetItem.selected.is_(True),
+                ImageLibrary.deleted_at.is_(None),
+            )
             .order_by(LoraDatasetItem.created_at)
         )
     )
@@ -1112,7 +1116,11 @@ def _dataset_references(db, dataset_id: str) -> list[Path]:
         db.execute(
             select(LoraDatasetItem, ImageLibrary)
             .join(ImageLibrary, LoraDatasetItem.image_id == ImageLibrary.id)
-            .where(LoraDatasetItem.dataset_id == dataset_id, LoraDatasetItem.reference_role.isnot(None))
+            .where(
+                LoraDatasetItem.dataset_id == dataset_id,
+                LoraDatasetItem.reference_role.isnot(None),
+                ImageLibrary.deleted_at.is_(None),
+            )
         )
     )
     order = {role: index for index, role in enumerate(REFERENCE_ROLES)}

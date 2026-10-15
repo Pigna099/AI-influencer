@@ -118,6 +118,7 @@ def match_library_image(character_id: str, style: str, scene: str) -> ImageLibra
                     ImageLibrary.character_id == character_id,
                     ImageLibrary.style == style,
                     ImageLibrary.status == "approved",
+                    ImageLibrary.deleted_at.is_(None),
                 )
                 .order_by(ImageLibrary.used_count, ImageLibrary.rating.desc())
                 .limit(300)
@@ -192,6 +193,7 @@ def library_out(item: ImageLibrary) -> dict:
         "seed": item.seed,
         "style": item.style,
         "status": item.status,
+        "deleted_at": item.deleted_at.isoformat() if item.deleted_at else None,
         "rating": item.rating,
         "source": item.source,
         "used_count": item.used_count,

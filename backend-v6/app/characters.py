@@ -293,8 +293,12 @@ def system_gpus():
     return gpu_status()
 
 
-def library_query(character_id: str, status: str | None, style: str | None):
+def library_query(character_id: str, status: str | None, style: str | None, trash: bool = False):
     query = select(ImageLibrary).where(ImageLibrary.character_id == character_id)
+    if trash:
+        query = query.where(ImageLibrary.deleted_at.is_not(None))
+    else:
+        query = query.where(ImageLibrary.deleted_at.is_(None))
     if status:
         query = query.where(ImageLibrary.status == status)
     if style:
@@ -307,13 +311,14 @@ def list_library(
     character_id: str,
     status: str | None = None,
     style: str | None = None,
+    trash: bool = False,
     limit: int = Query(60, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
     with Session() as db:
         required(db, Influencer, character_id)
         items = db.scalars(
-            library_query(character_id, status, style)
+            library_query(character_id, status, style, trash)
             .order_by(ImageLibrary.created_at.desc())
             .limit(limit)
             .offset(offset)
@@ -483,6 +488,27 @@ def patch_library_item(item_id: str, body: LibraryPatch):
             item.embedding = embedding
             item.embedding_model = embedding_model
         return library_out(item)
+
+
+@router.post("/library/{item_id}/trash")
+def trash_library_item(item_id: str):
+    """Soft-delete: move the asset to Trash; the file stays until deleted forever."""
+    with Session.begin() as db:
+        item = required(db, ImageLibrary, item_id)
+        item.deleted_at = now()
+        db.flush()
+        result = library_out(item)
+    return result
+
+
+@router.post("/library/{item_id}/restore")
+def restore_library_item(item_id: str):
+    with Session.begin() as db:
+        item = required(db, ImageLibrary, item_id)
+        item.deleted_at = None
+        db.flush()
+        result = library_out(item)
+    return result
 
 
 @router.delete("/library/{item_id}")

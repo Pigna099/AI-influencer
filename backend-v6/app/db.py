@@ -240,6 +240,7 @@ class ImageLibrary(Base):
     used_count: Mapped[int] = mapped_column(Integer, default=0)
     embedding: Mapped[list] = mapped_column(JSON, default=list)
     embedding_model: Mapped[str] = mapped_column(String(120), default="")
+    deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now)
     updated_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 

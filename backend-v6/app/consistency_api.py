@@ -68,7 +68,11 @@ def _reference_image(db, character: Influencer, dataset: LoraDataset | None) -> 
         rows = db.execute(
             select(ImageLibrary)
             .join(LoraDatasetItem, LoraDatasetItem.image_id == ImageLibrary.id)
-            .where(LoraDatasetItem.dataset_id == dataset.id, LoraDatasetItem.reference_role.is_not(None))
+            .where(
+                LoraDatasetItem.dataset_id == dataset.id,
+                LoraDatasetItem.reference_role.is_not(None),
+                ImageLibrary.deleted_at.is_(None),
+            )
             .limit(1)
         ).scalar()
         if rows is not None:
@@ -87,7 +91,7 @@ def _candidates(db, character: Influencer, dataset: LoraDataset | None, limit: i
         rows = db.execute(
             select(ImageLibrary)
             .join(LoraDatasetItem, LoraDatasetItem.image_id == ImageLibrary.id)
-            .where(LoraDatasetItem.dataset_id == dataset.id)
+            .where(LoraDatasetItem.dataset_id == dataset.id, ImageLibrary.deleted_at.is_(None))
             .order_by(LoraDatasetItem.created_at.desc())
             .limit(limit)
         ).scalars().all()
@@ -95,7 +99,7 @@ def _candidates(db, character: Influencer, dataset: LoraDataset | None, limit: i
     return list(
         db.scalars(
             select(ImageLibrary)
-            .where(ImageLibrary.character_id == character.id)
+            .where(ImageLibrary.character_id == character.id, ImageLibrary.deleted_at.is_(None))
             .order_by(ImageLibrary.status.desc(), ImageLibrary.created_at.desc())
             .limit(limit)
         )
