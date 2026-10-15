@@ -904,7 +904,8 @@ Progress log — 15 October 2026 (first slice):
   video review counts, dataset coverage, identity runs, characters with ready LoRAs. Smoke test
   covers the endpoint.
 - Storage usage in `/api/metrics` (media files/bytes, disk free) and in the Jobs metrics strip.
-- Remaining: full metrics screen, model registry checks, backup status.
+- Model registry check (LoRAs with a missing checkpoint) and backup status (last `.tgz` in
+  `backups/`, mounted read-only into the container) in `/api/metrics` + Jobs strip.
 
 ### Metrics
 

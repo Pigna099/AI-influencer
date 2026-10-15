@@ -817,6 +817,8 @@ const en = {
   "ip.label.sfw": "SFW",
   "ip.label.suggestive": "Suggestive",
   "ip.label.explicit": "Explicit",
+  "jobs.metrics.missingCheckpoints": "{count} LoRAs missing checkpoint",
+  "jobs.metrics.backup": "Last backup {date} ({mb} MB)",
 } as const;
 
 type Catalog = typeof en;

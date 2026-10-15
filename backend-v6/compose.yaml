@@ -13,6 +13,7 @@ x-app: &app
   volumes:
     - ./data:/app/data
     - ./workflows:/app/workflows:ro
+    - ../backups:/app/backups:ro
 services:
   db:
     image: postgres:17

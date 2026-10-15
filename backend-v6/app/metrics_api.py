@@ -1,6 +1,8 @@
 """Operational metrics: queue/run times, success rates, asset and dataset coverage."""
 
 import shutil
+from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
@@ -18,6 +20,7 @@ from .db import (
     Session,
     VideoClip,
 )
+from .integrations.comfyui import checkpoint_meta
 
 router = APIRouter(prefix="/api", tags=["Metrics"], dependencies=[Depends(authorize)])
 
@@ -69,6 +72,34 @@ def get_metrics():
             select(func.count()).select_from(LoraDatasetItem).where(LoraDatasetItem.selected.is_(True))
         ) or 0
 
+        missing_checkpoints = []
+        for lora in db.scalars(
+            select(CharacterLora).where(CharacterLora.base_checkpoint.is_not(None))
+        ).all():
+            meta = checkpoint_meta(lora.base_checkpoint or "")
+            if not meta.get("usable"):
+                missing_checkpoints.append(lora.name)
+
+        backup_info: dict = {}
+        backups_dir = settings.media_dir.parent.parent / "backups"
+        if not backups_dir.is_dir():
+            backups_dir = Path("/app/backups")
+        try:
+            archives = sorted(
+                (path for path in backups_dir.glob("*.tgz") if path.is_file()),
+                key=lambda path: path.stat().st_mtime,
+            )
+            if archives:
+                last = archives[-1]
+                backup_info = {
+                    "last_file": last.name,
+                    "last_at": datetime.fromtimestamp(last.stat().st_mtime, tz=UTC).isoformat(),
+                    "size_bytes": last.stat().st_size,
+                    "count": len(archives),
+                }
+        except OSError:
+            pass
+
         media_bytes = 0
         media_files = 0
         try:
@@ -86,6 +117,11 @@ def get_metrics():
             pass
 
         return {
+            "models": {
+                "loras_missing_checkpoint": len(missing_checkpoints),
+                "missing_sample": missing_checkpoints[:5],
+            },
+            "backups": backup_info,
             "storage": {
                 "media_bytes": media_bytes,
                 "media_files": media_files,
