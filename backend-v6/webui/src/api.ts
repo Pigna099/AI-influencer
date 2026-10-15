@@ -803,6 +803,10 @@ export class ApiClient {
     return this.request(`/api/library/${id}/restore`, { method: "POST" });
   }
 
+  getAudit(limit = 20): Promise<{ id: string; action: string; object_type: string; object_id: string | null; detail: Record<string, unknown>; created_at: string }[]> {
+    return this.request(`/api/audit?limit=${limit}`);
+  }
+
   getMetrics(): Promise<{
     storage: { media_bytes: number; media_files: number; disk_free_bytes: number; disk_total_bytes: number };
     jobs: { by_state: Record<string, number>; by_type: Record<string, Record<string, number>>; avg_run_seconds: Record<string, number>; avg_queue_seconds: Record<string, number> };

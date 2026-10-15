@@ -83,6 +83,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
   const [reconcileReport, setReconcileReport] = useState<{ orphans: number; removed: number; freed_bytes: number; sample: string[] } | null>(null);
   const [errorsByCode, setErrorsByCode] = useState<{ code: string; count: number }[]>([]);
   const [metrics, setMetrics] = useState<Awaited<ReturnType<typeof api.getMetrics>> | null>(null);
+  const [audit, setAudit] = useState<{ id: string; action: string; object_type: string; object_id: string | null; detail: Record<string, unknown>; created_at: string }[]>([]);
 
   const load = useCallback(async (offset = 0) => {
     const data = await api.getJobs({
@@ -109,6 +110,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
     api.getCharacters().then(setCharacters).catch(() => undefined);
     api.getJobSummary().then(summary => setErrorsByCode(summary.errors_by_code ?? [])).catch(() => undefined);
     api.getMetrics().then(setMetrics).catch(() => undefined);
+    api.getAudit(15).then(setAudit).catch(() => undefined);
   }, []);
 
   const reconcile = (deleteOrphans: boolean) => {
@@ -182,6 +184,14 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
             ? <span>{t("jobs.orphansFound", { count: reconcileReport.orphans })} <button disabled={busy} className="danger" onClick={() => reconcile(true)}>{t("jobs.deleteOrphans")}</button></span>
             : <span>{reconcileReport.removed > 0 ? t("jobs.orphansRemoved", { count: reconcileReport.removed, gb: (reconcileReport.freed_bytes / 1024 ** 3).toFixed(2) }) : t("jobs.noOrphans")}</span>)}
         </div>
+        {!!audit.length && <details className="audit-log">
+          <summary>{t("jobs.audit")}</summary>
+          <ul>{audit.map(event => <li key={event.id}>
+            <span>{new Date(event.created_at).toLocaleString()}</span>
+            <code>{event.action}</code>
+            <span>{event.object_type}{event.object_id ? ` ${event.object_id.slice(0, 8)}` : ""}{typeof event.detail?.count === "number" ? ` · ${event.detail.count}` : ""}</span>
+          </li>)}</ul>
+        </details>}
         <AsyncBoundary
           loading={!loaded}
           empty={!jobs.length}

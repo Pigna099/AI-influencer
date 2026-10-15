@@ -869,6 +869,7 @@ Progress log — 15 October 2026 (first slice):
   reason; `GET /api/audit` with filters. Test added.
 - Remaining: content labels (SFW/suggestive/explicit), roles, session expiry/key rotation, rate
   limits, per-platform policy checklists.
+- Audit UI: recent actions list on the Jobs & System page (time, action, object, counts).
 
 ### Required controls
 
