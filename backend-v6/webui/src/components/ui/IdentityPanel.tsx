@@ -4,7 +4,7 @@ import { useI18n } from "../../i18n";
 import AsyncBoundary from "./AsyncBoundary";
 import StatusBadge from "./StatusBadge";
 
-function CandidateThumb({ candidate, onView }: { candidate: IdentityCandidate; onView: (url: string, alt: string) => void }) {
+function CandidateThumb({ candidate, onView, overlay }: { candidate: IdentityCandidate; onView: (url: string, alt: string) => void; overlay: string }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
     let objectUrl = "";
@@ -25,6 +25,7 @@ function CandidateThumb({ candidate, onView }: { candidate: IdentityCandidate; o
   if (!candidate.image_id) return null;
   return <button type="button" className="identity-thumb" onClick={() => url && onView(url, candidate.angle)} disabled={!url}>
     {url ? <img src={url} alt={candidate.angle} loading="lazy" /> : <span className="spinner" />}
+    {overlay && url && <img className="identity-overlay" src={overlay} alt="" aria-hidden="true" />}
   </button>;
 }
 
@@ -39,6 +40,8 @@ export default function IdentityPanel({ character, busy, perform, onView, onErro
   const [run, setRun] = useState<IdentityRun | null>(null);
   const [override, setOverride] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [overlay, setOverlay] = useState(false);
+  const [anchorUrl, setAnchorUrl] = useState("");
 
   const load = useCallback(async (characterId: string) => {
     const listing = await api.getIdentityRuns(characterId, 1);
@@ -52,6 +55,26 @@ export default function IdentityPanel({ character, busy, perform, onView, onErro
     if (!character) return;
     void load(character.id).catch(() => setLoaded(true));
   }, [character?.id, load]);
+
+  useEffect(() => {
+    let objectUrl = "";
+    let alive = true;
+    if (!character?.avatar_filename) {
+      setAnchorUrl("");
+      return;
+    }
+    api.fetchBlob(`/api/characters/${character.id}/avatar/file?v=${encodeURIComponent(character.avatar_filename)}`)
+      .then(blob => {
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setAnchorUrl(objectUrl);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [character?.id, character?.avatar_filename]);
 
   if (!character) return null;
   const referenceOnly = character.source_category === "reference_only";
@@ -102,6 +125,7 @@ export default function IdentityPanel({ character, busy, perform, onView, onErro
       <div className="preset-actions">
         <span className="library-count">{accepted}/{run?.candidates.length ?? 0} {t("idr.accepted")}</span>
         <button disabled={busy || referenceOnly || !hasAnchor} title={referenceOnly ? t("form.referenceOnlyWarning") : !hasAnchor ? t("idr.needAnchor") : undefined} onClick={generate}>{t("idr.generate")}</button>
+        <label className="auto-label identity-overlay-toggle"><input type="checkbox" checked={overlay} onChange={e => setOverlay(e.target.checked)} disabled={!anchorUrl} /> {t("idr.overlay")}</label>
         {run && run.status !== "frozen" && run.candidates.some(candidate => candidate.status === "rejected" || candidate.status === "uncertain") && <button disabled={busy} onClick={regenerate}>{t("idr.regenerate")}</button>}
         {run && run.status !== "frozen" && <button disabled={busy} onClick={freeze}>{t("idr.freeze")}</button>}
       </div>
@@ -117,7 +141,7 @@ export default function IdentityPanel({ character, busy, perform, onView, onErro
     >
       {run && <div className="identity-grid">
         {run.candidates.map(candidate => <article className={`identity-card status-${candidate.status}`} key={candidate.id}>
-          <CandidateThumb candidate={candidate} onView={onView} />
+          <CandidateThumb candidate={candidate} onView={onView} overlay={overlay ? anchorUrl : ""} />
           <small>{candidate.angle} · {candidate.seed}</small>
           {"similarity" in candidate.scores && <small className={`identity-score ${Number(candidate.scores.similarity) < 60 || candidate.scores.same_person === false ? "flagged" : ""}`}>
             {t("idr.similarity")} {String(candidate.scores.similarity)}% · {t("idr.angleAccuracy")} {String(candidate.scores.angle_accuracy)}%{candidate.scores.quality_notes ? ` · ${String(candidate.scores.quality_notes)}` : ""}

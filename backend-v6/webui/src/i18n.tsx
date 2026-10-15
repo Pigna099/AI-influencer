@@ -756,6 +756,7 @@ const en = {
   "idr.angleAccuracy": "angle",
   "idr.regenerate": "Regenerate rejected",
   "idr.regenerating": "Regenerating rejected candidates\u2026",
+  "idr.overlay": "Overlay anchor",
 } as const;
 
 type Catalog = typeof en;

@@ -520,7 +520,9 @@ Progress log — 15 October 2026 (slice 1):
 - Regenerate endpoint (`POST /api/identity-runs/{id}/regenerate`): rejected/uncertain candidates (or
   explicit ids) get fresh seeds as new candidates, old ones marked `replaced`, replacements scored;
   accepted candidates blocked; frozen runs immutable. UI button in the panel. 5 tests.
-- Remaining: anchor overlay comparison, face-embedding similarity, requested-angle check via pose.
+- Overlay comparison: "Overlay anchor" toggle blends the anchor over every candidate thumb for
+  side-by-side review.
+- Remaining: face-embedding similarity, requested-angle check via pose.
 
 ### Acceptance criteria
 
