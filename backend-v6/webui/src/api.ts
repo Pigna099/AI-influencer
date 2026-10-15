@@ -149,6 +149,7 @@ export interface Message {
     guarded?: boolean;
     guard_reason?: string;
     photo_requested?: boolean;
+  proposal?: { kind?: string; locked?: boolean; price_cents?: number };
     image_sent?: boolean;
     image_error?: string;
     image_seconds?: number;

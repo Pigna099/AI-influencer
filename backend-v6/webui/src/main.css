@@ -443,3 +443,5 @@
 .inspector-settings { margin-bottom: 14px; }
 .inspector-settings > summary { cursor: pointer; font-size: .8rem; font-weight: 600; color: #b7c6dc; margin-bottom: 8px; }
 .inspector-settings .image-checkpoint { display: block; margin-top: 8px; }
+
+.proposal-chip { background: var(--st-busy-bg); color: var(--st-busy-fg); border-radius: 6px; padding: 1px 7px; font-size: .68rem; }

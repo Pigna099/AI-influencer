@@ -850,6 +850,10 @@ const en = {
   "pg.ppvDefaultsInEditor": "PPV defaults are set in the character editor (LoRA tab).",
   "pg.characterSettings": "Character settings (version, style, PPV, timing)",
   "home.attention.undisclosed": "{count} characters publish without AI disclosure",
+  "chat.proposal": "Proposal",
+  "chat.proposal.photo": "photo",
+  "chat.proposal.video": "video",
+  "chat.proposal.locked": "locked",
 } as const;
 
 type Catalog = typeof en;
