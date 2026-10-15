@@ -135,6 +135,7 @@ def lora_out(item: CharacterLora) -> dict:
         "rank": item.rank,
         "status": item.status,
         "is_active": item.is_active,
+        "previous_active_id": item.previous_active_id,
         "config": item.config,
         "metrics": item.metrics,
         "log_path": item.log_path,
@@ -286,6 +287,14 @@ def activate_lora(lora_id: str):
         item = required(db, CharacterLora, lora_id)
         if item.status != "ready":
             raise HTTPException(409, "Only a ready LoRA can be activated")
+        previous = db.scalar(
+            select(CharacterLora).where(
+                CharacterLora.character_id == item.character_id,
+                CharacterLora.family == item.family,
+                CharacterLora.is_active.is_(True),
+                CharacterLora.id != item.id,
+            )
+        )
         db.execute(
             update(CharacterLora)
             .where(
@@ -296,8 +305,28 @@ def activate_lora(lora_id: str):
             .values(is_active=False, updated_at=now())
         )
         item.is_active = True
+        item.previous_active_id = previous.id if previous is not None else None
         item.updated_at = now()
     return lora_out(item)
+
+
+@router.post("/loras/{lora_id}/rollback")
+def rollback_lora(lora_id: str):
+    """Re-activate the artifact that was active before this one (kept for rollback)."""
+    with Session.begin() as db:
+        item = required(db, CharacterLora, lora_id)
+        if not item.previous_active_id:
+            raise HTTPException(409, "No previous active artifact recorded for this LoRA")
+        previous = db.get(CharacterLora, item.previous_active_id)
+        if previous is None or previous.status != "ready":
+            raise HTTPException(409, "The previous artifact is no longer available")
+        item.is_active = False
+        previous.previous_active_id = item.id
+        previous.is_active = True
+        previous.updated_at = now()
+        item.updated_at = now()
+        result = lora_out(previous)
+    return result
 
 
 def _exec_job(db, training_job) -> ExecutionJob | None:

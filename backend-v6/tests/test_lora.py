@@ -702,3 +702,29 @@ def test_lora_preflight(monkeypatch):
     blocked = client.get(f"/api/loras/{lora['id']}/preflight").json()
     assert blocked["ok"] is False
     assert {check["code"]: check["ok"] for check in blocked["checks"]}["no_conflict"] is False
+
+def test_lora_rollback():
+    character_id = make_character("Rollback")
+    images_dir = make_images_dir("rollback")
+    first = make_lora(character_id, name="Roll V1")
+    second = make_lora(character_id, name="Roll V2")
+    complete_job(queue_job(first["id"], images_dir))
+    complete_job(queue_job(second["id"], images_dir))
+
+    assert client.post(f"/api/loras/{first['id']}/activate").status_code == 200
+    activated = client.post(f"/api/loras/{second['id']}/activate")
+    assert activated.status_code == 200
+    assert activated.json()["previous_active_id"] == first["id"]
+
+    rolled = client.post(f"/api/loras/{second['id']}/rollback")
+    assert rolled.status_code == 200, rolled.text
+    assert rolled.json()["id"] == first["id"] and rolled.json()["is_active"] is True
+    refreshed = client.get(f"/api/loras/{second['id']}").json()
+    assert refreshed["is_active"] is False
+
+    # Rollback of the first (now active) returns to the second.
+    assert client.post(f"/api/loras/{first['id']}/rollback").status_code == 200
+    assert client.get(f"/api/loras/{second['id']}").json()["is_active"] is True
+
+    plain = make_lora(character_id, name="Roll Plain")
+    assert client.post(f"/api/loras/{plain['id']}/rollback").status_code == 409

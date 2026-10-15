@@ -403,6 +403,7 @@ export interface CharacterLora {
   rank: number;
   status: LoraStatus;
   is_active: boolean;
+  previous_active_id?: string | null;
   config: Record<string, unknown>;
   metrics: Record<string, unknown>;
   log_path: string | null;
@@ -730,6 +731,10 @@ export class ApiClient {
 
   reconcileMedia(deleteOrphans = false): Promise<{ orphans: number; removed: number; freed_bytes: number; sample: string[] }> {
     return this.request(`/api/system/reconcile${deleteOrphans ? "?delete=true" : ""}`, { method: "POST" });
+  }
+
+  rollbackLora(loraId: string): Promise<CharacterLora> {
+    return this.request(`/api/loras/${loraId}/rollback`, { method: "POST" });
   }
 
   getLoraPreflight(loraId: string, datasetId?: string): Promise<{ ok: boolean; checks: { code: string; ok: boolean; summary: string; remediation: string }[] }> {

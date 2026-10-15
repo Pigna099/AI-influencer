@@ -328,6 +328,7 @@ class CharacterLora(Base):
     rank: Mapped[int] = mapped_column(Integer, default=32, server_default="32")
     status: Mapped[str] = mapped_column(String(16), default="draft", server_default="draft", index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    previous_active_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     config: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     metrics: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     log_path: Mapped[str | None] = mapped_column(String(300), nullable=True)

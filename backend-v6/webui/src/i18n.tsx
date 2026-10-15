@@ -767,6 +767,8 @@ const en = {
   "lp.validating": "Generating validation grid\u2026",
   "lp.validationDone": "{count} validation images added to the library (draft)",
   "jobs.type.lora_validation": "LoRA validation",
+  "lp.rollback": "Rollback",
+  "lp.rollbackBusy": "Rolling back to the previous artifact\u2026",
 } as const;
 
 type Catalog = typeof en;

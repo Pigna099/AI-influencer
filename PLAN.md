@@ -612,8 +612,9 @@ Progress log — 15 October 2026 (first slice):
   busy/stale, dataset size + trigger-in-captions, disk space — rendered as a remediation checklist in
   the queue panel. Activation gate: successful training no longer auto-activates; the operator
   validates and activates explicitly (tests updated). Test added.
-- Remaining in Phase 7: immutable training spec, auto-recommended hyperparameters, rollback to
-  previous active artifact, artifact hashing.
+- Rollback: activation records `previous_active_id` (migration `0027`); `POST /api/loras/{id}/rollback`
+  re-activates the previous artifact (toggle-safe) with a Rollback button on the active LoRA; test added.
+- Remaining in Phase 7: immutable training spec, auto-recommended hyperparameters, artifact hashing.
 
 ### Preflight
 
