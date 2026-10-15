@@ -47,12 +47,25 @@ def jobs_summary():
         prune_finished_jobs(db)
         active = db.scalars(select(ExecutionJob).where(ExecutionJob.state.in_(ACTIVE_STATES))).all()
         failed = db.scalars(select(ExecutionJob).where(ExecutionJob.state == "failed").order_by(ExecutionJob.created_at.desc()).limit(20)).all()
+        error_infos = db.scalars(
+            select(ExecutionJob.error_info).where(ExecutionJob.state == "failed").limit(500)
+        ).all()
         db.commit()
+        grouped: dict[str, int] = {}
+        for error_info in error_infos:
+            code = (error_info or {}).get("code", "unknown")
+            grouped[code] = grouped.get(code, 0) + 1
+        errors_by_code = sorted(
+            ({"code": code, "count": count} for code, count in grouped.items()),
+            key=lambda entry: entry["count"],
+            reverse=True,
+        )[:10]
         return {
             "active": [job_out(job, queue_position(db, job)) for job in active],
             "failed": [job_out(job) for job in failed],
             "active_count": len(active),
             "failed_count": len(failed),
+            "errors_by_code": errors_by_code,
         }
 
 

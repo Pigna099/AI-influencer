@@ -885,6 +885,11 @@ Store secrets encrypted and never return them to the browser.
 
 ## 19. Phase 13 — Observability, quality, and operations
 
+Progress log — 15 October 2026 (first slice):
+- Jobs page shows recent failures grouped by error code (not raw exceptions); `errors_by_code` in
+  `/api/jobs/summary`.
+- Remaining: metrics endpoint, storage usage, model registry checks, backup status.
+
 ### Metrics
 
 - queue time and run time by job/model;

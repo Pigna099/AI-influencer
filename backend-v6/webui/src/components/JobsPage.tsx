@@ -81,6 +81,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [reconcileReport, setReconcileReport] = useState<{ orphans: number; removed: number; freed_bytes: number; sample: string[] } | null>(null);
+  const [errorsByCode, setErrorsByCode] = useState<{ code: string; count: number }[]>([]);
 
   const load = useCallback(async (offset = 0) => {
     const data = await api.getJobs({
@@ -105,6 +106,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
   }, [jobs, load]);
   useEffect(() => {
     api.getCharacters().then(setCharacters).catch(() => undefined);
+    api.getJobSummary().then(summary => setErrorsByCode(summary.errors_by_code ?? [])).catch(() => undefined);
   }, []);
 
   const reconcile = (deleteOrphans: boolean) => {
@@ -160,6 +162,10 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
             </select>
           </div>}
         />
+        {!!errorsByCode.length && <div className="errors-by-code">
+          <small className="muted">{t("jobs.errorsByCode")}</small>
+          <ul>{errorsByCode.map(entry => <li key={entry.code}><code>{entry.code}</code><b>{entry.count}</b></li>)}</ul>
+        </div>}
         <div className="maintenance-row">
           <button disabled={busy} onClick={() => reconcile(false)}>{t("jobs.scanOrphans")}</button>
           {reconcileReport && (reconcileReport.orphans > 0

@@ -717,7 +717,7 @@ export class ApiClient {
     return this.request(`/api/jobs?${query.toString()}`);
   }
 
-  getJobSummary(): Promise<{ active: ExecutionJob[]; failed: ExecutionJob[]; active_count: number; failed_count: number }> {
+  getJobSummary(): Promise<{ active: ExecutionJob[]; failed: ExecutionJob[]; active_count: number; failed_count: number; errors_by_code?: { code: string; count: number }[] }> {
     return this.request("/api/jobs/summary");
   }
 
