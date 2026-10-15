@@ -83,11 +83,18 @@ class CharacterOutput(StrictModel):
     permitted_uses: str = ""
     lifecycle_state: str = "active"
     avatar_sha256: str | None = None
+    avatar_validation: dict = Field(default_factory=dict)
     created_at: str
 
 
 class ImageCheckpointInput(StrictModel):
     checkpoint: str | None = Field(default=None, max_length=200)
+
+
+class AvatarUploadInput(StrictModel):
+    image_base64: str = Field(min_length=16, max_length=20_000_000)
+    content_type: Literal["image/png", "image/jpeg", "image/webp"] = "image/png"
+    filename: str | None = Field(default=None, max_length=200)
 
 
 class AvatarInput(StrictModel):

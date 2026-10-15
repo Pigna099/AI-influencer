@@ -23,6 +23,7 @@ from .char_schemas import (
     AvatarEditInput,
     AvatarInput,
     AvatarPromptInput,
+    AvatarUploadInput,
     BenchmarkInput,
     BulkIdsInput,
     BulkStatusInput,
@@ -171,6 +172,7 @@ def character_out(item):
         lifecycle_state=item.lifecycle_state,
         platform_policy=item.platform_policy or {},
         avatar_sha256=item.avatar_sha256,
+        avatar_validation=item.avatar_validation or {},
         created_at=item.created_at.isoformat(),
     )
 
@@ -789,6 +791,114 @@ def update_character(character_id: str, body: CharacterUpdate):
         db.add(BibleVersion(influencer_id=item.id, version=version, bible=bible))
         db.refresh(item)
         return character_out(item)
+
+
+AVATAR_VISION_PROMPT = (
+    "You are validating an identity anchor for a fictional adult (25+) AI influencer. "
+    "Answer strictly: adult (the person clearly looks 21+), one_person (exactly one person), "
+    "face_visible (the face is clearly visible and not occluded), sharp (the photo is sharp, not "
+    "blurred), and quality_notes (short text, empty when fine)."
+)
+AVATAR_VISION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "adult": {"type": "boolean"},
+        "one_person": {"type": "boolean"},
+        "face_visible": {"type": "boolean"},
+        "sharp": {"type": "boolean"},
+        "quality_notes": {"type": "string"},
+    },
+    "required": ["adult", "one_person", "face_visible", "sharp", "quality_notes"],
+    "additionalProperties": False,
+}
+
+
+@router.post("/characters/{character_id}/avatar/upload", status_code=201)
+def upload_avatar(character_id: str, body: AvatarUploadInput):
+    """Identity intake: accept an uploaded anchor after quality and adult validation."""
+    import base64
+    import io
+
+    from PIL import Image
+
+    from .consistency_api import resize_jpeg
+    from .integrations.text import vision_json
+
+    try:
+        raw = base64.b64decode(body.image_base64, validate=True)
+    except ValueError as error:
+        raise HTTPException(400, "Invalid image data") from error
+    if len(raw) > 12 * 1024 * 1024:
+        raise HTTPException(400, "Image too large: maximum 12 MB")
+    try:
+        with Image.open(io.BytesIO(raw)) as image:
+            image = image.convert("RGB")
+            width, height = image.size
+            normalized = io.BytesIO()
+            image.save(normalized, format="PNG")
+            png_bytes = normalized.getvalue()
+    except Exception as error:
+        raise HTTPException(400, "Invalid or unsupported image file") from error
+    if min(width, height) < 512:
+        raise HTTPException(
+            400, f"Image too small ({width}x{height}): minimum 512 px on the short side"
+        )
+
+    with Session() as db:
+        character = required(db, Influencer, character_id)
+        if character.source_category == "reference_only":
+            raise HTTPException(
+                400, "Reference-only material cannot be used as an identity anchor: change the source category first"
+            )
+    try:
+        verdict = vision_json(
+            settings.consistency_model,
+            AVATAR_VISION_PROMPT,
+            [resize_jpeg(png_bytes)],
+            schema=AVATAR_VISION_SCHEMA,
+            max_tokens=160,
+        )
+    except (OllamaNotAvailable, OSError, ValueError) as error:
+        raise HTTPException(
+            503, "The vision model is not available: retry when the text model is ready"
+        ) from error
+    problems = []
+    if not verdict.get("adult"):
+        problems.append("the person does not clearly look 21+")
+    if not verdict.get("one_person"):
+        problems.append("the photo must contain exactly one person")
+    if not verdict.get("face_visible"):
+        problems.append("the face is not clearly visible")
+    if not verdict.get("sharp"):
+        problems.append("the photo is too blurry")
+    if problems:
+        raise HTTPException(400, "Image rejected: " + "; ".join(problems))
+
+    settings.media_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{identifier()}.png"
+    (settings.media_dir / filename).write_bytes(png_bytes)
+    validation = {
+        "source": "upload",
+        "adult": bool(verdict.get("adult")),
+        "one_person": bool(verdict.get("one_person")),
+        "face_visible": bool(verdict.get("face_visible")),
+        "sharp": bool(verdict.get("sharp")),
+        "quality_notes": str(verdict.get("quality_notes") or "")[:200],
+        "width": width,
+        "height": height,
+        "checked_at": now().isoformat(),
+    }
+    with Session.begin() as db:
+        item = required(db, Influencer, character_id)
+        old_avatar = item.avatar_filename
+        item.avatar_filename = filename
+        item.avatar_sha256 = hashlib.sha256(png_bytes).hexdigest()
+        item.avatar_validation = validation
+        audit_record(db, "avatar.upload", "character", character_id, notes=validation["quality_notes"] or None)
+        db.flush()
+        result = character_out(item)
+    unlink_media([old_avatar] if old_avatar else [])
+    return result
 
 
 @router.post("/characters/{character_id}/avatar", status_code=201)

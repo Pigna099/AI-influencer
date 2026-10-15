@@ -860,6 +860,15 @@ const en = {
   "pg.videoPick": "Video clip",
   "pg.videoNoneApproved": "No approved videos yet",
   "pg.videoSend": "Send video",
+  "lp.avatarUpload": "Upload photo",
+  "lp.avatarUploading": "Validating uploaded photo\u2026",
+  "lp.avatarUploaded": "Photo validated: {notes}",
+  "lp.avatarUploadedOk": "all checks passed",
+  "lp.avatarChecks": "Anchor validation",
+  "lp.avatarCheck.adult": "adult 21+",
+  "lp.avatarCheck.onePerson": "one person",
+  "lp.avatarCheck.face": "face visible",
+  "lp.avatarCheck.sharp": "sharp",
 } as const;
 
 type Catalog = typeof en;

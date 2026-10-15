@@ -410,6 +410,13 @@ Progress log — 15 October 2026 (first slice):
   update); live-verified (migration 0024 applied, characters expose the fields).
 - Home "Needs attention" now flags characters missing policy details (adult age / declaration) and
   links to the editor; `/api/overview` exposes `characters_incomplete`.
+Progress log — 15 October 2026 (slice 3):
+- Identity intake from upload: `POST /api/characters/{id}/avatar/upload` (base64, PNG/JPEG/WebP,
+  max 12 MB, min 512 px short side) validated with the local vision model (adult 21+, exactly one
+  person, face visible, sharp); rejected uploads explain why; accepted ones store the anchor hash
+  and a validation record (`avatar_validation`, migration `0035`) + audit event. "Upload photo"
+  button with validation display in the LoRA tab. Tests added; live-verified with the real model.
+- Remaining in Phase 4: local face embeddings (needs a face model download).
 - Identity provenance (slice 2): `source_category` (generated/owned/consented/reference_only),
   rights notes, source reference/hash, permitted uses, lifecycle state and `avatar_sha256`
   (migration `0025`); reference-only characters cannot generate/edit an avatar (anchor guard, API

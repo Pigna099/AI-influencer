@@ -84,7 +84,6 @@ def test_chat_video_no_clips_falls_back(monkeypatch):
     assert assistant["videos"] == []
 
 def test_manual_video_from_library(monkeypatch):
-    from app.db import Session, VideoClip
 
     character_id = client.post("/api/characters", json={"name": "Manual Video", "profile": PROFILE}).json()["id"]
     images = client.post(

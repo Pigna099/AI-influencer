@@ -272,6 +272,24 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     await refresh(characterId);
   });
 
+  const uploadAvatarFile = (file: File) => {
+    if (!character) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      const base64 = result.includes(",") ? result.split(",", 2)[1] : result;
+      void perform(t("lp.avatarUploading"), async () => {
+        const updated = await api.uploadAvatar(character.id, {
+          image_base64: base64,
+          content_type: (file.type || "image/png") as "image/png" | "image/jpeg" | "image/webp",
+        });
+        setCharacters(prev => prev.map(item => item.id === updated.id ? updated : item));
+        setNotice(t("lp.avatarUploaded", { notes: updated.avatar_validation?.quality_notes || t("lp.avatarUploadedOk") }));
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const generateAvatar = () => {
     if (!character) return;
     void perform(t("pg.busy.avatar"), async () => {
@@ -397,6 +415,8 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
                 </select></label>
                 <div className="lora-actions">
                   <button disabled={!!busy || character.source_category === "reference_only"} title={character.source_category === "reference_only" ? t("form.referenceOnlyWarning") : undefined} onClick={generateAvatar}>{character.avatar_filename ? t("lp.avatarRegenerate") : t("lp.avatarGenerate")}</button>
+                  <label className="text-button upload-avatar">{t("lp.avatarUpload")}<input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={!!busy || character.source_category === "reference_only"} onChange={e => { const file = e.target.files?.[0]; if (file) uploadAvatarFile(file); e.target.value = ""; }} /></label>
+                  {character.avatar_validation?.source === "upload" && <small className="muted">{t("lp.avatarChecks")}: {character.avatar_validation.adult ? "✓" : "✕"} {t("lp.avatarCheck.adult")} · {character.avatar_validation.one_person ? "✓" : "✕"} {t("lp.avatarCheck.onePerson")} · {character.avatar_validation.face_visible ? "✓" : "✕"} {t("lp.avatarCheck.face")} · {character.avatar_validation.sharp ? "✓" : "✕"} {t("lp.avatarCheck.sharp")}{character.avatar_validation.quality_notes ? ` · ${character.avatar_validation.quality_notes}` : ""}</small>}
                   <button disabled={!!busy} title={t("pg.duplicateTitle")} onClick={duplicateCharacter}>{t("pg.duplicate")}</button>
                 </div>
                 {character.avatar_filename && <div className="avatar-edit">

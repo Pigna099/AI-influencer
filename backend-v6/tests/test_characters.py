@@ -707,3 +707,68 @@ def test_conversation_ppv_override():
     cleared = client.patch(f"/api/conversations/{conversation['id']}", json={"ppv_enabled": None, "ppv_price_cents": None})
     assert cleared.status_code == 200
     assert cleared.json()["ppv_enabled"] is None and cleared.json()["ppv_price_cents"] is None
+
+def test_avatar_upload_validation(monkeypatch):
+    import base64
+    from io import BytesIO
+
+    from PIL import Image
+
+    def png(width=800, height=1000):
+        buffer = BytesIO()
+        Image.new("RGB", (width, height), (140, 90, 70)).save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode()
+
+    def fake_vision(model, prompt, images, **kwargs):
+        return {"adult": True, "one_person": True, "face_visible": True, "sharp": True, "quality_notes": ""}
+
+    # vision_json is imported inside the endpoint from integrations.text
+    monkeypatch.setattr("app.integrations.text.vision_json", fake_vision)
+
+    character = client.post("/api/characters", json={"name": "Uploader", "profile": {"description": "x"}}).json()
+
+    too_small = client.post(
+        f"/api/characters/{character['id']}/avatar/upload",
+        json={"image_base64": png(300, 300), "content_type": "image/png"},
+    )
+    assert too_small.status_code == 400 and "too small" in too_small.json()["detail"]
+
+    invalid = client.post(
+        f"/api/characters/{character['id']}/avatar/upload",
+        json={"image_base64": base64.b64encode(b"not an image").decode(), "content_type": "image/png"},
+    )
+    assert invalid.status_code == 400
+
+    accepted = client.post(
+        f"/api/characters/{character['id']}/avatar/upload",
+        json={"image_base64": png(), "content_type": "image/png"},
+    )
+    assert accepted.status_code == 201, accepted.text
+    body = accepted.json()
+    assert body["avatar_filename"] and len(body["avatar_sha256"]) == 64
+    assert body["avatar_validation"]["source"] == "upload" and body["avatar_validation"]["adult"] is True
+
+    events = client.get("/api/audit", params={"action": "avatar.upload"}).json()
+    assert events and events[0]["object_id"] == character["id"]
+
+
+def test_avatar_upload_rejected_by_vision(monkeypatch):
+    import base64
+    from io import BytesIO
+
+    from PIL import Image
+
+    def fake_vision(model, prompt, images, **kwargs):
+        return {"adult": False, "one_person": True, "face_visible": True, "sharp": True, "quality_notes": "looks young"}
+
+    monkeypatch.setattr("app.integrations.text.vision_json", fake_vision)
+    character = client.post("/api/characters", json={"name": "Rejected", "profile": {"description": "x"}}).json()
+    buffer = BytesIO()
+    Image.new("RGB", (800, 1000), (140, 90, 70)).save(buffer, format="PNG")
+    response = client.post(
+        f"/api/characters/{character['id']}/avatar/upload",
+        json={"image_base64": base64.b64encode(buffer.getvalue()).decode(), "content_type": "image/png"},
+    )
+    assert response.status_code == 400
+    assert "21+" in response.json()["detail"]
+    assert client.get(f"/api/characters/{character['id']}").json()["avatar_filename"] is None

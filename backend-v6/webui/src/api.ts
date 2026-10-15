@@ -64,6 +64,7 @@ export interface Character {
   permitted_uses?: string;
   lifecycle_state?: string;
   avatar_sha256?: string | null;
+  avatar_validation?: { source?: string; adult?: boolean; one_person?: boolean; face_visible?: boolean; sharp?: boolean; quality_notes?: string; width?: number; height?: number; checked_at?: string };
   created_at: string;
 }
 
@@ -593,6 +594,10 @@ export class ApiClient {
       method: "POST",
       body: JSON.stringify({ ...(name ? { name } : {}) }),
     });
+  }
+
+  uploadAvatar(id: string, data: {image_base64: string; content_type: "image/png" | "image/jpeg" | "image/webp"}): Promise<Character> {
+    return this.request(`/api/characters/${id}/avatar/upload`, { method: "POST", body: JSON.stringify(data) });
   }
 
   async generateAvatar(id: string, data?: {checkpoint?: string; style?: string}): Promise<Character> {

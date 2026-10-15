@@ -47,6 +47,7 @@ class Influencer(Base):
     lifecycle_state: Mapped[str] = mapped_column(String(24), default="active", server_default="active")
     platform_policy: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     avatar_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    avatar_validation: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     avatar_filename: Mapped[str | None] = mapped_column(String(120), nullable=True)
     avatar_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     image_checkpoint: Mapped[str | None] = mapped_column(String(200), nullable=True)
