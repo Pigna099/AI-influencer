@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { I18nProvider } from "../i18n";
 
@@ -67,6 +67,7 @@ describe("Dataset page reachability", () => {
     await waitFor(() => expect(api.getDatasetSources).toHaveBeenCalled());
     expect(screen.getByRole("button", { name: /New source/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Classify unclassified" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByLabelText("More actions")[0]);
     expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
   });
 });
