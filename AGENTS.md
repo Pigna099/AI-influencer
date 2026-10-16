@@ -22,7 +22,7 @@ Use `backend-v6/README.md` (operations, UI guide) and `backend-v6/STATO.md` (cur
 | `backend-v6/app/db.py` | SQLAlchemy models |
 | `backend-v6/app/integrations/` | ComfyUI (multi-instance), Ollama, GPU helpers |
 | `backend-v6/alembic/versions/` | Migrations (currently up to `0030`) |
-| `backend-v6/webui/` | React + Vite frontend (built into the Docker image; `webui_dist/` is untracked) |
+| `backend-v6/webui/` | React + Vite frontend (built into the Docker image; `webui_dist/` is untracked). Shared primitives in `webui/src/components/ui/` (AppHeader, Banner, AsyncBoundary, StatusBadge, EmptyState, JobProgress, JobTray, PageHeader, DangerZone, AdvancedSettings, InspectorDrawer, ContextSelector, OverflowMenu, ProgressSummary, CompactToolbar, ReviewStage, IdentityPanel, GpuCard); `useMediaQuery` hook for responsive drawers. |
 | `backend-v6/scripts/` | Model downloads, startup scripts, trainer (`scripts/trainer/`) |
 | `backend-v6/tests/` | Pytest suite (mock providers) |
 | `/data/data_ssd/pigni/comfyUI/ComfyUI` | ComfyUI install + models (4 instances, ports 8188-8191, one per GPU) |

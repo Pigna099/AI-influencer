@@ -1077,6 +1077,23 @@ Progress log — UI modification plan (16 October 2026, first hour):
 - Remaining (next hours): CompactToolbar primitive, visual regression pass, Dataset source header
   overflow, Images review refinements, BenchmarkPanel full-width comparison.
 
+Progress log — UI modification plan (16 October 2026, third block, 19:28-20:10):
+- Primitives: `ProgressSummary` (bar + % + ✓/◷/✕, adopted in Dataset), `CompactToolbar`
+  (adopted in Images and Jobs toolbars), `OverflowMenu` adoption extended, page reachability tests
+  (Images/Video/Dataset) and a narrow-viewport drawer test (21 frontend tests).
+- Chat: settings (Character/Memory/Timing tabs) move into a drawer below 1280 px with a Settings
+  button; conversations search; compact fan notes; benchmark uses the full width.
+- Images: review mode hides rail/inspector at all widths (dedicated full-width subview), sibling
+  overlay comparison, sticky Generate, LoRA chips + manager with search.
+- LoRA: stepper shows per-stage status/counts; per-stage next-action hints.
+- Dataset: image filter bar (search + status), source actions hierarchy (Classify primary when
+  pending; Export/Profile/Delete in overflow), source import modal, classifying progress bar,
+  truncated detail values with tooltips.
+- Video: visual source picker (thumbnail grid + search), label pills, compact GPU cards,
+  job rows show run duration, Home gained a "Recent jobs" list.
+- Benchmark: disabled-reason hint under Run.
+- Performance: library thumbnail endpoint used by grids (full media only in review/detail).
+
 Progress log — UI modification plan (16 October 2026, second hour, 18:48-19:05):
 - Drawer focus trap (Tab cycling, focus enters the panel) + drawer tests (Escape, focus restore,
   closed state); 16 frontend tests green.
