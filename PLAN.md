@@ -551,6 +551,15 @@ from plain text-to-image. Today it does not behave that way:
 - The identity-preserving paths that DO start from the anchor are **Variations** and the
   **Identity set** (Qwen-Image-Edit from the anchor / canonical references).
 
+First slice implemented (16 October 2026):
+- `DatasetGenerate.reference_mode` (`auto`/`edit`/`txt2img`): with `auto`, a **qwen-image** dataset
+  generates candidates by **editing from the canonical reference/anchor** (Qwen-Image-Edit,
+  identity-preserving) instead of text-to-image; SDXL keeps the IPAdapter path. The job message
+  records the mode; `edit` is rejected for non-qwen families; missing anchor is rejected.
+- Fixed a blocker: `DatasetCreate.family` now accepts `qwen-image` (qwen datasets could not be
+  created via the API) and the dataset creation UI has a family selector (was hardcoded to `real`).
+- Tests added.
+
 Open questions for the redesign:
 1. Default the dataset generation to an Edit-based flow (Qwen-Image-Edit from a canonical
    reference) instead of txt2img candidates? Keep txt2img only as a secondary "scene variety" tool?

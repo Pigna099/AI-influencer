@@ -67,6 +67,7 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
   const [analysis, setAnalysis] = useState<DatasetAnalysis | null>(null);
   const [blueprint, setBlueprint] = useState<Awaited<ReturnType<typeof api.getDatasetBlueprint>> | null>(null);
   const [trigger, setTrigger] = useState("");
+  const [datasetFamily, setDatasetFamily] = useState("real");
   const [checkpoints, setCheckpoints] = useState<CheckpointInfo[]>([]);
   const [poses, setPoses] = useState<PoseReference[]>([]);
   const [identityPrompt, setIdentityPrompt] = useState(() => t("lp.identityDefaultPrompt"));
@@ -114,7 +115,7 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
   const create = () => {
     if (!character) return;
     void perform(t("common.loading"), async () => {
-      const created = await api.createDataset(character.id, { family: "real", trigger: trigger.trim() || undefined });
+      const created = await api.createDataset(character.id, { family: datasetFamily, trigger: trigger.trim() || undefined });
       await refresh();
       setOpenId(created.id);
       setTrigger("");
@@ -244,6 +245,9 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
     <details className="dataset-create" open={!datasets.length}>
       <summary>+ {t("lp.datasetCreate")}</summary>
       <div className="dataset-create-row">
+        <label>{t("lp.datasetFamily")}<select value={datasetFamily} disabled={busy || !character} onChange={e => setDatasetFamily(e.target.value)}>
+          <option value="real">real</option><option value="pony">pony</option><option value="anime">anime</option><option value="qwen-image">qwen-image</option>
+        </select></label>
         <label>{t("lp.datasetTrigger")}<input value={trigger} disabled={busy || !character} onChange={e => setTrigger(e.target.value)} placeholder={t("lp.triggerHint")} maxLength={64} /></label>
         <button className="primary" disabled={busy || !character} onClick={create}>{t("lp.datasetCreate")}</button>
       </div>

@@ -877,6 +877,7 @@ const en = {
   "ip.emptyTrashConfirm": "Permanently delete everything in the trash? This cannot be undone.",
   "vd.reviewFilter": "Review filter",
   "vd.reviewAll": "All review states",
+  "lp.datasetFamily": "Family",
 } as const;
 
 type Catalog = typeof en;

@@ -624,7 +624,7 @@ def materialize_dataset(db, dataset: LoraDataset, stem: str) -> Path:
 
 
 class DatasetCreate(StrictModel):
-    family: Literal["real", "pony", "anime"] = "real"
+    family: Literal["real", "pony", "anime", "qwen-image"] = "real"
     trigger: str | None = Field(default=None, max_length=64)
     base_checkpoint: str | None = Field(default=None, max_length=200)
     anchor_image_id: str | None = None
@@ -638,6 +638,8 @@ class DatasetGenerate(StrictModel):
     seed: int | None = Field(default=None, ge=0, le=2**31)
     checkpoint: str | None = Field(default=None, max_length=200)
     pose_strength: float = Field(default=0.8, ge=0, le=2)
+    # auto: edit from the anchor when the family supports it (qwen-image), otherwise text-to-image.
+    reference_mode: Literal["auto", "edit", "txt2img"] = "auto"
 
 
 class DatasetItemPatch(StrictModel):
@@ -781,18 +783,29 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
             if meta["usable"]:
                 family = meta["family"]
         reference_paths = _dataset_references(db, dataset_id)
+    if not reference_paths and anchor_path is not None:
+        reference_paths = [anchor_path]
+    edit_capable = family == "qwen-image"
+    mode = body.reference_mode
+    if mode == "auto":
+        mode = "edit" if edit_capable and reference_paths else "txt2img"
+    if mode == "edit":
+        if not edit_capable:
+            raise HTTPException(400, "Edit-from-anchor is only available for the qwen-image family")
+        if not reference_paths:
+            raise HTTPException(
+                400, "An anchor image is required: generate the profile picture or set the dataset anchor"
+            )
     with Session.begin() as db:
         job = create_job(
             db,
             type="dataset_generate",
             character_id=character_id,
             dataset_id=dataset_id,
-            message=f"dataset candidates ({len(poses) or 1} poses x {body.count})",
+            message=f"dataset candidates ({len(poses) or 1} poses x {body.count}, {mode})",
         )
         start_job(db, job, worker="comfyui")
         job_id = job.id
-    if not reference_paths and anchor_path is not None:
-        reference_paths = [anchor_path]
     scene = translate_scene(body.prompt, style)
     parts = [trigger, character_prompt, scene]
     prompt = ", ".join(part for part in parts if part)
@@ -812,6 +825,19 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
 
     def render(job: tuple[PoseReference | None, Path | None, Path | None, int]):
         pose, pose_path, reference, seed = job
+        if mode == "edit" and reference is not None:
+            # Identity-preserving: edit from the canonical reference / anchor instead of text-to-image.
+            data, meta = qwen_image_edit(
+                reference,
+                prompt,
+                seed=seed,
+                steps=settings.qwen_edit_steps,
+                cfg=settings.qwen_edit_cfg,
+                lora_weight=1.0,
+                base_url=pick_target(),
+            )
+            meta = {**meta, "identity_reference": True}
+            return pose, seed, data, meta
         data, meta = generate_image(
             prompt,
             negative,

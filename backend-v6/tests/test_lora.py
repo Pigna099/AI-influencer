@@ -743,3 +743,49 @@ def test_lora_recommendation():
     recommendation = client.get(f"/api/loras/{qwen['id']}/recommendation").json()
     assert recommendation["learning_rate"] == 0.00005
     assert recommendation["repeats"] == 1
+
+def test_dataset_candidates_edit_from_anchor_for_qwen(monkeypatch):
+    calls = {"edit": 0, "generate": 0}
+
+    def fake_edit(reference, prompt, **kwargs):
+        calls["edit"] += 1
+        return b"fake-edit", {"provider": "mock", "seed": kwargs.get("seed", 0), "model": "qwen_image_edit"}
+
+    def fake_generate(*args, **kwargs):
+        calls["generate"] += 1
+        return b"fake-generate", {"provider": "mock", "seed": kwargs.get("seed", 0)}
+
+    monkeypatch.setattr("app.lora_api.qwen_image_edit", fake_edit)
+    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
+
+    character_id = make_character("Qwen Edit Dataset")
+    assert client.post(f"/api/characters/{character_id}/avatar").status_code in (200, 201)
+    response = client.post(
+        f"/api/characters/{character_id}/datasets",
+        json={"family": "qwen-image", "trigger": "qwedt"},
+    )
+    assert response.status_code == 201, response.text
+    dataset = response.json()
+    generated = client.post(f"/api/datasets/{dataset['id']}/generate", json={"prompt": "portrait", "count": 1})
+    assert generated.status_code == 201, generated.text
+    assert calls["edit"] == 1 and calls["generate"] == 0
+    assert len(generated.json()) == 1
+
+    forced = client.post(
+        f"/api/datasets/{dataset['id']}/generate",
+        json={"prompt": "portrait", "count": 1, "reference_mode": "txt2img"},
+    )
+    assert forced.status_code == 201, forced.text
+    assert calls["generate"] == 1
+
+    make_lora(character_id, "Edit Not Allowed")
+    real_dataset = client.post(
+        f"/api/characters/{character_id}/datasets",
+        json={"family": "real", "trigger": "rnot"},
+    ).json()
+    rejected = client.post(
+        f"/api/datasets/{real_dataset['id']}/generate",
+        json={"prompt": "portrait", "count": 1, "reference_mode": "edit"},
+    )
+    assert rejected.status_code == 400
+    assert "qwen-image" in rejected.json()["detail"]
