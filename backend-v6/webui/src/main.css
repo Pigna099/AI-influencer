@@ -533,3 +533,8 @@
   .workspace.review-mode .character-rail { display: none; }
   .workspace.review-mode .main-panel { min-height: 70vh; }
 }
+
+.stage-stepper { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 24px 10px; }
+.stage-stepper button { display: inline-flex; align-items: center; gap: 6px; font-size: .75rem; padding: .35rem .6rem; }
+.stage-stepper button.on { border-color: var(--accent); background: var(--accent-soft); }
+.stage-stepper .step-badge { width: 18px; height: 18px; font-size: .68rem; }

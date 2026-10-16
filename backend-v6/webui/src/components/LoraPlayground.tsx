@@ -173,6 +173,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   const [guideOpen, setGuideOpen] = useState(() => localStorage.getItem("lora_guide") !== "0");
   const isNarrow = useMediaQuery("(max-width: 1279px)");
   const [guideDrawerOpen, setGuideDrawerOpen] = useState(false);
+  const [stage, setStage] = useState(0);
   const toggleGuide = () => {
     const next = !guideOpen;
     setGuideOpen(next);
@@ -432,8 +433,13 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
         />
         {busy && <p className="memory-status lora-busy" role="status"><span className="spinner" />{busy} <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
         {readiness && <p className="readiness-line" role="status">{readiness}</p>}
+        <nav className="stage-stepper" aria-label={t("lp.stages")}>
+          {[0, 1, 2].map(index => <button key={index} type="button" className={stage === index ? "on" : ""} aria-current={stage === index ? "step" : undefined} disabled={!!busy} onClick={() => setStage(index)}>
+            <span className="step-badge">{index + 1}</span>{t(index === 0 ? "lp.step.character" : index === 1 ? "lp.step.dataset" : "lp.step.training")}
+          </button>)}
+        </nav>
         <div className="lora-content">
-          <section className="lora-step">
+          <section className="lora-step" hidden={stage !== 0}>
             <div className="lora-step-head"><span className="step-badge">1</span><h2>{t("lp.step.character")}</h2></div>
             {character ? <div className="lora-avatar">
               <CharacterAvatar character={character} index={0} onView={(url, alt) => setViewer({ url, alt })} altTemplate={t("pg.avatarAlt")} />
@@ -461,12 +467,12 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
               </div>
             </div> : <p className="muted">{t("pg.noCharacters")}</p>}
           </section>
-          <section className="lora-step">
+          <section className="lora-step" hidden={stage !== 1}>
             <div className="lora-step-head"><span className="step-badge">2</span><h2>{t("lp.step.dataset")}</h2></div>
             <p className="muted">{t("lp.step.datasetHint")}</p>
             <DatasetPanel character={character} datasets={datasets} busy={!!busy} perform={perform} refresh={() => refresh(characterId)} onView={(url, alt) => setViewer({ url, alt })} />
           </section>
-          <section className="lora-step">
+          <section className="lora-step" hidden={stage !== 2}>
             <div className="lora-step-head"><span className="step-badge">3</span><h2>{t("lp.step.training")}</h2></div>
             <p className="muted">{t("lp.step.trainingHint")}</p>
             <details className="create-details" open={!loras.length}>

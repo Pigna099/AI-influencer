@@ -923,6 +923,7 @@ const en = {
   "home.gpu.processes": "{count} processes",
   "jobs.dangerZone": "Danger zone",
   "common.more": "More actions",
+  "lp.stages": "Workflow stages",
 } as const;
 
 type Catalog = typeof en;

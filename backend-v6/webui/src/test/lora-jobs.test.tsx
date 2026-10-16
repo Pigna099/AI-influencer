@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { I18nProvider } from "../i18n";
 
@@ -54,6 +54,7 @@ describe("LoraPlayground structured errors", () => {
 
   it("renders summary, remediation and a model-management link for checkpoint_missing", async () => {
     renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /Training/ }));
     await waitFor(() => expect(screen.getByText("The base checkpoint for this family is missing.")).toBeInTheDocument());
     expect(screen.getByText("Download the checkpoint or pick another family.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open model management (Home)" })).toBeInTheDocument();
@@ -62,6 +63,7 @@ describe("LoraPlayground structured errors", () => {
 
   it("hides the raw log path behind a details disclosure", async () => {
     renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /Training/ }));
     await waitFor(() => expect(screen.getByText("Technical details")).toBeInTheDocument());
     expect(screen.getByText(/FileNotFoundError/)).toBeInTheDocument();
   });
