@@ -1071,9 +1071,12 @@ Progress log — UI modification plan (16 October 2026, first hour):
   Home attention items are compact clickable cards; GPU process lists collapsed by default; Home
   services/GPUs moved into a remembered "System and infrastructure" section; Purge trash nested in a
   Danger zone; video Delete moved to an overflow menu.
-- Remaining (next hours): full staged LoRA workflow, ContextSelector, CompactToolbar/KpiStrip
-  primitives, review mode full-width, drawer focus trap + restoration tests, visual regression pass,
-  LoRA stage-only layout at 812 px, Chat restructure.
+- **ContextSelector** primitive added and adopted in Video (character selector at the top below
+  1280 px; the fixed rail is hidden there). Jobs KPI strip restyled as labelled cards; chat empty
+  state compact with a New chat action.
+- Remaining (next hours): full staged LoRA workflow, CompactToolbar primitive, review mode
+  full-width, drawer focus trap + restoration tests, visual regression pass, LoRA stage-only layout
+  at 812 px, Chat restructure.
 
 Refactor incrementally from the current files.
 

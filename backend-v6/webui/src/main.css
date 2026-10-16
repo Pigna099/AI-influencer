@@ -524,3 +524,6 @@
 .overflow-menu > div { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; padding: 6px; border: 1px solid #3b4e6d; border-radius: 10px; background: #131f31; box-shadow: 0 14px 30px #0007; }
 
 .details-toggle { margin: 8px 14px; }
+
+.context-selector select { width: auto; min-width: 150px; font-size: .75rem; padding: .3rem .5rem; }
+.narrow-only.context-selector, span.narrow-only .context-selector { display: inline-flex; }

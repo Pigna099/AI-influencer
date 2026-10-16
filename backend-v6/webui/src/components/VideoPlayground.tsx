@@ -4,6 +4,7 @@ import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import AsyncBoundary from "./ui/AsyncBoundary";
 import InspectorDrawer from "./ui/InspectorDrawer";
+import ContextSelector from "./ui/ContextSelector";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import AdvancedSettings from "./ui/AdvancedSettings";
 import StatusBadge from "./ui/StatusBadge";
@@ -364,17 +365,17 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
     <AppHeader current="/video" onLogout={onLogout} busy={!!busy} />
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
     <div className="workspace image-workspace" style={{ gridTemplateColumns: "225px minmax(320px, 1fr) 380px" }}>
-      <aside className="character-rail">
+      {!isNarrow && <aside className="character-rail">
         <div className="section-title"><h2>{t("ip.characters")}</h2><span>{characters.length}</span></div>
         <div className="rail-list">{characters.map(item => <button key={item.id} className={item.id === characterId ? "selected" : ""} disabled={!!busy} onClick={() => setCharacterId(item.id)}>{item.name}</button>)}</div>
         {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}
-      </aside>
+      </aside>}
       <main className="main-panel">
         <PageHeader
           eyebrow={characterId ? t("vd.subtitle") : t("ip.title")}
           title={characters.find(item => item.id === characterId)?.name || t("vd.selectCharacter")}
           subtitle={t("vd.subtitle")}
-          aside={<div className="section-actions"><button type="button" className="narrow-only" onClick={() => setGeneratorOpen(true)}>{t("ip.generator")}</button><select className="saved-filter-select" value={reviewFilter} disabled={!!busy} onChange={e => setReviewFilter(e.target.value)} aria-label={t("vd.reviewFilter")}>
+          aside={<div className="section-actions"><span className="narrow-only"><ContextSelector label={t("ip.characters")} options={characters.map(item => ({ id: item.id, name: item.name }))} value={characterId} onChange={setCharacterId} disabled={!!busy} /></span><button type="button" className="narrow-only" onClick={() => setGeneratorOpen(true)}>{t("ip.generator")}</button><select className="saved-filter-select" value={reviewFilter} disabled={!!busy} onChange={e => setReviewFilter(e.target.value)} aria-label={t("vd.reviewFilter")}>
             <option value="">{t("vd.reviewAll")}</option>
             <option value="draft">{t("ip.statusDraft")}</option>
             <option value="approved">{t("ip.statusApproved")}</option>
