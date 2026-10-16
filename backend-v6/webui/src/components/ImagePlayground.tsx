@@ -562,7 +562,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
           {isNarrow
             ? <button type="button" className="recipe-line recipe-button" onClick={() => setGeneratorOpen(true)}>{[style === "anime" ? t("pg.style.anime") : t("pg.style.real"), checkpoint || t("ip.default"), `${Object.values(loraSel).filter(item => item?.on).length} LoRA`, poseIds.length ? `${poseIds.length} ${t("lp.poses")}` : null, seed ? `${t("ip.seed")} ${seed}` : null].filter(Boolean).join(" · ")}</button>
             : <p className="recipe-line" role="note">{[style === "anime" ? t("pg.style.anime") : t("pg.style.real"), checkpoint || t("ip.default"), `${Object.values(loraSel).filter(item => item?.on).length} LoRA`, poseIds.length ? `${poseIds.length} ${t("lp.poses")}` : null, seed ? `${t("ip.seed")} ${seed}` : null].filter(Boolean).join(" · ")}</p>}
-          <button className="primary" disabled={!!busy || !character || !prompt.trim()} onClick={generate}>{t("ip.generate")}</button>
+          <button className="primary generate-sticky" disabled={!!busy || !character || !prompt.trim()} onClick={generate}>{t("ip.generate")}</button>
           {!busy && !prompt.trim() && <small className="hint">{t("hint.enterPrompt")}</small>}
           {!busy && !character && <small className="hint">{t("hint.selectCharacter")}</small>}
           <details className="consistency-box">

@@ -1096,6 +1096,10 @@ Progress log — UI modification plan (16 October 2026, second hour, 18:48-19:05
   danger hierarchy (Classify primary when pending, Export/Profile/Delete in overflow).
 - Performance: `GET /api/library/{id}/thumb` (cached 320 px JPEG) and the Images/Video grids now load
   thumbnails instead of full-resolution files; test added.
+- `ProgressSummary` primitive (bar + percentage + ✓/◷/✕ counts) adopted in Dataset; job rows show
+  the run duration; Home gained a compact "Recent jobs" list; sticky Generate buttons in the
+  Images/Video forms; benchmark tab uses the full width below 1280 px; page reachability tests
+  (Images/Video/Dataset) guard the redesign (20 frontend tests).
 
 Refactor incrementally from the current files.
 

@@ -385,7 +385,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
             </div>
           </AdvancedSettings>
           <p className="recipe-line" role="note">{[resolution.replace("x", "×"), t("vd.secondsFrames", { seconds: seconds(length), frames: length }), `${steps} steps`, Object.keys(loraSel).length ? `${Object.keys(loraSel).length} LoRA` : null, seed ? `${t("vd.seed")} ${seed}` : null].filter(Boolean).join(" · ")}</p>
-          <button className="primary" disabled={!!busy || !characterId || !prompt.trim() || (mode === "image" && !sourceId)} onClick={generate}>{t("vd.generate")}</button>
+          <button className="primary generate-sticky" disabled={!!busy || !characterId || !prompt.trim() || (mode === "image" && !sourceId)} onClick={generate}>{t("vd.generate")}</button>
           {!busy && !characterId && <small className="hint">{t("hint.selectCharacter")}</small>}
           {!busy && characterId && mode === "image" && !library.length && loaded && <small className="hint">{t("vd.noApproved")}</small>}
           {!busy && characterId && mode === "image" && !!library.length && !sourceId && <small className="hint">{t("hint.selectSource")}</small>}

@@ -938,6 +938,7 @@ const en = {
   "ip.review.metadata": "Caption and metadata",
   "vd.searchSource": "Search source images",
   "vd.selectSource": "Select a source image",
+  "home.recentJobs": "Recent jobs",
 } as const;
 
 type Catalog = typeof en;

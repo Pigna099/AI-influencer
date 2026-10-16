@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api, AppDefaults, Character, CheckpointInfo, GpuPlan, GpuReport, OllamaModel } from "../api";
 import {useI18n} from "../i18n";
 import GpuCard from "./ui/GpuCard";
+import StatusBadge from "./ui/StatusBadge";
 import AppHeader from "./ui/AppHeader";
 import CharacterAvatar from "./CharacterAvatar";
 import Lightbox from "./Lightbox";
@@ -35,10 +36,12 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
 
   const [overview, setOverview] = useState<Awaited<ReturnType<typeof api.getOverview>> | null>(null);
   const [infraOpen, setInfraOpen] = useState(() => localStorage.getItem("home_infra") !== "0");
+  const [recentJobs, setRecentJobs] = useState<Awaited<ReturnType<typeof api.getJobs>>>([]);
 
   useEffect(() => {
     api.getDefaults().then(setDefaults).catch(() => undefined);
     api.getOverview().then(setOverview).catch(() => undefined);
+    api.getJobs({ limit: 4 }).then(setRecentJobs).catch(() => undefined);
     api.getGpuPlan().then(setGpuPlan).catch(() => undefined);
   }, []);
 
@@ -243,6 +246,14 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
           <div><strong>{flag.label}</strong><small>{flag.detail}</small></div>
         </div>)}</div>
       </section>
+      {!!recentJobs.length && <section>
+        <div className="section-title"><h2>{t("home.recentJobs")}</h2><Link className="text-button" to="/jobs">{t("home.attention.open")}</Link></div>
+        <ul className="home-list">{recentJobs.map(job => <li key={job.id}>
+          <span>{t(`jobs.type.${job.type}` as "jobs.type.training")}</span>
+          <StatusBadge status={job.state} label={t(`jobs.state.${job.state}` as "jobs.state.queued")} />
+          <small>{new Date(job.created_at).toLocaleString()}</small>
+        </li>)}</ul>
+      </section>}
       <section>
         <div className="section-title"><h2>{t("home.defaults")}</h2><div className="section-actions">
           {defaults && <span>{defaults.text_provider === "vllm" ? (defaults.vllm_available ? t("home.defaults.vllmOn") : t("home.defaults.vllmDown")) : t("home.defaults.ollama")}</span>}

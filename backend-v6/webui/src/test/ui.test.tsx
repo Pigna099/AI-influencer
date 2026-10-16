@@ -6,6 +6,7 @@ import StatusBadge from "../components/ui/StatusBadge";
 import JobProgress from "../components/ui/JobProgress";
 import InspectorDrawer from "../components/ui/InspectorDrawer";
 import OverflowMenu from "../components/ui/OverflowMenu";
+import ProgressSummary from "../components/ui/ProgressSummary";
 
 describe("AsyncBoundary", () => {
   it("shows the loading skeleton while loading", () => {
@@ -102,5 +103,17 @@ describe("OverflowMenu", () => {
     const summary = screen.getByLabelText("More actions");
     expect(summary).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+  });
+});
+
+describe("ProgressSummary", () => {
+  it("shows percentage and counts without color-only meaning", () => {
+    render(<ProgressSummary label="Importing" completed={7} pending={3} failed={1} total={11} />);
+    const bar = screen.getByRole("progressbar", { name: "Importing" });
+    expect(bar).toHaveAttribute("aria-valuenow", "73");
+    expect(screen.getByText("✓ 7")).toBeInTheDocument();
+    expect(screen.getByText("◷ 3")).toBeInTheDocument();
+    expect(screen.getByText("✕ 1")).toBeInTheDocument();
+    expect(screen.getByText("73%")).toBeInTheDocument();
   });
 });

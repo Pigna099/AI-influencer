@@ -586,3 +586,15 @@
 @media (max-width: 1279px) {
   .workspace.benchmark-mode .character-rail { display: none; }
 }
+
+.generate-sticky { position: sticky; bottom: 6px; box-shadow: 0 8px 18px #0007; z-index: 5; }
+
+.progress-summary { margin: 6px 0 10px; display: grid; gap: 4px; }
+.progress-counts { display: flex; gap: 10px; font-size: .7rem; color: #9db2cf; }
+.progress-counts .ok { color: #8fd6c9; }
+.progress-counts .busy { color: #e6c47c; }
+.progress-counts .bad { color: #f5b6c1; }
+
+
+.home-characters { gap: 8px; }
+.home-character { padding: 10px; }

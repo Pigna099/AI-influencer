@@ -5,6 +5,7 @@ import AppHeader from "./ui/AppHeader";
 import AsyncBoundary from "./ui/AsyncBoundary";
 import InspectorDrawer from "./ui/InspectorDrawer";
 import OverflowMenu from "./ui/OverflowMenu";
+import ProgressSummary from "./ui/ProgressSummary";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import PageHeader from "./ui/PageHeader";
 import StatusBadge from "./ui/StatusBadge";
@@ -259,7 +260,14 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
           aside={images.length ? <span className="library-count">{t("ip.imagesCount", { count: images.length })}</span> : undefined}
         />
         {active && <p className="memory-status" role="status"><span className="spinner" />{source.status === "importing" ? t("ds.queueImporting", { imported: source.imported, total: source.total || "?" }) : source.status === "classifying" ? t("ds.queueClassifying", { classified: source.classified, total: source.imported || "?" }) : t("ds.queuePending")}</p>}
-        {active && <div className="job-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={source.status === "classifying" && source.imported ? Math.round((source.classified / source.imported) * 100) : source.total ? Math.round((source.imported / source.total) * 100) : 0}><i style={{ width: `${source.status === "classifying" && source.imported ? Math.min(100, (source.classified / source.imported) * 100) : source.total ? Math.min(100, (source.imported / source.total) * 100) : 0}%` }} /></div>}
+        {active && <ProgressSummary
+          label={source.status === "classifying" ? t("ds.queueClassifying", { classified: source.classified, total: source.imported || "?" }) : t("ds.queueImporting", { imported: source.imported, total: source.total || "?" })}
+          completed={source.status === "classifying" ? source.classified : source.imported}
+          pending={Math.max(0, (source.status === "classifying" ? source.imported : source.total) - (source.status === "classifying" ? source.classified : source.imported))}
+          failed={0}
+          total={source.status === "classifying" ? source.imported || source.total : source.total}
+          showCounts={false}
+        />}
         {!active && !!images.length && (waitingCount > 0 || failedCount > 0) && <p className="readiness-line">{t("ds.queueReady", { count: readyCount })}{waitingCount > 0 ? ` · ${t("ds.queueWaiting", { count: waitingCount })}` : ""}{failedCount > 0 ? ` · ${t("ds.queueFailed", { count: failedCount })}` : ""}</p>}
         <div className="library-toolbar">
           <button className={waitingCount > 0 ? "primary" : undefined} disabled={!!busy || !source} onClick={classifySource}>{t("ds.classifyPending")}</button>

@@ -50,7 +50,7 @@ function JobRow({ job, characterName, busy, onAction }: {
       <header>
         <strong>{typeLabel !== `jobs.type.${job.type}` ? typeLabel : job.type}</strong>
         <StatusBadge status={job.state} label={t(`jobs.state.${job.state}` as "jobs.state.queued")} />
-        <small>{characterName} · {new Date(job.created_at).toLocaleString()}</small>
+        <small>{characterName} · {new Date(job.created_at).toLocaleString()}{job.started_at && job.finished_at ? ` · ${formatDuration((new Date(job.finished_at).getTime() - new Date(job.started_at).getTime()) / 1000)}` : ""}</small>
       </header>
       {job.state === "running" && job.progress?.total ? (
         <div className="job-progress-row">
