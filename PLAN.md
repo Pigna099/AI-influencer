@@ -1091,6 +1091,9 @@ Progress log — UI modification plan (16 October 2026, second hour, 18:48-19:05
 - Dataset: the card thumb selects the item (details) and "+ New source" is now a modal instead of
   occupying rail space.
 - Home: compact service pills (auto-fit grid).
+- Video: visual source picker (thumbnail grid with search) replacing the long select; review mode
+  caption/metadata in an expandable panel; dataset source actions follow the primary/secondary/
+  danger hierarchy (Classify primary when pending, Export/Profile/Delete in overflow).
 
 Refactor incrementally from the current files.
 
