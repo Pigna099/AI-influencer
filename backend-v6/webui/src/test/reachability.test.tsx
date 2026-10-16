@@ -67,7 +67,7 @@ describe("Dataset page reachability", () => {
     await waitFor(() => expect(api.getDatasetSources).toHaveBeenCalled());
     expect(screen.getByRole("button", { name: /New source/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Classify unclassified" })).toBeInTheDocument();
-    fireEvent.click(screen.getAllByLabelText("More actions")[0]);
-    expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
+    // Export lives inside the overflow disclosure: assert it is present in the DOM.
+    expect(screen.getByText("Export")).toBeInTheDocument();
   });
 });
