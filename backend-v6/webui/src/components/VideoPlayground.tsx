@@ -119,6 +119,26 @@ function SourcePreview({ image }: { image: LibraryImage | undefined }) {
   return <div className="source-preview">{url ? <img src={url} alt={image.filename} /> : <span className="spinner" />}</div>;
 }
 
+function SourceThumb({ image }: { image: LibraryImage }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    let objectUrl = "";
+    let alive = true;
+    api.fetchBlob(`/api/library/${image.id}/file?v=${encodeURIComponent(image.filename)}`)
+      .then(blob => {
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [image.id, image.filename]);
+  return url ? <img src={url} alt={image.caption || image.filename} loading="lazy" /> : <span className="spinner" />;
+}
+
 export default function VideoPlayground({ onLogout }: { onLogout: () => void }) {
   const { t } = useI18n();
   const [characters, setCharacters] = useState<Character[]>([]);
@@ -131,6 +151,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   const [negative, setNegative] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [lastImageId, setLastImageId] = useState("");
+  const [sourceSearch, setSourceSearch] = useState("");
   const [reviewFilter, setReviewFilter] = useState("");
   const isNarrow = useMediaQuery("(max-width: 1279px)");
   const [generatorOpen, setGeneratorOpen] = useState(false);
@@ -296,10 +317,21 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
         {busy && <p className="memory-status" role="status"><span className="spinner" />{busy} <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
         <div className="ip-form">
           <label>{t("vd.mode")}<select value={mode} disabled={!!busy} onChange={e => setMode(e.target.value as "image" | "text")}><option value="image">{t("vd.modeImage")}</option><option value="text">{t("vd.modeText")}</option></select></label>
-          {mode === "image" && <label>{t("vd.source")}<select value={sourceId} disabled={!!busy || !library.length} onChange={e => setSourceId(e.target.value)}>
-            {!library.length && <option value="">{loaded ? t("vd.noApproved") : t("common.loadingData")}</option>}
-            {library.map(image => <option key={image.id} value={image.id}>{(image.caption || image.prompt || image.filename).slice(0, 70)}</option>)}
-          </select></label>}
+          {mode === "image" && <div className="source-picker">
+            <span className="scope-label">{t("vd.source")}</span>
+            <details className="source-picker-panel">
+              <summary>{library.find(image => image.id === sourceId)?.caption?.slice(0, 60) || (loaded ? t("vd.selectSource") : t("common.loadingData"))}</summary>
+              <input value={sourceSearch} disabled={!!busy} onChange={e => setSourceSearch(e.target.value)} placeholder={t("vd.searchSource")} aria-label={t("vd.searchSource")} maxLength={60} />
+              {!library.length && <p className="muted">{loaded ? t("vd.noApproved") : t("common.loadingData")}</p>}
+              <div className="source-grid">{library
+                .filter(image => `${image.caption} ${image.prompt} ${image.filename}`.toLowerCase().includes(sourceSearch.trim().toLowerCase()))
+                .slice(0, 24)
+                .map(image => <button key={image.id} type="button" disabled={!!busy} className={image.id === sourceId ? "selected" : undefined} onClick={() => setSourceId(image.id)} title={image.caption || image.filename}>
+                  <SourceThumb image={image} />
+                </button>)}
+              </div>
+            </details>
+          </div>}
           {mode === "image" && <SourcePreview image={library.find(image => image.id === sourceId)} />}
           {mode === "image" && (model === "ltx-distilled" || model === "ltx-dev") && <label>{t("vd.lastFrame")}<select value={lastImageId} disabled={!!busy || !library.length} onChange={e => setLastImageId(e.target.value)}>
             <option value="">{t("vd.lastFrameNone")}</option>

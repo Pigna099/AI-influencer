@@ -571,3 +571,12 @@
 .maintenance-panel > summary { cursor: pointer; font-size: .78rem; color: #8ba0bd; margin-bottom: 6px; }
 
 .recipe-button { border: 1px dashed var(--border-2); border-radius: 8px; padding: 6px 8px; text-align: left; width: 100%; }
+
+.review-meta summary { cursor: pointer; font-size: .72rem; color: #8ba0bd; }
+
+.source-picker-panel > summary { cursor: pointer; font-size: .75rem; color: #b9cbe2; padding: 6px 8px; border: 1px solid var(--border-2); border-radius: 8px; background: var(--surface-2); }
+.source-picker-panel > input { margin: 8px 0; font-size: .75rem; }
+.source-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; max-height: 260px; overflow-y: auto; }
+.source-grid button { padding: 0; border: 2px solid transparent; border-radius: 8px; overflow: hidden; aspect-ratio: 1; display: grid; place-items: center; background: #0b1423; }
+.source-grid button.selected { border-color: var(--accent); }
+.source-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }

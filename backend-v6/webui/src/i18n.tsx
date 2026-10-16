@@ -935,6 +935,9 @@ const en = {
   "lp.stage.next.training": "Next: queue training with the selected photos, validate the grid, then activate.",
   "pg.inspectorTabs": "Inspector sections",
   "jobs.maintenance": "Maintenance",
+  "ip.review.metadata": "Caption and metadata",
+  "vd.searchSource": "Search source images",
+  "vd.selectSource": "Select a source image",
 } as const;
 
 type Catalog = typeof en;

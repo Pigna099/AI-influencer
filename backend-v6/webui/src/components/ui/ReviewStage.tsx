@@ -54,7 +54,10 @@ export default function ReviewStage({ item, index, total, anchorUrl, overlay, bu
         </select></label>
         <small className="review-counter">{index + 1} / {total}</small>
       </div>
-      <p className="review-caption">{item.caption || item.prompt}</p>
+      <details className="review-meta"><summary>{t("ip.review.metadata")}</summary>
+        <p className="review-caption">{item.caption || item.prompt}</p>
+        <small className="muted">{item.style} · {(item.checkpoint || "").replace(".safetensors", "")} · {t("ip.used")} {item.used_count} · seed {item.seed}</small>
+      </details>
       <details className="review-help"><summary>{t("ip.review.help")}</summary><small className="muted">{t("ip.review.shortcuts")}</small></details>
     </div>
   </div>;
