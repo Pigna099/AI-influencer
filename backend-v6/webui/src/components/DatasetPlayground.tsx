@@ -14,7 +14,7 @@ import Lightbox from "./Lightbox";
 
 const detailFields = ["pose", "setting", "lighting", "scene", "outfit", "body", "skin", "camera", "mood", "art_style"] as const;
 
-function DatasetThumb({ item, onView, select, remove, videoLabel, openLabel, selectLabel, deleteLabel }: { item: DatasetImage; onView: (url: string, alt: string, video?: boolean) => void; select: () => void; remove: () => void; videoLabel: string; openLabel: string; selectLabel: string; deleteLabel: string }) {
+function DatasetThumb({ item, select, videoLabel }: { item: DatasetImage; select: () => void; videoLabel: string }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
     let objectUrl = "";
@@ -32,25 +32,11 @@ function DatasetThumb({ item, onView, select, remove, videoLabel, openLabel, sel
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [item.id]);
-  const openMedia = async () => {
-    if (item.kind === "video") {
-      try {
-        const blob = await api.fetchBlob(`/api/dataset/images/${item.id}/file`);
-        onView(URL.createObjectURL(blob), item.caption || item.filename, true);
-      } catch { /* ignore */ }
-      return;
-    }
-    if (url) onView(url, item.caption || item.filename, false);
-  };
-  return <div className="dataset-thumb" onClick={select} role="button" tabIndex={0} aria-label={selectLabel} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); } }}>
-    {url ? <img src={url} alt={item.caption || item.filename} loading="lazy" /> : <span className="spinner" />}
+  const name = item.caption || item.filename;
+  return <div className="dataset-thumb" onClick={select} role="button" tabIndex={0} aria-label={`${name}, ${item.status}`} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); } }}>
+    {url ? <img src={url} alt="" loading="lazy" /> : <span className="spinner" />}
     {item.kind === "video" && <span className="badge video">▶ {videoLabel}</span>}
     <StatusBadge status={item.status} />
-    <div className="dataset-thumb-actions">
-      <button type="button" disabled={!url} onClick={() => void openMedia()}>{openLabel}</button>
-      <button type="button" onClick={select}>{selectLabel}</button>
-      <OverflowMenu label="More"><button className="danger" type="button" onClick={remove}>{deleteLabel}</button></OverflowMenu>
-    </div>
   </div>;
 }
 
@@ -228,6 +214,17 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
     });
   };
 
+  const openViewer = (item: DatasetImage) => {
+    void (async () => {
+      try {
+        const blob = await api.fetchBlob(`/api/dataset/images/${item.id}/file`);
+        setViewer({ url: URL.createObjectURL(blob), alt: item.caption || item.filename, video: item.kind === "video" });
+      } catch {
+        /* ignore */
+      }
+    })();
+  };
+
   const detailsContent = (
     <>
 
@@ -304,11 +301,15 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
             emptyState={<EmptyState symbol="◎" title={t("ds.noImages")} />}
           >
           <div className="library-grid">{visibleImages.map(item => <article className={`library-card status-${item.status === "ready" ? "approved" : item.status === "failed" || item.status === "blocked" ? "rejected" : ""}`} key={item.id}>
-            <DatasetThumb item={item} onView={(url, alt, video) => setViewer({ url, alt, video })} select={() => setSelected(item)} remove={() => removeImage(item)} videoLabel={t("ds.video")} openLabel={t("ds.openMedia")} selectLabel={t("ds.selectItem")} deleteLabel={t("common.delete")} />
+            <DatasetThumb item={item} select={() => setSelected(item)} videoLabel={t("ds.video")} />
             <div className="library-meta">
               <p>{item.caption || item.filename}</p>
               {!!item.tags.length && <div className="library-tags">{item.tags.slice(0, 8).map(tag => <span key={tag}>{tag}</span>)}</div>}
-              <div className="library-actions"><button onClick={() => setSelected(item)}>{t("ds.details")}</button><OverflowMenu label={t("common.more")}><button className="danger" disabled={!!busy} onClick={() => removeImage(item)}>{t("common.delete")}</button></OverflowMenu></div>
+              <div className="library-actions">
+                <button onClick={() => setSelected(item)}>{t("ds.details")}</button>
+                <button disabled={!!busy} onClick={() => openViewer(item)}>{t("ds.openMedia")}</button>
+                <OverflowMenu label={t("common.more")}><button className="danger" disabled={!!busy} onClick={() => removeImage(item)}>{t("common.delete")}</button></OverflowMenu>
+              </div>
             </div>
           </article>)}</div>
           {imagesHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreImages}>{t("common.loadMore")}</button></div>}

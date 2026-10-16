@@ -434,6 +434,11 @@ Il dataset per la LoRA si costruisce in quest'ordine:
 - **Performance**: le griglie caricano **thumbnail** (endpoint dedicato con cache) e usano
   `content-visibility` per non renderizzare le card fuori schermo.
 
+## Verifiche UI automatiche
+
+- `backend-v6/scripts/ui/ui_check.mjs`: nessun overflow orizzontale su tutte le route a 812/1280/1440 px + screenshot in `/tmp/ui_shots` (richiede `npm i -D puppeteer` in `webui/`).
+- `backend-v6/scripts/ui/a11y_check.mjs`: scansione axe-core di tutte le route (0 violazioni serious/critical al 16/10/2026) (richiede `npm i -D puppeteer @axe-core/puppeteer`).
+
 ## Limiti attuali
 
 Il playground usa una chiave condivisa per il proprietario: i fan sono identità simulate, non utenti autenticati reali. L'estrazione memoria è un'attività in background non persistente: se l'API si arresta durante l'estrazione, la risposta salvata resta disponibile ma il ricordo potrebbe dover essere aggiunto manualmente. Le varianti di personalità del confronto non vengono salvate come personaggi: sono temporanee e servono a decidere cosa applicare con l'editor o con **Duplica**. Non sono implementati invio su OnlyFans/Fanvue, pagamenti, campagne o notifiche esterne. La pipeline immagini preesistente resta disponibile, ma non è il focus della v3.

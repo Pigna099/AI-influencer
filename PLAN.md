@@ -1093,6 +1093,11 @@ Progress log — UI modification plan (16 October 2026, third block, 19:28-20:10
   job rows show run duration, Home gained a "Recent jobs" list.
 - Benchmark: disabled-reason hint under Run.
 - Performance: library thumbnail endpoint used by grids (full media only in review/detail).
+- Accessibility: axe-core sweep on all routes via `scripts/ui/a11y_check.mjs` — 0 serious/critical
+  violations (fixed: nested interactive controls in dataset cards, accessible-name/visible-text
+  mismatches, contrast on selected source rows and count labels). Login brand was still "v4" and is
+  now v6. `scripts/ui/ui_check.mjs` verifies no horizontal overflow at 812/1280/1440 px (puppeteer,
+  ad-hoc install).
 
 Progress log — UI modification plan (16 October 2026, second hour, 18:48-19:05):
 - Drawer focus trap (Tab cycling, focus enters the panel) + drawer tests (Escape, focus restore,
