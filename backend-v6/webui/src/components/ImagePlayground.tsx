@@ -25,7 +25,7 @@ function LibraryThumb({ item, onView, alt }: { item: LibraryImage; onView: (url:
     let objectUrl = "";
     let alive = true;
     setUrl("");
-    api.fetchBlob(`/api/library/${item.id}/file?v=${encodeURIComponent(item.filename)}`)
+    api.fetchBlob(`/api/library/${item.id}/thumb?v=${encodeURIComponent(item.filename)}`)
       .then(blob => {
         if (!alive) return;
         objectUrl = URL.createObjectURL(blob);

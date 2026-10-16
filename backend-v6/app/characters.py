@@ -483,6 +483,36 @@ def get_library_item(item_id: str):
         return library_out(required(db, ImageLibrary, item_id))
 
 
+@router.get("/library/{item_id}/thumb")
+def library_thumbnail(item_id: str):
+    """Small cached JPEG thumbnail for grids (avoids loading full images)."""
+    import io
+
+    from fastapi.responses import Response
+    from PIL import Image
+
+    with Session() as db:
+        item = required(db, ImageLibrary, item_id)
+        filename = item.filename
+    source = (settings.media_dir / filename).resolve()
+    if not source.is_file() or not source.is_relative_to(settings.media_dir.resolve()):
+        raise HTTPException(404, "Image unavailable")
+    cache_dir = settings.media_dir.parent / "thumbs"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / f"{item_id}.jpg"
+    if not cache_file.is_file() or cache_file.stat().st_mtime < source.stat().st_mtime:
+        try:
+            with Image.open(source) as image:
+                image = image.convert("RGB")
+                image.thumbnail((320, 320))
+                buffer = io.BytesIO()
+                image.save(buffer, format="JPEG", quality=82)
+            cache_file.write_bytes(buffer.getvalue())
+        except OSError as error:
+            raise HTTPException(404, "Image unavailable") from error
+    return Response(content=cache_file.read_bytes(), media_type="image/jpeg")
+
+
 @router.get("/library/{item_id}/file")
 def download_library_image(item_id: str):
     with Session() as db:

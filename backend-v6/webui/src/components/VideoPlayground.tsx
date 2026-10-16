@@ -103,7 +103,7 @@ function SourcePreview({ image }: { image: LibraryImage | undefined }) {
     let alive = true;
     setUrl("");
     if (!image) return;
-    api.fetchBlob(`/api/library/${image.id}/file?v=${encodeURIComponent(image.filename)}`)
+    api.fetchBlob(`/api/library/${image.id}/thumb?v=${encodeURIComponent(image.filename)}`)
       .then(blob => {
         if (!alive) return;
         objectUrl = URL.createObjectURL(blob);

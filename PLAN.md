@@ -1094,6 +1094,8 @@ Progress log — UI modification plan (16 October 2026, second hour, 18:48-19:05
 - Video: visual source picker (thumbnail grid with search) replacing the long select; review mode
   caption/metadata in an expandable panel; dataset source actions follow the primary/secondary/
   danger hierarchy (Classify primary when pending, Export/Profile/Delete in overflow).
+- Performance: `GET /api/library/{id}/thumb` (cached 320 px JPEG) and the Images/Video grids now load
+  thumbnails instead of full-resolution files; test added.
 
 Refactor incrementally from the current files.
 

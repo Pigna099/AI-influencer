@@ -772,3 +772,20 @@ def test_avatar_upload_rejected_by_vision(monkeypatch):
     assert response.status_code == 400
     assert "21+" in response.json()["detail"]
     assert client.get(f"/api/characters/{character['id']}").json()["avatar_filename"] is None
+
+def test_library_thumbnail_endpoint():
+    character = client.post("/api/characters", json={"name": "Thumbs", "profile": {"description": "x"}}).json()
+    images = client.post(f"/api/characters/{character['id']}/library/generate", json={"prompt": "x", "count": 1}).json()
+    image_id = images[0]["id"]
+
+    thumb = client.get(f"/api/library/{image_id}/thumb")
+    assert thumb.status_code == 200
+    assert thumb.headers["content-type"] == "image/jpeg"
+    original = client.get(f"/api/library/{image_id}/file")
+    assert len(thumb.content) < len(original.content)
+
+    # Second call is served from the cache and still valid.
+    again = client.get(f"/api/library/{image_id}/thumb")
+    assert again.status_code == 200 and again.content == thumb.content
+
+    assert client.get("/api/library/does-not-exist/thumb").status_code == 404
