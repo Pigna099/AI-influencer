@@ -15,14 +15,21 @@ certifi==2026.7.22
     #   curl-cffi
     #   httpcore
     #   httpx
+    #   requests
 cffi==2.1.1
     # via curl-cffi
+charset-normalizer==3.5.2
+    # via requests
 click==8.5.0
     # via uvicorn
+colorama==0.4.6 ; sys_platform == 'win32'
+    # via tqdm
 curl-cffi==0.16.3
     # via ai-influencer-backend
 fastapi==0.141.1
     # via ai-influencer-backend
+flatbuffers==25.12.19
+    # via onnxruntime
 greenlet==3.5.5 ; platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64'
     # via sqlalchemy
 h11==0.16.0
@@ -37,14 +44,56 @@ idna==3.19
     # via
     #   anyio
     #   httpx
+    #   requests
+imageio==2.38.1
+    # via scikit-image
+insightface==2.1
+    # via ai-influencer-backend
+lazy-loader==0.6
+    # via scikit-image
 mako==1.4.1
     # via alembic
 markupsafe==3.0.3
     # via mako
+ml-dtypes==0.6.0
+    # via onnx
+networkx==3.7
+    # via scikit-image
+numpy==2.5.4
+    # via
+    #   imageio
+    #   insightface
+    #   ml-dtypes
+    #   onnx
+    #   onnxruntime
+    #   opencv-python
+    #   scikit-image
+    #   scipy
+    #   tifffile
 nvidia-ml-py==13.610.43
     # via ai-influencer-backend
+onnx==1.23.2
+    # via insightface
+onnxruntime==1.31.0
+    # via
+    #   ai-influencer-backend
+    #   insightface
+opencv-python==5.0.0.93
+    # via insightface
+packaging==26.3
+    # via
+    #   lazy-loader
+    #   onnxruntime
+    #   scikit-image
 pillow==12.3.0
-    # via ai-influencer-backend
+    # via
+    #   ai-influencer-backend
+    #   imageio
+    #   scikit-image
+protobuf==7.36.2
+    # via
+    #   onnx
+    #   onnxruntime
 psycopg==3.3.5
     # via ai-influencer-backend
 psycopg-binary==3.3.5 ; implementation_name != 'pypy'
@@ -61,17 +110,30 @@ pydantic-settings==2.15.0
     # via ai-influencer-backend
 python-dotenv==1.2.3
     # via pydantic-settings
+requests==2.34.2
+    # via insightface
+scikit-image==0.26.0
+    # via insightface
+scipy==1.18.1
+    # via
+    #   insightface
+    #   scikit-image
 sqlalchemy==2.0.52
     # via
     #   ai-influencer-backend
     #   alembic
 starlette==1.6.0
     # via fastapi
+tifffile==2026.10.15
+    # via scikit-image
+tqdm==4.70.1
+    # via insightface
 typing-extensions==4.16.0
     # via
     #   alembic
     #   anyio
     #   fastapi
+    #   onnx
     #   psycopg
     #   pydantic
     #   pydantic-core
@@ -85,5 +147,7 @@ typing-inspection==0.4.4
     #   pydantic-settings
 tzdata==2026.3 ; sys_platform == 'win32'
     # via psycopg
+urllib3==2.8.0
+    # via requests
 uvicorn==0.52.4
     # via ai-influencer-backend

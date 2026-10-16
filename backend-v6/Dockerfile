@@ -7,6 +7,9 @@ RUN npm run lint && npm run build
 
 FROM python:3.12-slim
 WORKDIR /app
+# System libraries for opencv (insightface face embeddings).
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libxcb1 \
+    && rm -rf /var/lib/apt/lists/*
 COPY requirements.lock ./
 RUN pip install --no-cache-dir -r requirements.lock
 COPY app ./app

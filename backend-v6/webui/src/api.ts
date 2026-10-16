@@ -507,6 +507,8 @@ export interface LoraDatasetItem {
   similarity: number;
   selected: boolean;
   reference_role: string | null;
+  tags?: string[];
+  recommended?: boolean;
   seed: number;
   filename: string | null;
   status: string | null;
@@ -1077,6 +1079,14 @@ export class ApiClient {
 
   async getDataset(id: string): Promise<LoraDatasetDetail> {
     return this.request(`/api/datasets/${id}`);
+  }
+
+  async generateReferenceSet(datasetId: string, data: { role: string; count?: number }): Promise<LoraDatasetItem[]> {
+    return this.request(`/api/datasets/${datasetId}/references`, { method: "POST", body: JSON.stringify(data) });
+  }
+
+  async generatePoseVariations(datasetId: string, data: { pose: string; count?: number }): Promise<LoraDatasetItem[]> {
+    return this.request(`/api/datasets/${datasetId}/pose-variations`, { method: "POST", body: JSON.stringify(data) });
   }
 
   async getDatasetBlueprint(id: string): Promise<{ target: number; selected: number; categories: { key: string; target: number; count: number }[]; other: number; missing_total: number }> {

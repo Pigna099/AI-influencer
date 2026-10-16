@@ -85,6 +85,10 @@ class Settings(BaseSettings):
     pose_controlnet_name: str = "controlnet-openpose-sdxl.safetensors"
     # Qwen-Image-Edit variations for the LoRA dataset (2509 fp8 + Lightning 4-step LoRA).
     qwen_edit_unet_name: str = "qwen_image_edit_2511_fp8mixed.safetensors"
+    # Local face embeddings (insightface buffalo_l) for identity similarity scoring.
+    face_model: str = "buffalo_l"
+    insightface_home: Path = Path("data/insightface")
+    face_similarity_enabled: bool = True
     qwen_edit_clip_name: str = "qwen_2.5_vl_7b_fp8_scaled.safetensors"
     qwen_edit_vae_name: str = "qwen_image_vae.safetensors"
     qwen_edit_lora_name: str = "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors"

@@ -856,3 +856,50 @@ def test_dataset_candidates_edit_from_anchor_for_qwen(monkeypatch):
     )
     assert rejected.status_code == 400
     assert "qwen-image" in rejected.json()["detail"]
+
+def test_canonical_reference_set_and_pose_variations(monkeypatch):
+    scores = iter([70.0, 92.0, 81.0, 60.0, 75.0, 95.0, 85.0, 55.0])
+
+    def fake_edit(reference, prompt, **kwargs):
+        return png_bytes(), {"provider": "mock", "seed": kwargs.get("seed", 0), "model": "qwen_image_edit"}
+
+    monkeypatch.setattr("app.lora_api.qwen_image_edit", fake_edit)
+    monkeypatch.setattr("app.lora_api.embedding_for_path", lambda path: [1.0, 0.0])
+    monkeypatch.setattr("app.lora_api.embedding_for", lambda data: [1.0, 0.0])
+    monkeypatch.setattr("app.lora_api.similarity_percent", lambda ref, cand: next(scores))
+
+    character_id = make_character("Canonical Refs")
+    assert client.post(f"/api/characters/{character_id}/avatar").status_code in (200, 201)
+    dataset = make_dataset(character_id)
+
+    unknown = client.post(f"/api/datasets/{dataset['id']}/references", json={"role": "nope"})
+    assert unknown.status_code == 400
+
+    created = client.post(
+        f"/api/datasets/{dataset['id']}/references", json={"role": "close_face", "count": 4}
+    )
+    assert created.status_code == 201, created.text
+    items = created.json()
+    assert len(items) == 4
+    assert all(item["reference_role"] == "close_face" for item in items)
+    assert all(item["similarity"] is not None for item in items)
+    recommended = [item for item in items if item.get("recommended")]
+    assert len(recommended) == 2 and recommended[0]["similarity"] == 92.0
+    assert all(item["selected"] is False for item in items)  # selection is always manual
+
+    # Pose variations require at least one selected canonical reference.
+    blocked = client.post(f"/api/datasets/{dataset['id']}/pose-variations", json={"pose": "walking", "count": 2})
+    assert blocked.status_code == 400
+    assert "Select at least one canonical reference" in blocked.json()["detail"]
+
+    client.patch(f"/api/dataset-items/{items[0]['id']}", json={"selected": True})
+    poses = client.post(
+        f"/api/datasets/{dataset['id']}/pose-variations", json={"pose": "walking", "count": 4}
+    )
+    assert poses.status_code == 201, poses.text
+    pose_items = poses.json()
+    assert len(pose_items) == 4 and all(item["reference_role"] is None for item in pose_items)
+    assert sum(1 for item in pose_items if item.get("recommended")) == 2
+
+    bad_pose = client.post(f"/api/datasets/{dataset['id']}/pose-variations", json={"pose": "moonwalk"})
+    assert bad_pose.status_code == 400

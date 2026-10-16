@@ -36,6 +36,7 @@ from .db import (
 )
 from .image_library import average_hash
 from .integrations.comfyui import ComfyUIError, checkpoint_meta, generate_image, pick_target, qwen_image_edit
+from .integrations.faces import embedding_for, embedding_for_path, similarity_percent
 from .jobs import create_job, finish_job, request_cancel, start_job, update_progress
 
 router = APIRouter(prefix="/api", tags=["LoRA"], dependencies=[Depends(authorize)])
@@ -671,6 +672,7 @@ def dataset_item_out(item: LoraDatasetItem, library: ImageLibrary | None) -> dic
         "selected": item.selected,
         "reference_role": item.reference_role,
         "seed": item.seed,
+        "tags": (library.tags if library else []) or [],
         "filename": library.filename if library else None,
         "status": library.status if library else None,
         "created_at": item.created_at.isoformat(),
@@ -1138,6 +1140,309 @@ BLUEPRINT = (
     ("front_full_body", 15, ("full body", "full-body", "fullbody", "standing")),
     ("dynamic", 8, ("walking", "sitting", "seated", "leaning", "lying", "reclining", "running")),
 )
+CANONICAL_ROLE_PROMPTS: dict[str, str] = {
+    "close_face": "close-up of the face, front view, neutral expression, studio light",
+    "three_quarter_face": "three-quarter face view, slight smile, studio light",
+    "profile": "full side profile view of the face, neutral expression, studio light",
+    "upper_body": "upper body portrait, front view, natural window light",
+    "front_full_body": "full body, standing, front view, neutral pose, natural light",
+    "three_quarter_full_body": "full body, standing, three-quarter view, natural light",
+    "side_full_body": "full body, standing, side view, natural light",
+}
+
+STANDARD_POSES: dict[str, str] = {
+    "standing_relaxed": "standing relaxed, front view, natural light",
+    "walking": "walking toward the camera, candid photo, natural light",
+    "sitting": "sitting on a chair, legs crossed, natural light",
+    "leaning_wall": "leaning against a wall, casual pose",
+    "lying_bed": "lying on a bed, propped up on elbows, warm lamp light",
+    "looking_back": "standing, looking back over the shoulder, natural light",
+}
+
+
+def _anchor_embedding(anchor_path: Path | None) -> list[float] | None:
+    if anchor_path is None or not anchor_path.is_file():
+        return None
+    return embedding_for_path(anchor_path)
+
+
+def _reference_embedding_for_poses(db, dataset_id: str, anchor_path: Path | None) -> list[float] | None:
+    """Score pose variations against the selected close-face reference when available."""
+    row = db.execute(
+        select(ImageLibrary)
+        .join(LoraDatasetItem, LoraDatasetItem.image_id == ImageLibrary.id)
+        .where(
+            LoraDatasetItem.dataset_id == dataset_id,
+            LoraDatasetItem.reference_role == "close_face",
+            LoraDatasetItem.selected.is_(True),
+            ImageLibrary.deleted_at.is_(None),
+        )
+        .order_by(LoraDatasetItem.similarity.desc())
+        .limit(1)
+    ).first()
+    if row is not None:
+        path = (settings.media_dir / row[0].filename).resolve()
+        if path.is_file():
+            embedding = embedding_for_path(path)
+            if embedding is not None:
+                return embedding
+    return _anchor_embedding(anchor_path)
+
+
+def _render_edit_batch(
+    *,
+    job_type: str,
+    job_message: str,
+    character_id: str,
+    dataset_id: str,
+    reference_paths: list[Path],
+    prompt: str,
+    caption: str,
+    count: int,
+    seed: int | None,
+    tags: list[str],
+    reference_role: str | None,
+    score_embedding: list[float] | None,
+) -> list[dict]:
+    """Render `count` identity edits from the given references, score them and store items."""
+    with Session.begin() as db:
+        job = create_job(db, type=job_type, character_id=character_id, dataset_id=dataset_id, message=job_message)
+        start_job(db, job, worker="comfyui-edit")
+        job_id = job.id
+
+    base_seed = seed if seed is not None else random.randrange(2**31)
+    jobs = [
+        (reference_paths[index % len(reference_paths)], base_seed + index) for index in range(count)
+    ]
+
+    def render(entry: tuple[Path, int]):
+        reference, render_seed = entry
+        data, meta = qwen_image_edit(
+            reference,
+            prompt,
+            seed=render_seed,
+            steps=settings.qwen_edit_steps,
+            cfg=settings.qwen_edit_cfg,
+            lora_weight=1.0,
+            base_url=pick_target(),
+        )
+        return render_seed, data, meta
+
+    rendered = []
+    errors: list[Exception] = []
+    with ThreadPoolExecutor(max_workers=count) as pool:
+        futures = [pool.submit(render, entry) for entry in jobs]
+        for future in futures:
+            try:
+                rendered.append(future.result())
+            except ComfyUIError as error:
+                errors.append(error)
+
+    created: list[dict] = []
+    for render_seed, data, meta in rendered:
+        settings.media_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"{identifier()}.png"
+        try:
+            (settings.media_dir / filename).write_bytes(data)
+        except OSError as error:
+            raise HTTPException(500, "Could not save the image") from error
+        score = similarity_percent(score_embedding, embedding_for(data))
+        with Session.begin() as db:
+            library = ImageLibrary(
+                character_id=character_id,
+                filename=filename,
+                sha256=hashlib.sha256(data).hexdigest(),
+                phash=average_hash(data),
+                prompt=prompt,
+                negative_prompt="",
+                caption="",
+                tags=tags,
+                checkpoint=meta.get("model"),
+                loras=[],
+                seed=meta.get("seed", render_seed),
+                style="real",
+                status="draft",
+                rating=0,
+                source="dataset",
+                used_count=0,
+                embedding=[],
+                embedding_model="",
+            )
+            db.add(library)
+            db.flush()
+            item = LoraDatasetItem(
+                dataset_id=dataset_id,
+                image_id=library.id,
+                pose_ref_id=None,
+                caption=" ".join(caption.split()),
+                similarity=score if score is not None else 0.0,
+                selected=False,
+                reference_role=reference_role,
+                seed=meta.get("seed", render_seed),
+            )
+            db.add(item)
+            db.flush()
+            row = db.get(LoraDataset, dataset_id)
+            if row is not None:
+                row.updated_at = now()
+            entry = dataset_item_out(item, library)
+            entry["similarity"] = score
+            created.append(entry)
+
+    with Session.begin() as db:
+        exec_job = db.get(ExecutionJob, job_id)
+        if exec_job is not None and exec_job.state == "running":
+            update_progress(db, exec_job, current=len(created), total=count, unit="image")
+            finish_job(
+                db,
+                exec_job,
+                state="succeeded" if created else "failed",
+                error_info=None
+                if created
+                else {
+                    "code": "dataset_generation_failed",
+                    "summary": "Generation failed.",
+                    "remediation": "Check the Qwen-Image-Edit model and the references, then retry.",
+                    "technical_details": str(errors[0])[:800] if errors else "",
+                },
+                message=f"{len(created)} images ready",
+            )
+    if not created:
+        raise HTTPException(502, "Generation failed: no image produced")
+    return created
+
+
+class ReferenceSetInput(StrictModel):
+    role: str = Field(min_length=1, max_length=40)
+    count: int = Field(default=4, ge=1, le=4)
+    seed: int | None = Field(default=None, ge=0, le=2**31)
+
+
+@router.post("/datasets/{dataset_id}/references", status_code=201)
+def generate_reference_set(dataset_id: str, body: ReferenceSetInput):
+    """Canonical references for one role, generated by editing the profile picture."""
+    if body.role not in CANONICAL_ROLE_PROMPTS:
+        raise HTTPException(400, f"Unknown role: {body.role}")
+    with Session() as db:
+        dataset = required(db, LoraDataset, dataset_id)
+        character = required(db, Influencer, dataset.character_id)
+        anchor_path = None
+        if dataset.anchor_image_id:
+            anchor = db.get(ImageLibrary, dataset.anchor_image_id)
+            if anchor is not None:
+                candidate = (settings.media_dir / anchor.filename).resolve()
+                if candidate.is_file():
+                    anchor_path = candidate
+        if anchor_path is None and character.avatar_filename:
+            candidate = (settings.media_dir / character.avatar_filename).resolve()
+            if candidate.is_file():
+                anchor_path = candidate
+        if anchor_path is None:
+            raise HTTPException(400, "Generate the profile picture first: it is the identity anchor")
+        character_id = dataset.character_id
+        trigger = dataset.trigger
+        identity = (character.avatar_prompt or "").strip()
+    prompt = ", ".join(
+        part for part in [identity, CANONICAL_ROLE_PROMPTS[body.role], "same person, keep hair, age, skin and identity fixed"] if part
+    )
+    caption = ", ".join(part for part in [trigger, CANONICAL_ROLE_PROMPTS[body.role]] if part)
+    created = _render_edit_batch(
+        job_type="dataset_generate",
+        job_message=f"canonical references: {body.role} x{body.count}",
+        character_id=character_id,
+        dataset_id=dataset_id,
+        reference_paths=[anchor_path],
+        prompt=prompt,
+        caption=caption,
+        count=body.count,
+        seed=body.seed,
+        tags=["canonical", body.role],
+        reference_role=body.role,
+        score_embedding=_anchor_embedding(anchor_path),
+    )
+    return _mark_recommended(created, top=2)
+
+
+class PoseVariationInput(StrictModel):
+    pose: str = Field(min_length=1, max_length=40)
+    count: int = Field(default=4, ge=1, le=4)
+    seed: int | None = Field(default=None, ge=0, le=2**31)
+
+
+@router.post("/datasets/{dataset_id}/pose-variations", status_code=201)
+def generate_pose_variations(dataset_id: str, body: PoseVariationInput):
+    """Standard pose variations for every LoRA, edited from the selected canonical references."""
+    if body.pose not in STANDARD_POSES:
+        raise HTTPException(400, f"Unknown pose: {body.pose}")
+    with Session() as db:
+        dataset = required(db, LoraDataset, dataset_id)
+        character = required(db, Influencer, dataset.character_id)
+        anchor_path = None
+        if character.avatar_filename:
+            candidate = (settings.media_dir / character.avatar_filename).resolve()
+            if candidate.is_file():
+                anchor_path = candidate
+        reference_paths = _selected_references(db, dataset_id)
+        if not reference_paths:
+            raise HTTPException(
+                400,
+                "Select at least one canonical reference first: pose variations are edited from step 1 photos.",
+            )
+        character_id = dataset.character_id
+        trigger = dataset.trigger
+        identity = (character.avatar_prompt or "").strip()
+        score_embedding = _reference_embedding_for_poses(db, dataset_id, anchor_path)
+    prompt = ", ".join(
+        part for part in [identity, STANDARD_POSES[body.pose], "same person, keep hair, age, skin and identity fixed"] if part
+    )
+    caption = ", ".join(part for part in [trigger, STANDARD_POSES[body.pose]] if part)
+    created = _render_edit_batch(
+        job_type="dataset_generate",
+        job_message=f"pose variation: {body.pose} x{body.count}",
+        character_id=character_id,
+        dataset_id=dataset_id,
+        reference_paths=reference_paths,
+        prompt=prompt,
+        caption=caption,
+        count=body.count,
+        seed=body.seed,
+        tags=["pose", body.pose],
+        reference_role=None,
+        score_embedding=score_embedding,
+    )
+    return _mark_recommended(created, top=2)
+
+
+def _mark_recommended(items: list[dict], top: int = 2) -> list[dict]:
+    scored = [entry for entry in items if entry.get("similarity") is not None]
+    scored.sort(key=lambda entry: entry["similarity"], reverse=True)
+    for entry in scored[:top]:
+        entry["recommended"] = True
+    return items
+
+
+def _selected_references(db, dataset_id: str) -> list[Path]:
+    rows = list(
+        db.execute(
+            select(ImageLibrary)
+            .join(LoraDatasetItem, LoraDatasetItem.image_id == ImageLibrary.id)
+            .where(
+                LoraDatasetItem.dataset_id == dataset_id,
+                LoraDatasetItem.reference_role.isnot(None),
+                LoraDatasetItem.selected.is_(True),
+                ImageLibrary.deleted_at.is_(None),
+            )
+            .order_by(LoraDatasetItem.created_at)
+        )
+    )
+    paths: list[Path] = []
+    for (library,) in rows:
+        candidate = (settings.media_dir / library.filename).resolve()
+        if candidate.is_file():
+            paths.append(candidate)
+    return paths[:8]
+
+
 REFERENCE_ROLES = (
     "close_face",
     "three_quarter_face",

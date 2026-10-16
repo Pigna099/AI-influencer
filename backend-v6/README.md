@@ -391,7 +391,18 @@ I test automatici usano un database temporaneo SQLite con chiavi esterne attive.
 - **Griglie grandi**: virtualizzazione con `content-visibility` per libreria/video/dataset/identity.
 - **CORS**: origini consentite configurabili (`CORS_ORIGINS`), default locale.
 
-## Nuovo flusso dataset LoRA (16 ottobre 2026)
+## Flusso LoRA in 3 step (16 ottobre 2026)
+
+1. **Canonical references**: dalla foto profilo, 4 immagini per ciascun ruolo (close face, 3/4 face,
+   profile, upper body, front/3-4/side full body). Per ogni immagine il **punteggio di somiglianza
+   del volto** (insightface, in locale) con la foto profilo; le 2 migliori sono marcate ★ ma la
+   **selezione è sempre manuale**. Le foto compaiono sotto il pulsante del ruolo.
+2. **Pose variations**: pose standard per ogni LoRA (standing, walking, sitting, leaning, lying,
+   looking back), 4 immagini per posa, generate **editando le reference canoniche selezionate** e
+   confrontate con la faccia di riferimento (close face selezionata). Stesse raccomandazioni.
+3. **LoRA**: training con le foto selezionate (flusso esistente).
+
+## (storico) Primo gate identity set
 
 Il dataset per la LoRA si costruisce in quest'ordine:
 

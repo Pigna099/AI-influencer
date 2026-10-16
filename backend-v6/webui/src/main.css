@@ -447,3 +447,17 @@
 .proposal-chip { background: var(--st-busy-bg); color: var(--st-busy-fg); border-radius: 6px; padding: 1px 7px; font-size: .68rem; }
 
 .library-card, .video-card, .dataset-card, .identity-card { content-visibility: auto; contain-intrinsic-size: auto 320px; }
+
+.ref-row { border-bottom: 1px solid var(--border-1); padding: 10px 0; }
+.ref-row:last-of-type { border-bottom: 0; }
+.ref-row-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.ref-row-head strong { font-size: .82rem; }
+.ref-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.ref-card { border: 1px solid var(--border-2); border-radius: 10px; padding: 6px; display: grid; gap: 5px; background: var(--surface-2); }
+.ref-card.selected { border-color: var(--accent); background: var(--accent-soft); }
+.ref-card .auto-label { font-size: .66rem; }
+.badge.sim-badge { left: auto; right: 8px; background: var(--st-neutral-bg); color: var(--st-neutral-fg); }
+.badge.sim-badge.sim-ok { background: var(--st-ok-bg); color: var(--st-ok-fg); }
+.badge.sim-badge.sim-warn { background: var(--st-busy-bg); color: var(--st-busy-fg); }
+.badge.sim-badge.sim-low { background: var(--st-bad-bg); color: var(--st-bad-fg); }
+.badge.rec-badge { left: 8px; top: 30px; background: #8a6d1f; color: #ffe9a8; }
