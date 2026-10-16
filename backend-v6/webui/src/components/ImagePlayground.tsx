@@ -581,7 +581,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   return <div className="playground theme-images">
     <AppHeader current="/images" onLogout={onLogout} busy={!!busy} />
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
-    <div className="workspace image-workspace" style={{ gridTemplateColumns: `225px minmax(320px, 1fr) 6px ${panelWidth}px` }}>
+    <div className={`workspace image-workspace ${mode === "review" ? "review-mode" : ""}`} style={{ gridTemplateColumns: `225px minmax(320px, 1fr) 6px ${panelWidth}px` }}>
       <aside className="character-rail">
         <div className="section-title"><h2>{t("ip.characters")}</h2><span>{characters.length}</span></div>
         <div className="character-list">{characters.map((item, index) => <button key={item.id} disabled={!!busy} onClick={() => selectCharacter(item)} className={`character-row ${characterId === item.id ? "selected" : ""}`}>

@@ -527,3 +527,9 @@
 
 .context-selector select { width: auto; min-width: 150px; font-size: .75rem; padding: .3rem .5rem; }
 .narrow-only.context-selector, span.narrow-only .context-selector { display: inline-flex; }
+
+
+@media (max-width: 1279px) {
+  .workspace.review-mode .character-rail { display: none; }
+  .workspace.review-mode .main-panel { min-height: 70vh; }
+}
