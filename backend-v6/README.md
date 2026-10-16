@@ -415,6 +415,25 @@ Il dataset per la LoRA si costruisce in quest'ordine:
    La varieta' di scena arriva dai prompt; gli angoli dal set canonico. La famiglia del dataset si
    sceglie alla creazione (real/pony/anime/qwen-image; oggi si usa qwen-image).
 
+## Interfaccia responsive (16 ottobre 2026)
+
+- **Larghezze**: sopra 1280 px le pagine usano rail + contenuto + inspector; sotto 1280 px gli
+  inspector (generatore immagini/video, guida LoRA, dettagli dataset, impostazioni chat) diventano
+  **drawer** aperti da un pulsante, con chiusura su Esc e focus che torna al pulsante. Sotto 1024 px
+  la navigazione si sposta nel menu account; le griglie restano a tutta larghezza.
+- **LoRA a stadi**: stepper Personaggio → Dataset → Training, un solo stadio aperto, con stato e
+  conteggi per stadio e suggerimento "Next".
+- **Immagini**: modalita' Grid / Review / Trash; in Review il rail e il generatore sono chiusi e
+  l'immagine e' a tutta larghezza (overlay con foto profilo o con l'immagine precedente, filmstrip
+  richiudibile, scorciatoie dietro il pulsante "?").
+- **Chat**: impostazioni (personaggio/memoria/tempi) in tab dentro l'inspector o nel drawer
+  "Settings" sotto 1280 px; ricerca nelle conversazioni; confronto modelli a tutta larghezza.
+- **Dataset**: import in modale, filtri ricerca/stato, barra di avanzamento con percentuale,
+  azioni secondarie e distruttive nell'overflow.
+- **Jobs**: chip di stato, KPI come card, manutenzione richiudibile, purge in danger zone.
+- **Performance**: le griglie caricano **thumbnail** (endpoint dedicato con cache) e usano
+  `content-visibility` per non renderizzare le card fuori schermo.
+
 ## Limiti attuali
 
 Il playground usa una chiave condivisa per il proprietario: i fan sono identità simulate, non utenti autenticati reali. L'estrazione memoria è un'attività in background non persistente: se l'API si arresta durante l'estrazione, la risposta salvata resta disponibile ma il ricordo potrebbe dover essere aggiunto manualmente. Le varianti di personalità del confronto non vengono salvate come personaggi: sono temporanee e servono a decidere cosa applicare con l'editor o con **Duplica**. Non sono implementati invio su OnlyFans/Fanvue, pagamenti, campagne o notifiche esterne. La pipeline immagini preesistente resta disponibile, ma non è il focus della v3.

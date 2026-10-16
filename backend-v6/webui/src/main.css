@@ -618,3 +618,5 @@
 .filter-input { width: 150px; font-size: .75rem; padding: .3rem .5rem; }
 
 .review-overlay-sibling { opacity: .35; mix-blend-mode: screen; }
+
+.filmstrip-toggle { justify-content: center; font-size: .72rem; color: #9db2cf; }

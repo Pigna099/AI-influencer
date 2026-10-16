@@ -949,6 +949,7 @@ const en = {
   "ds.status.pending": "Pending",
   "ds.status.failed": "Failed",
   "ip.review.overlayPrev": "Overlay previous",
+  "ip.review.filmstrip": "Filmstrip",
 } as const;
 
 type Catalog = typeof en;

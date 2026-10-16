@@ -177,6 +177,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   const isNarrow = useMediaQuery("(max-width: 1279px)");
   const [generatorOpen, setGeneratorOpen] = useState(false);
   const [loraSearch, setLoraSearch] = useState("");
+  const [filmstripOpen, setFilmstripOpen] = useState(true);
   const [libraryHasMore, setLibraryHasMore] = useState(false);
   const LIBRARY_PAGE = 60;
 
@@ -679,7 +680,8 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
             onNavigate={navigateReview}
             onView={(url, alt) => setViewer({ url, alt })}
           />}
-          {mode === "review" && <div className="review-strip">{library.map(item => <button key={item.id} type="button" className={`review-thumb ${item.id === reviewId ? "selected" : ""} status-${item.status}`} onClick={() => setReviewId(item.id)}>
+          {mode === "review" && <label className="auto-label filmstrip-toggle"><input type="checkbox" checked={filmstripOpen} onChange={e => setFilmstripOpen(e.target.checked)} /> {t("ip.review.filmstrip")}</label>}
+          {mode === "review" && filmstripOpen && <div className="review-strip">{library.map(item => <button key={item.id} type="button" className={`review-thumb ${item.id === reviewId ? "selected" : ""} status-${item.status}`} onClick={() => setReviewId(item.id)}>
             <LibraryThumb item={item} onView={(url, alt) => setViewer({ url, alt })} alt={item.caption || item.prompt} />
           </button>)}</div>}
           <div className="library-grid" style={mode === "review" ? { display: "none" } : undefined}>{displayed.map(item => <article className={`library-card status-${item.status}`} key={item.id}>
