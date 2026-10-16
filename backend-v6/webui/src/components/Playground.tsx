@@ -5,6 +5,8 @@ import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import EmptyState from "./ui/EmptyState";
 import StatusBadge from "./ui/StatusBadge";
+import InspectorDrawer from "./ui/InspectorDrawer";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import PageHeader from "./ui/PageHeader";
 import CharacterForm from "./CharacterForm";
 import ChatPanel from "./ChatPanel";
@@ -82,6 +84,8 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
   const [historyPage, setHistoryPage] = useState(1);
   const [convSearch, setConvSearch] = useState("");
   const [inspectorTab, setInspectorTab] = useState<"character" | "memory" | "timing">("character");
+  const isNarrow = useMediaQuery("(max-width: 1279px)");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const generation = useRef(0);
   const character = characters.find(c => c.id === characterId);
   const fan = fans.find(f => f.id === fanId);
@@ -319,79 +323,9 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
     setFanEditor(value); setFanName(value === "new" ? "" : value.name); setFanNotes(value === "new" ? "" : value.notes);
   };
 
-  return <div className="playground theme-chat">
-    <AppHeader current="/chat" onLogout={onLogout} busy={!!busy} label={t("pg.sandbox")} />
-    {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
-    <div className={`workspace ${tab === "benchmark" ? "benchmark-mode" : ""}`}>
-      <aside className="character-rail">
-        <div className="section-title"><h2>{t("pg.characters")} <span>{characters.length}</span></h2></div>
-        <div className="character-list">{characters.map((c, index) => <button key={c.id} disabled={!!busy} onClick={() => setCharacterId(c.id)} className={`character-row ${characterId === c.id ? "selected" : ""}`}>
-          <CharacterAvatar character={c} index={index} onView={(url, alt) => setViewer({ url, alt })} altTemplate={t("pg.avatarAlt")} /><span><strong>{c.name}</strong><small>{c.profile.personality_traits || t("pg.noTraits")}</small></span></button>)}
-          {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}</div>
-        {character && <div className="character-actions"><button onClick={() => setEditing(character)} disabled={!!busy}>{t("pg.editPersonality")}</button><Link className="text-button" to="/loras">{t("pg.editInCharacterTab")}</Link></div>}
-        <div className="rail-divider" />
-        <div className="section-title"><h2>{t("pg.playFan")}</h2><button aria-label={t("pg.createFan")} onClick={() => openFan("new")} disabled={!!busy}>+</button></div>
-        <label className="sr-only" htmlFor="fan-select">{t("pg.fanAccount")}</label><select id="fan-select" value={fanId} onChange={e => setFanId(e.target.value)} disabled={!!busy}>
-          <option value="" disabled>{t("pg.chooseFan")}</option>{fans.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
-        {fan && <details className="fan-note-compact"><summary>{t("pg.fanNotes")}: {(fan.notes || t("pg.noNotes")).slice(0, 40)}</summary><div className="fan-note"><div><span>{t("pg.fanNotes")}</span><button onClick={() => openFan(fan)} disabled={!!busy}>{t("common.edit")}</button></div><p>{fan.notes || t("pg.noNotes")}</p><small>{t("pg.notesHint")}</small></div></details>}
-        <div className="section-title history-title"><h2>{t("pg.conversations")}</h2><span>{conversations.length}</span></div>
-        <input className="conv-search" value={convSearch} disabled={!!busy} onChange={e => setConvSearch(e.target.value)} placeholder={t("pg.searchChats")} aria-label={t("pg.searchChats")} maxLength={60} />
-        <div className="history-list">{conversations.filter(c => {
-          const query = convSearch.trim().toLowerCase();
-          if (!query) return true;
-          const characterName = characters.find(item => item.id === c.character_id)?.name || "";
-          return `${c.title} ${c.model} ${characterName}`.toLowerCase().includes(query);
-        }).slice(0, historyPage * 10).map(c => <div className="history-row" key={c.id}>
-          <button className={conversation?.id === c.id ? "selected" : ""} disabled={!!busy}
-          onClick={() => void perform(t("pg.busy.loadChat"), async () => { generation.current += 1; setMessages([]); setAutoNudge(false); setConversation(c); setModel(c.model); await refresh(c.id); })}>
-          <strong>{c.model}{!!c.unread && <span className="unread-badge" aria-label={t("chat.unreadAria", { count: c.unread })}>{c.unread}</span>}</strong><small>{new Date(c.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · v{c.character_snapshot.version}</small></button>
-          <button className="delete-chat" title={t("pg.deleteChat")} aria-label={t("pg.deleteChat")} disabled={!!busy} onClick={() => removeConversation(c)}>×</button>
-        </div>)}
-          {conversations.length > historyPage * 10 && <button onClick={() => setHistoryPage(p => p + 1)}>{t("pg.showMore")}</button>}
-          {!conversations.length && <p className="muted">{t("pg.noChats")}</p>}</div>
-      </aside>
-      <main className="main-panel">
-        <PageHeader
-          eyebrow={character ? t("pg.personalityVersion", { version: character.version }) : t("pg.lab")}
-          title={character?.name || t("pg.chooseCharacter")}
-          subtitle={fan ? t("pg.withFan", { name: fan.name }) : t("pg.createFanHint")}
-          aside={<><StatusBadge status={chatState === "active" ? "active" : chatState === "none" ? "draft" : "running"} label={chatStateLabel} /><div className="view-tabs" role="tablist"><button role="tab" aria-selected={tab === "chat"} onClick={() => setTab("chat")} disabled={!!busy}>{t("pg.tab.chat")}</button><button role="tab" aria-selected={tab === "benchmark"} onClick={() => setTab("benchmark")} disabled={!!busy}>{t("pg.tab.benchmark")}</button></div></>}
-        />
-        {tab === "chat" ? <>
-          <div className="model-toolbar"><label htmlFor="model-select">{t("pg.model")}</label><select id="model-select" value={model} disabled={!!busy} onChange={e => setModel(e.target.value)}>
-            <option value="" disabled>{t("pg.chooseModel")}</option>{chatModels.map(m => <option key={m.name} value={m.name}>{m.name} · {m.parameter_size}</option>)}</select>
-            <button className="primary" onClick={startChat} disabled={!character || !fan || !model || !!busy}>{t("pg.newChat")}</button>
-            {conversation && model !== conversation.model && <button disabled={!!busy} onClick={() => void perform(t("pg.busy.changeModel"), async () => {
-              const updated = await api.request<Conversation>(`/api/conversations/${conversation.id}`, { method: "PATCH", body: JSON.stringify({ model }) }); setConversation(updated);
-            })}>{t("pg.useInChat")}</button>}</div>
-          {conversation && conversation.character_snapshot.version !== character?.version && <div className="info-banner">{t("pg.snapshotWarning", { version: conversation.character_snapshot.version })}</div>}
-          <ChatPanel conversation={conversation} messages={messages} onSendMessage={send} onNewChat={startChat} onUnlockImage={unlockImage} onUnlockVideo={unlockVideo} loading={!!busy} waiting={waiting} waitingElapsed={waitElapsed} busyLabel={busy} elapsed={elapsed} fanName={fan?.name || t("pg.fanFallback")} />
-          {conversation && <div className="initiative-bar">
-            <div className="quick-actions">
-              <button disabled={!!busy} onClick={() => void initiate("opener")} title={t("pg.quick.openTitle")}>{t("pg.quick.open")}</button>
-              <button disabled={!!busy} onClick={() => void initiate("reengage")} title={t("pg.quick.checkinTitle")}>{t("pg.quick.checkin")}</button>
-              <button disabled={!!busy} title={t("pg.manualPhotoTitle")} onClick={() => { setPhotoScene(""); setPhotoCaption(""); setPhotoLocked(false); setPhotoPrice((((character?.ppv_price_cents ?? 500) / 100)).toFixed(2)); setPhotoOpen(true); }}>{t("pg.manualPhoto")}</button><button disabled={!!busy} title={t("pg.manualVideoTitle")} onClick={() => { setVideoCaption(""); setVideoLocked(false); setVideoPrice((((conversation?.ppv_price_cents ?? character?.ppv_price_cents ?? 500) / 100)).toFixed(2)); setVideoOpen(true); }}>{t("pg.manualVideo")}</button>
-              <label className="toggle-pill" title={t("pg.autoPhotoTitle")}><input type="checkbox" checked={conversation.images_enabled !== false} disabled={!!busy} onChange={e => void perform(t("pg.busy.images"), async () => {
-                const updated = await api.updateConversation(conversation.id, { images_enabled: e.target.checked });
-                setConversation(updated);
-              })} /> {t("pg.autoPhoto")}</label>
-              <label className="toggle-pill" title={t("pg.humanHint")}><input type="checkbox" checked={conversation.human_mode === true} disabled={!!busy} onChange={e => void perform(t("pg.busy.human"), async () => {
-                const updated = await api.updateConversation(conversation.id, { human_mode: e.target.checked });
-                setConversation(updated);
-              })} /> {t("pg.human")}</label>
-            </div>
-            <details className="tool-menu"><summary>{t("pg.options")}</summary><div className="tool-menu-body">
-              <label>{t("pg.absence")} <input aria-label={t("pg.absenceAria")} type="number" min="1" max="8760" value={absence} onChange={e => setAbsence(Math.max(1, Math.min(8760, Number(e.target.value))))} /> h</label>
-              <label className="auto-label">{t("pg.nudge")} <input type="checkbox" checked={autoNudge} onChange={e => { setAutoNudge(e.target.checked); setLastActivity(Date.now()); }} disabled={!!busy} /></label>
-              <button className="danger" type="button" disabled={!!busy} onClick={() => {
-                if (!window.confirm(t("pg.deleteChatConfirm"))) return;
-                void perform(t("pg.busy.deleteChat"), async () => { await api.request(`/api/conversations/${conversation.id}`, { method: "DELETE" }); setConversations(prev => prev.filter(c => c.id !== conversation.id)); setConversation(null); setMessages([]); });
-              }}>{t("pg.deleteChat")}</button>
-            </div></details>
-          </div>}
-        </> : <BenchmarkPanel character={character} fanId={fanId} models={chatModels} onBusy={setBusy} />}
-      </main>
-      <aside className="inspector">
+  const inspectorContent = (
+    <>
+
         <div className="view-tabs inspector-tabs" role="tablist" aria-label={t("pg.inspectorTabs")}>
           <button role="tab" aria-selected={inspectorTab === "character"} onClick={() => setInspectorTab("character")}>{t("pg.characterSettings")}</button>
           <button role="tab" aria-selected={inspectorTab === "memory"} onClick={() => setInspectorTab("memory")}>{t("pg.memory.title")}</button>
@@ -466,7 +400,85 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
         <div className="metric-list">{metrics.map(m => <article key={m.model}><strong>{m.model}</strong><div><b>{m.mean_seconds.toFixed(2)} s</b><span>{t("pg.times.mean", { count: m.samples })}</span></div><small>{t("pg.times.detail", { median: m.median_seconds.toFixed(2), load: m.mean_load_seconds.toFixed(2) })}</small></article>)}
           {!metrics.length && <p className="muted">{t("pg.times.empty")}</p>}</div>
         </>)}
+    </>
+  );
+
+  return <div className="playground theme-chat">
+    <AppHeader current="/chat" onLogout={onLogout} busy={!!busy} label={t("pg.sandbox")} />
+    {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
+    <div className={`workspace ${tab === "benchmark" ? "benchmark-mode" : ""}`}>
+      <aside className="character-rail">
+        <div className="section-title"><h2>{t("pg.characters")} <span>{characters.length}</span></h2></div>
+        <div className="character-list">{characters.map((c, index) => <button key={c.id} disabled={!!busy} onClick={() => setCharacterId(c.id)} className={`character-row ${characterId === c.id ? "selected" : ""}`}>
+          <CharacterAvatar character={c} index={index} onView={(url, alt) => setViewer({ url, alt })} altTemplate={t("pg.avatarAlt")} /><span><strong>{c.name}</strong><small>{c.profile.personality_traits || t("pg.noTraits")}</small></span></button>)}
+          {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}</div>
+        {character && <div className="character-actions"><button onClick={() => setEditing(character)} disabled={!!busy}>{t("pg.editPersonality")}</button><Link className="text-button" to="/loras">{t("pg.editInCharacterTab")}</Link></div>}
+        <div className="rail-divider" />
+        <div className="section-title"><h2>{t("pg.playFan")}</h2><button aria-label={t("pg.createFan")} onClick={() => openFan("new")} disabled={!!busy}>+</button></div>
+        <label className="sr-only" htmlFor="fan-select">{t("pg.fanAccount")}</label><select id="fan-select" value={fanId} onChange={e => setFanId(e.target.value)} disabled={!!busy}>
+          <option value="" disabled>{t("pg.chooseFan")}</option>{fans.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
+        {fan && <details className="fan-note-compact"><summary>{t("pg.fanNotes")}: {(fan.notes || t("pg.noNotes")).slice(0, 40)}</summary><div className="fan-note"><div><span>{t("pg.fanNotes")}</span><button onClick={() => openFan(fan)} disabled={!!busy}>{t("common.edit")}</button></div><p>{fan.notes || t("pg.noNotes")}</p><small>{t("pg.notesHint")}</small></div></details>}
+        <div className="section-title history-title"><h2>{t("pg.conversations")}</h2><span>{conversations.length}</span></div>
+        <input className="conv-search" value={convSearch} disabled={!!busy} onChange={e => setConvSearch(e.target.value)} placeholder={t("pg.searchChats")} aria-label={t("pg.searchChats")} maxLength={60} />
+        <div className="history-list">{conversations.filter(c => {
+          const query = convSearch.trim().toLowerCase();
+          if (!query) return true;
+          const characterName = characters.find(item => item.id === c.character_id)?.name || "";
+          return `${c.title} ${c.model} ${characterName}`.toLowerCase().includes(query);
+        }).slice(0, historyPage * 10).map(c => <div className="history-row" key={c.id}>
+          <button className={conversation?.id === c.id ? "selected" : ""} disabled={!!busy}
+          onClick={() => void perform(t("pg.busy.loadChat"), async () => { generation.current += 1; setMessages([]); setAutoNudge(false); setConversation(c); setModel(c.model); await refresh(c.id); })}>
+          <strong>{c.model}{!!c.unread && <span className="unread-badge" aria-label={t("chat.unreadAria", { count: c.unread })}>{c.unread}</span>}</strong><small>{new Date(c.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · v{c.character_snapshot.version}</small></button>
+          <button className="delete-chat" title={t("pg.deleteChat")} aria-label={t("pg.deleteChat")} disabled={!!busy} onClick={() => removeConversation(c)}>×</button>
+        </div>)}
+          {conversations.length > historyPage * 10 && <button onClick={() => setHistoryPage(p => p + 1)}>{t("pg.showMore")}</button>}
+          {!conversations.length && <p className="muted">{t("pg.noChats")}</p>}</div>
       </aside>
+      <main className="main-panel">
+        <PageHeader
+          eyebrow={character ? t("pg.personalityVersion", { version: character.version }) : t("pg.lab")}
+          title={character?.name || t("pg.chooseCharacter")}
+          subtitle={fan ? t("pg.withFan", { name: fan.name }) : t("pg.createFanHint")}
+          aside={<><StatusBadge status={chatState === "active" ? "active" : chatState === "none" ? "draft" : "running"} label={chatStateLabel} /><div className="view-tabs" role="tablist"><button role="tab" aria-selected={tab === "chat"} onClick={() => setTab("chat")} disabled={!!busy}>{t("pg.tab.chat")}</button><button role="tab" aria-selected={tab === "benchmark"} onClick={() => setTab("benchmark")} disabled={!!busy}>{t("pg.tab.benchmark")}</button></div></>}
+        />
+        {tab === "chat" ? <>
+          <div className="model-toolbar"><label htmlFor="model-select">{t("pg.model")}</label><select id="model-select" value={model} disabled={!!busy} onChange={e => setModel(e.target.value)}>
+            <option value="" disabled>{t("pg.chooseModel")}</option>{chatModels.map(m => <option key={m.name} value={m.name}>{m.name} · {m.parameter_size}</option>)}</select>
+            <button type="button" className="narrow-only" onClick={() => setSettingsOpen(true)}>{t("pg.settings")}</button>
+            <button className="primary" onClick={startChat} disabled={!character || !fan || !model || !!busy}>{t("pg.newChat")}</button>
+            {conversation && model !== conversation.model && <button disabled={!!busy} onClick={() => void perform(t("pg.busy.changeModel"), async () => {
+              const updated = await api.request<Conversation>(`/api/conversations/${conversation.id}`, { method: "PATCH", body: JSON.stringify({ model }) }); setConversation(updated);
+            })}>{t("pg.useInChat")}</button>}</div>
+          {conversation && conversation.character_snapshot.version !== character?.version && <div className="info-banner">{t("pg.snapshotWarning", { version: conversation.character_snapshot.version })}</div>}
+          <ChatPanel conversation={conversation} messages={messages} onSendMessage={send} onNewChat={startChat} onUnlockImage={unlockImage} onUnlockVideo={unlockVideo} loading={!!busy} waiting={waiting} waitingElapsed={waitElapsed} busyLabel={busy} elapsed={elapsed} fanName={fan?.name || t("pg.fanFallback")} />
+          {conversation && <div className="initiative-bar">
+            <div className="quick-actions">
+              <button disabled={!!busy} onClick={() => void initiate("opener")} title={t("pg.quick.openTitle")}>{t("pg.quick.open")}</button>
+              <button disabled={!!busy} onClick={() => void initiate("reengage")} title={t("pg.quick.checkinTitle")}>{t("pg.quick.checkin")}</button>
+              <button disabled={!!busy} title={t("pg.manualPhotoTitle")} onClick={() => { setPhotoScene(""); setPhotoCaption(""); setPhotoLocked(false); setPhotoPrice((((character?.ppv_price_cents ?? 500) / 100)).toFixed(2)); setPhotoOpen(true); }}>{t("pg.manualPhoto")}</button><button disabled={!!busy} title={t("pg.manualVideoTitle")} onClick={() => { setVideoCaption(""); setVideoLocked(false); setVideoPrice((((conversation?.ppv_price_cents ?? character?.ppv_price_cents ?? 500) / 100)).toFixed(2)); setVideoOpen(true); }}>{t("pg.manualVideo")}</button>
+              <label className="toggle-pill" title={t("pg.autoPhotoTitle")}><input type="checkbox" checked={conversation.images_enabled !== false} disabled={!!busy} onChange={e => void perform(t("pg.busy.images"), async () => {
+                const updated = await api.updateConversation(conversation.id, { images_enabled: e.target.checked });
+                setConversation(updated);
+              })} /> {t("pg.autoPhoto")}</label>
+              <label className="toggle-pill" title={t("pg.humanHint")}><input type="checkbox" checked={conversation.human_mode === true} disabled={!!busy} onChange={e => void perform(t("pg.busy.human"), async () => {
+                const updated = await api.updateConversation(conversation.id, { human_mode: e.target.checked });
+                setConversation(updated);
+              })} /> {t("pg.human")}</label>
+            </div>
+            <details className="tool-menu"><summary>{t("pg.options")}</summary><div className="tool-menu-body">
+              <label>{t("pg.absence")} <input aria-label={t("pg.absenceAria")} type="number" min="1" max="8760" value={absence} onChange={e => setAbsence(Math.max(1, Math.min(8760, Number(e.target.value))))} /> h</label>
+              <label className="auto-label">{t("pg.nudge")} <input type="checkbox" checked={autoNudge} onChange={e => { setAutoNudge(e.target.checked); setLastActivity(Date.now()); }} disabled={!!busy} /></label>
+              <button className="danger" type="button" disabled={!!busy} onClick={() => {
+                if (!window.confirm(t("pg.deleteChatConfirm"))) return;
+                void perform(t("pg.busy.deleteChat"), async () => { await api.request(`/api/conversations/${conversation.id}`, { method: "DELETE" }); setConversations(prev => prev.filter(c => c.id !== conversation.id)); setConversation(null); setMessages([]); });
+              }}>{t("pg.deleteChat")}</button>
+            </div></details>
+          </div>}
+        </> : <BenchmarkPanel character={character} fanId={fanId} models={chatModels} onBusy={setBusy} />}
+      </main>
+      {isNarrow
+        ? <InspectorDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title={t("pg.settings")} closeLabel={t("common.close")}>{inspectorContent}</InspectorDrawer>
+        : <aside className="inspector">{inspectorContent}</aside>}
     </div>
     {editing && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={t("form.aria")}><CharacterForm character={editing === "new" ? undefined : editing} models={chatModels} onSave={saveCharacter} onCancel={() => setEditing(null)} /></div></div>}
     {photoOpen && conversation && <div className="modal-backdrop"><form className="modal fan-editor photo-editor" role="dialog" aria-modal="true" aria-label={t("pg.photo.title")} onSubmit={e => { e.preventDefault(); const scene = photoScene.trim() || undefined; const caption = photoCaption.trim() || undefined; setPhotoOpen(false); void perform(t("pg.busy.photo"), async () => {

@@ -434,9 +434,16 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
         {busy && <p className="memory-status lora-busy" role="status"><span className="spinner" />{busy} <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
         {readiness && <p className="readiness-line" role="status">{readiness}</p>}
         <nav className="stage-stepper" aria-label={t("lp.stages")}>
-          {[0, 1, 2].map(index => <button key={index} type="button" className={stage === index ? "on" : ""} aria-current={stage === index ? "step" : undefined} disabled={!!busy} onClick={() => setStage(index)}>
-            <span className="step-badge">{index + 1}</span>{t(index === 0 ? "lp.step.character" : index === 1 ? "lp.step.dataset" : "lp.step.training")}
-          </button>)}
+          {[0, 1, 2].map(index => {
+            const hint = index === 0
+              ? (character?.avatar_filename ? "✓" : "—")
+              : index === 1
+                ? (datasets[0] ? `${datasets[0].selected_count}/${datasets[0].item_count}` : "—")
+                : `${loras.length}`;
+            return <button key={index} type="button" className={stage === index ? "on" : ""} aria-current={stage === index ? "step" : undefined} disabled={!!busy} onClick={() => setStage(index)}>
+              <span className="step-badge">{index + 1}</span>{t(index === 0 ? "lp.step.character" : index === 1 ? "lp.step.dataset" : "lp.step.training")} <small>{hint}</small>
+            </button>;
+          })}
         </nav>
         <div className="lora-content">
           <section className="lora-step" hidden={stage !== 0}>

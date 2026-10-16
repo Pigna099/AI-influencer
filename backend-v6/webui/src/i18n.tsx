@@ -941,6 +941,7 @@ const en = {
   "home.recentJobs": "Recent jobs",
   "ip.libraryToolbar": "Library toolbar",
   "jobs.filters": "Job filters",
+  "pg.settings": "Settings",
 } as const;
 
 type Catalog = typeof en;
