@@ -81,6 +81,7 @@ describe("InspectorDrawer", () => {
     }
     render(<Harness />);
     const trigger = screen.getByRole("button", { name: "Open panel" });
+    trigger.focus();
     fireEvent.click(trigger);
     expect(screen.getByRole("dialog", { name: "Generator" })).toBeInTheDocument();
     fireEvent.keyDown(window, { key: "Escape" });
