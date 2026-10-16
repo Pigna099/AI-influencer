@@ -22,6 +22,8 @@ from .config import settings
 from .db import (
     CharacterLora,
     ExecutionJob,
+    IdentityCandidate,
+    IdentityRun,
     ImageLibrary,
     Influencer,
     LoraDataset,
@@ -782,13 +784,21 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
             meta = checkpoint_meta(checkpoint)
             if meta["usable"]:
                 family = meta["family"]
-        reference_paths = _dataset_references(db, dataset_id)
-    if not reference_paths and anchor_path is not None:
-        reference_paths = [anchor_path]
+        identity_paths, identity_run_id = identity_set_references(db, character_id)
+        if identity_run_id is None:
+            raise HTTPException(
+                400,
+                "Freeze an identity set first: LoRA tab -> Identity set -> generate candidates and freeze 6-10.",
+            )
+    if not identity_paths and anchor_path is not None:
+        # Frozen set exists but files are missing: fall back to the anchor.
+        identity_paths = [anchor_path]
+    reference_paths = identity_paths
     edit_capable = family == "qwen-image"
     mode = body.reference_mode
     if mode == "auto":
-        mode = "edit" if edit_capable and reference_paths else "txt2img"
+        # Scene variations must always start from the frozen identity set references.
+        mode = "edit" if edit_capable else "txt2img"
     if mode == "edit":
         if not edit_capable:
             raise HTTPException(400, "Edit-from-anchor is only available for the qwen-image family")
@@ -1137,6 +1147,60 @@ REFERENCE_ROLES = (
     "three_quarter_full_body",
     "side_full_body",
 )
+
+
+IDENTITY_ROLE_ORDER = (
+    "full_body",
+    "upper_body",
+    "three_quarter_left",
+    "three_quarter_right",
+    "profile_left",
+    "profile_right",
+    "close_front",
+    "front",
+    "yaw",
+    "pitch",
+)
+
+
+def identity_set_references(db, character_id: str) -> tuple[list[Path], str | None]:
+    """Paths of the accepted candidates of the latest frozen identity run, plus its id.
+
+    Ordered to prioritize body and three-quarter views over close-ups so scene edits keep both
+    face and body identity.
+    """
+    run = db.scalar(
+        select(IdentityRun)
+        .where(IdentityRun.character_id == character_id, IdentityRun.status == "frozen")
+        .order_by(IdentityRun.frozen_at.desc())
+        .limit(1)
+    )
+    if run is None:
+        return [], None
+    rows = list(
+        db.execute(
+            select(IdentityCandidate, ImageLibrary)
+            .join(ImageLibrary, IdentityCandidate.image_id == ImageLibrary.id)
+            .where(
+                IdentityCandidate.run_id == run.id,
+                IdentityCandidate.status == "accepted",
+                ImageLibrary.deleted_at.is_(None),
+            )
+        )
+    )
+    from .identity_api import ANGLE_INDEX
+
+    def role_of(candidate: IdentityCandidate) -> str:
+        entry = ANGLE_INDEX.get(candidate.angle)
+        return entry[1] if entry else "other"
+
+    rows.sort(key=lambda pair: IDENTITY_ROLE_ORDER.index(role_of(pair[0])) if role_of(pair[0]) in IDENTITY_ROLE_ORDER else 99)
+    paths: list[Path] = []
+    for _candidate, library in rows:
+        candidate_path = (settings.media_dir / library.filename).resolve()
+        if candidate_path.is_file():
+            paths.append(candidate_path)
+    return paths[:8], run.id
 
 
 def _dataset_references(db, dataset_id: str) -> list[Path]:

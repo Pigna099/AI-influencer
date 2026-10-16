@@ -31,6 +31,7 @@ vi.mock("../api", () => {
     getDatasets: vi.fn().mockResolvedValue([]),
     getPoses: vi.fn().mockResolvedValue([]),
     getJobSummary: vi.fn().mockResolvedValue({ active: [], failed: [], active_count: 0, failed_count: 0 }),
+    getIdentityRuns: vi.fn().mockResolvedValue([]),
     interruptGeneration: vi.fn(),
   };
   return { default: api, api };

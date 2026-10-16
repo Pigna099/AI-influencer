@@ -238,7 +238,50 @@ def fake_generate(prompt, negative, **kwargs):
     return png_bytes(), {"seed": kwargs.get("seed", 1), "checkpoint": kwargs.get("checkpoint")}
 
 
+def freeze_identity(character_id, count=6):
+    """Create a frozen identity run with accepted candidates (for the dataset gate)."""
+    from app.config import settings
+    from app.db import IdentityCandidate, IdentityRun, ImageLibrary, Session, now
+
+    settings.media_dir.mkdir(parents=True, exist_ok=True)
+    with Session.begin() as db:
+        run = IdentityRun(
+            character_id=character_id,
+            status="frozen",
+            template_version="1",
+            model="qa",
+            params={},
+            frozen_at=now(),
+        )
+        db.add(run)
+        db.flush()
+        for index in range(count):
+            filename = f"qa_identity_{run.id[:8]}_{index}.png"
+            (settings.media_dir / filename).write_bytes(b"fake-identity")
+            library = ImageLibrary(
+                character_id=character_id,
+                filename=filename,
+                sha256=f"qa-identity-{run.id[:8]}-{index}",
+                status="approved",
+                prompt="qa identity",
+            )
+            db.add(library)
+            db.flush()
+            db.add(
+                IdentityCandidate(
+                    run_id=run.id,
+                    image_id=library.id,
+                    angle="full_body_front" if index % 2 == 0 else "close_up_front",
+                    status="accepted",
+                    seed=index,
+                    prompt="qa identity",
+                )
+            )
+    return run.id
+
+
 def make_dataset(character_id, trigger="qa_ds"):
+    freeze_identity(character_id)
     response = client.post(
         f"/api/characters/{character_id}/datasets",
         json={"family": "real", "trigger": trigger, "base_checkpoint": "model.safetensors"},
@@ -421,14 +464,10 @@ def test_dataset_reference_roles(monkeypatch):
     assert any(warning["code"] == "few_references" for warning in analysis["warnings"])
 
 
-def test_candidates_use_canonical_references(monkeypatch):
+def test_candidates_use_identity_set_references(monkeypatch):
     monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
     character_id = make_character("RefCandidates")
     dataset = make_dataset(character_id)
-    first = client.post(
-        f"/api/datasets/{dataset['id']}/generate", json={"prompt": "portrait", "count": 1}
-    ).json()[0]
-    client.patch(f"/api/dataset-items/{first['id']}", json={"reference_role": "front_full_body"})
 
     captured = []
 
@@ -439,7 +478,21 @@ def test_candidates_use_canonical_references(monkeypatch):
     monkeypatch.setattr("app.lora_api.generate_image", spy)
     client.post(f"/api/datasets/{dataset['id']}/generate", json={"prompt": "standing", "count": 2})
     assert len(captured) == 2
-    assert all(path is not None and path.name == first["filename"] for path in captured)
+    # Candidates always reference the frozen identity set (the photos from the previous step).
+    assert all(path is not None and path.name.startswith("qa_identity_") for path in captured)
+
+
+def test_dataset_generate_requires_frozen_identity(monkeypatch):
+    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
+    character_id = make_character("No Identity Gate")
+    response = client.post(
+        f"/api/characters/{character_id}/datasets", json={"family": "real", "trigger": "gate_ds"}
+    )
+    assert response.status_code == 201
+    dataset = response.json()
+    blocked = client.post(f"/api/datasets/{dataset['id']}/generate", json={"prompt": "portrait", "count": 1})
+    assert blocked.status_code == 400
+    assert "Freeze an identity set first" in blocked.json()["detail"]
 
 
 def test_variations_use_canonical_references(monkeypatch):
@@ -464,22 +517,34 @@ def test_variations_use_canonical_references(monkeypatch):
 
 
 def test_candidates_family_follows_checkpoint(monkeypatch):
-    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
     character_id = make_character("Family Follow")
     dataset = make_dataset(character_id)
-    captured = {}
+    edit_calls = {"count": 0}
+    gen_calls = {}
 
-    def spy(prompt, negative, **kwargs):
-        captured.update(kwargs)
+    def spy_edit(reference, prompt, **kwargs):
+        edit_calls["count"] += 1
+        return png_bytes(), {"seed": kwargs.get("seed", 1), "model": "qwen_image_edit"}
+
+    def spy_gen(prompt, negative, **kwargs):
+        gen_calls.update(kwargs)
         return png_bytes(), {"seed": kwargs.get("seed", 1)}
 
-    monkeypatch.setattr("app.lora_api.generate_image", spy)
+    monkeypatch.setattr("app.lora_api.qwen_image_edit", spy_edit)
+    monkeypatch.setattr("app.lora_api.generate_image", spy_gen)
+    # A qwen checkpoint routes to the identity-preserving edit flow from the frozen set.
     client.post(
         f"/api/datasets/{dataset['id']}/generate",
         json={"prompt": "portrait", "checkpoint": "qwen_image_2512_fp8_e4m3fn.safetensors", "pose_ids": [], "count": 1},
     )
-    assert captured["family"] == "qwen-image"
-    assert captured["checkpoint"] == "qwen_image_2512_fp8_e4m3fn.safetensors"
+    assert edit_calls["count"] == 1 and not gen_calls
+    # A non-qwen checkpoint keeps the text-to-image path with the checkpoint family.
+    client.post(
+        f"/api/datasets/{dataset['id']}/generate",
+        json={"prompt": "portrait", "checkpoint": "model.safetensors", "pose_ids": [], "count": 1},
+    )
+    assert gen_calls["family"] == "real"
+    assert gen_calls["checkpoint"] == "model.safetensors"
 
 
 def test_character_prompt_flows_into_candidates(monkeypatch):
@@ -547,7 +612,8 @@ def test_bulk_delete_library_and_dataset_items(monkeypatch):
         "/api/library/bulk-delete", json={"ids": [item["id"] for item in generated]}
     )
     assert response.status_code == 200 and response.json()["deleted"] == 2
-    assert client.get(f"/api/characters/{character_id}/library").json() == []
+    remaining = {item["id"] for item in client.get(f"/api/characters/{character_id}/library").json()}
+    assert not remaining & {item["id"] for item in generated}
     for item in generated:
         assert not (settings.media_dir / item["filename"]).exists()
 
@@ -760,6 +826,7 @@ def test_dataset_candidates_edit_from_anchor_for_qwen(monkeypatch):
 
     character_id = make_character("Qwen Edit Dataset")
     assert client.post(f"/api/characters/{character_id}/avatar").status_code in (200, 201)
+    freeze_identity(character_id)
     response = client.post(
         f"/api/characters/{character_id}/datasets",
         json={"family": "qwen-image", "trigger": "qwedt"},

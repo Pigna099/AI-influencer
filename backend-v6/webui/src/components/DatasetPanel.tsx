@@ -68,6 +68,7 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
   const [blueprint, setBlueprint] = useState<Awaited<ReturnType<typeof api.getDatasetBlueprint>> | null>(null);
   const [trigger, setTrigger] = useState("");
   const [datasetFamily, setDatasetFamily] = useState("real");
+  const [hasFrozenIdentity, setHasFrozenIdentity] = useState<boolean | null>(null);
   const [checkpoints, setCheckpoints] = useState<CheckpointInfo[]>([]);
   const [poses, setPoses] = useState<PoseReference[]>([]);
   const [identityPrompt, setIdentityPrompt] = useState(() => t("lp.identityDefaultPrompt"));
@@ -98,6 +99,15 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
   useEffect(() => {
     setCharacterPrompt(character?.avatar_prompt ?? "");
   }, [character?.id, character?.avatar_prompt]);
+
+  useEffect(() => {
+    if (!character) { setHasFrozenIdentity(null); return; }
+    let live = true;
+    api.getIdentityRuns(character.id, 20)
+      .then(runs => { if (live) setHasFrozenIdentity(runs.some(run => run.status === "frozen")); })
+      .catch(() => { if (live) setHasFrozenIdentity(null); });
+    return () => { live = false; };
+  }, [character?.id]);
 
   useEffect(() => {
     Promise.all([api.getCheckpoints(), api.getPoses()])
@@ -288,7 +298,8 @@ export default function DatasetPanel({ character, datasets, busy, perform, refre
               <label>{t("lp.countPerPose")}<select value={identityCount} disabled={busy} onChange={e => setIdentityCount(Number(e.target.value))}>{[1, 2, 3, 4].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
             </div>
           </details>
-          <button className="primary" disabled={busy || !identityPrompt.trim()} onClick={generateIdentity}>{t("lp.generateIdentity")}</button>
+          {hasFrozenIdentity === false && <p className="warning" role="note">{t("lp.identityGate")}</p>}
+          <button className="primary" disabled={busy || !identityPrompt.trim() || hasFrozenIdentity === false} title={hasFrozenIdentity === false ? t("lp.identityGate") : undefined} onClick={generateIdentity}>{t("lp.generateIdentity")}</button>
         </section>
 
         <section className="step-card" id="ds-step-2">
