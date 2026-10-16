@@ -308,7 +308,7 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
             <div className="library-meta">
               <p>{item.caption || item.filename}</p>
               {!!item.tags.length && <div className="library-tags">{item.tags.slice(0, 8).map(tag => <span key={tag}>{tag}</span>)}</div>}
-              <div className="library-actions"><button onClick={() => setSelected(item)}>{t("ds.details")}</button><button className="danger" disabled={!!busy} onClick={() => removeImage(item)}>{t("common.delete")}</button></div>
+              <div className="library-actions"><button onClick={() => setSelected(item)}>{t("ds.details")}</button><OverflowMenu label={t("common.more")}><button className="danger" disabled={!!busy} onClick={() => removeImage(item)}>{t("common.delete")}</button></OverflowMenu></div>
             </div>
           </article>)}</div>
           {imagesHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreImages}>{t("common.loadMore")}</button></div>}
