@@ -101,6 +101,7 @@ interface Props {
   conversation: Conversation | null;
   messages: Message[];
   onSendMessage: (content: string) => Promise<boolean>;
+  onNewChat?: () => void;
   onUnlockImage?: (id: string) => void;
   onUnlockVideo?: (id: string) => void;
   loading: boolean;
@@ -111,7 +112,7 @@ interface Props {
   fanName: string;
 }
 
-export default function ChatPanel({ conversation, messages, onSendMessage, onUnlockImage, onUnlockVideo, loading, waiting = false, waitingElapsed = 0, busyLabel, elapsed, fanName }: Props) {
+export default function ChatPanel({ conversation, messages, onSendMessage, onNewChat, onUnlockImage, onUnlockVideo, loading, waiting = false, waitingElapsed = 0, busyLabel, elapsed, fanName }: Props) {
   const { t } = useI18n();
   const [input, setInput] = useState("");
   const [viewer, setViewer] = useState<{ url: string; alt: string } | null>(null);
@@ -129,7 +130,7 @@ export default function ChatPanel({ conversation, messages, onSendMessage, onUnl
   };
   return <section className="chat-surface" aria-label={t("chat.aria")}>
     <div className="message-scroll" ref={scrollRef} role="log" aria-live="polite" aria-relevant="additions">
-      {!conversation && !loading && <div className="chat-empty"><div className="chat-symbol">“</div><h3>{t("chat.empty.title")}</h3><p>{t("chat.empty.line1")}<br />{t("chat.empty.line2")}</p><div className="hint-pills"><span>{t("chat.hint.memory")}</span><span>{t("chat.hint.timing")}</span><span>{t("chat.hint.initiative")}</span></div></div>}
+      {!conversation && !loading && <div className="chat-empty"><div className="chat-symbol">“</div><h3>{t("chat.empty.title")}</h3><p>{t("chat.empty.line1")}<br />{t("chat.empty.line2")}</p>{onNewChat && <button className="primary" onClick={onNewChat}>{t("pg.newChat")}</button>}<div className="hint-pills"><span>{t("chat.hint.memory")}</span><span>{t("chat.hint.timing")}</span><span>{t("chat.hint.initiative")}</span></div></div>}
       {messages.length > 60 && !showAll && <button className="older-messages" onClick={() => setShowAll(true)}>{t("chat.showOlder", { count: messages.length - 60 })}</button>}
       {(showAll ? messages : messages.slice(-60)).map(msg => {
         const m = msg.ollama_metrics;

@@ -357,7 +357,7 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
               const updated = await api.request<Conversation>(`/api/conversations/${conversation.id}`, { method: "PATCH", body: JSON.stringify({ model }) }); setConversation(updated);
             })}>{t("pg.useInChat")}</button>}</div>
           {conversation && conversation.character_snapshot.version !== character?.version && <div className="info-banner">{t("pg.snapshotWarning", { version: conversation.character_snapshot.version })}</div>}
-          <ChatPanel conversation={conversation} messages={messages} onSendMessage={send} onUnlockImage={unlockImage} onUnlockVideo={unlockVideo} loading={!!busy} waiting={waiting} waitingElapsed={waitElapsed} busyLabel={busy} elapsed={elapsed} fanName={fan?.name || t("pg.fanFallback")} />
+          <ChatPanel conversation={conversation} messages={messages} onSendMessage={send} onNewChat={startChat} onUnlockImage={unlockImage} onUnlockVideo={unlockVideo} loading={!!busy} waiting={waiting} waitingElapsed={waitElapsed} busyLabel={busy} elapsed={elapsed} fanName={fan?.name || t("pg.fanFallback")} />
           {conversation && <div className="initiative-bar">
             <div className="quick-actions">
               <button disabled={!!busy} onClick={() => void initiate("opener")} title={t("pg.quick.openTitle")}>{t("pg.quick.open")}</button>
