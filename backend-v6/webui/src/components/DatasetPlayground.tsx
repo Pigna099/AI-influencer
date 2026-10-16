@@ -4,6 +4,7 @@ import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import AsyncBoundary from "./ui/AsyncBoundary";
 import InspectorDrawer from "./ui/InspectorDrawer";
+import OverflowMenu from "./ui/OverflowMenu";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import PageHeader from "./ui/PageHeader";
 import StatusBadge from "./ui/StatusBadge";
@@ -260,10 +261,12 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
         {active && <p className="memory-status" role="status"><span className="spinner" />{source.status === "importing" ? t("ds.queueImporting", { imported: source.imported, total: source.total || "?" }) : source.status === "classifying" ? t("ds.queueClassifying", { classified: source.classified, total: source.imported || "?" }) : t("ds.queuePending")}</p>}
         {!active && !!images.length && (waitingCount > 0 || failedCount > 0) && <p className="readiness-line">{t("ds.queueReady", { count: readyCount })}{waitingCount > 0 ? ` · ${t("ds.queueWaiting", { count: waitingCount })}` : ""}{failedCount > 0 ? ` · ${t("ds.queueFailed", { count: failedCount })}` : ""}</p>}
         <div className="library-toolbar">
-          <button disabled={!!busy || !source} onClick={classifySource}>{t("ds.classifyPending")}</button>
-          <button disabled={!!busy || !source} onClick={exportSource}>{t("ds.export")}</button>
-          <button disabled={!!busy || !source} onClick={generateProfile}>{t("ds.profile")}</button>
-          <button className="danger" disabled={!!busy || !source} onClick={() => source && removeSource(source)}>{t("common.delete")}</button>
+          <button className={waitingCount > 0 ? "primary" : undefined} disabled={!!busy || !source} onClick={classifySource}>{t("ds.classifyPending")}</button>
+          <OverflowMenu label={t("common.more")}>
+            <button disabled={!!busy || !source} onClick={exportSource}>{t("ds.export")}</button>
+            <button disabled={!!busy || !source} onClick={generateProfile}>{t("ds.profile")}</button>
+            <button className="danger" disabled={!!busy || !source} onClick={() => source && removeSource(source)}>{t("common.delete")}</button>
+          </OverflowMenu>
           {busy && <span className="memory-status" role="status"><span className="spinner" />{busy}</span>}
         </div>
         <div className="library-scroll">

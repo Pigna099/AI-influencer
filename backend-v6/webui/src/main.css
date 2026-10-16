@@ -569,3 +569,5 @@
 
 .maintenance-panel { margin-bottom: 12px; }
 .maintenance-panel > summary { cursor: pointer; font-size: .78rem; color: #8ba0bd; margin-bottom: 6px; }
+
+.recipe-button { border: 1px dashed var(--border-2); border-radius: 8px; padding: 6px 8px; text-align: left; width: 100%; }
