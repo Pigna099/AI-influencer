@@ -322,7 +322,7 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
   return <div className="playground theme-chat">
     <AppHeader current="/chat" onLogout={onLogout} busy={!!busy} label={t("pg.sandbox")} />
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
-    <div className="workspace">
+    <div className={`workspace ${tab === "benchmark" ? "benchmark-mode" : ""}`}>
       <aside className="character-rail">
         <div className="section-title"><h2>{t("pg.characters")} <span>{characters.length}</span></h2></div>
         <div className="character-list">{characters.map((c, index) => <button key={c.id} disabled={!!busy} onClick={() => setCharacterId(c.id)} className={`character-row ${characterId === c.id ? "selected" : ""}`}>
