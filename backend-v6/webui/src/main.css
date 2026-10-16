@@ -529,8 +529,11 @@
 .narrow-only.context-selector, span.narrow-only .context-selector { display: inline-flex; }
 
 
+.workspace.review-mode .character-rail,
+.workspace.review-mode .inspector,
+.workspace.review-mode .panel-resizer { display: none; }
+.workspace.benchmark-mode .character-rail { display: none; }
 @media (max-width: 1279px) {
-  .workspace.review-mode .character-rail { display: none; }
   .workspace.review-mode .main-panel { min-height: 70vh; }
 }
 
@@ -583,9 +586,6 @@
 
 
 .video-meta p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-@media (max-width: 1279px) {
-  .workspace.benchmark-mode .character-rail { display: none; }
-}
 
 .generate-sticky { position: sticky; bottom: 6px; box-shadow: 0 8px 18px #0007; z-index: 5; }
 
