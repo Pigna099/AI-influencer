@@ -6,6 +6,7 @@ import CharacterAvatar from "./CharacterAvatar";
 import Lightbox from "./Lightbox";
 import AsyncBoundary from "./ui/AsyncBoundary";
 import InspectorDrawer from "./ui/InspectorDrawer";
+import OverflowMenu from "./ui/OverflowMenu";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import ReviewStage from "./ui/ReviewStage";
 import AdvancedSettings from "./ui/AdvancedSettings";
@@ -174,6 +175,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   const [anchorUrl, setAnchorUrl] = useState("");
   const isNarrow = useMediaQuery("(max-width: 1279px)");
   const [generatorOpen, setGeneratorOpen] = useState(false);
+  const [loraSearch, setLoraSearch] = useState("");
   const [libraryHasMore, setLibraryHasMore] = useState(false);
   const LIBRARY_PAGE = 60;
 
@@ -521,7 +523,15 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
           </AdvancedSettings>
           <div className="lora-picker"><span>{t("ip.loras")}</span>
             {!loras.length && !characterLoras.length && <small className="muted">{t("ip.noLoras")}</small>}
-            {compatibleLoras.map(name => <div className="lora-row" key={name}>
+            {Object.entries(loraSel).filter(([, entry]) => entry?.on).map(([name, entry]) => <span className="lora-chip" key={name}>
+              <span title={name}>{name.replace(".safetensors", "")} · {entry?.weight ?? 0.8}</span>
+              <button type="button" disabled={!!busy} aria-label={`${t("ip.loraRemove")} ${name}`} onClick={() => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: false } }))}>×</button>
+            </span>)}
+            {hiddenLoras > 0 && <small className="muted">{t("ip.lorasHidden", { count: hiddenLoras })}</small>}
+            <details className="lora-manager">
+              <summary>{t("ip.manageLoras", { count: Object.values(loraSel).filter(entry => entry?.on).length })}</summary>
+              <input value={loraSearch} disabled={!!busy} onChange={e => setLoraSearch(e.target.value)} placeholder={t("ip.loraSearch")} aria-label={t("ip.loraSearch")} maxLength={60} />
+              {compatibleLoras.filter(name => name.toLowerCase().includes(loraSearch.trim().toLowerCase())).map(name => <div className="lora-row" key={name}>
               <input type="checkbox" checked={loraSel[name]?.on || false} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: e.target.checked, weight: prev[name]?.weight ?? 0.8 } }))} />
               <span className="lora-name" title={name}>{name}</span>
               <input type="number" min="0" max="2" step="0.05" value={loraSel[name]?.weight ?? 0.8} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: prev[name]?.on ?? false, weight: Number(e.target.value) } }))} />
@@ -532,7 +542,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
                 <label>CLIP<input type="number" min="0" max="2" step="0.05" value={loraSel[name]?.clip ?? ""} placeholder="auto" disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: prev[name]?.on ?? false, weight: prev[name]?.weight ?? 0.8, clip: e.target.value === "" ? null : Number(e.target.value) } }))} /></label>
               </div>}
             </div>)}
-            {hiddenLoras > 0 && <small className="muted">{t("ip.lorasHidden", { count: hiddenLoras })}</small>}
+            </details>
           </div>
           {activeCharacterLora?.filename && loraSel[activeCharacterLora.filename]?.on && <p className="muted">{t("ip.characterLoraOn", { name: activeCharacterLora.filename })}</p>}
           <div className="pose-picker"><span>{t("lp.poseSelect")}</span>
@@ -687,8 +697,10 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
                 </> : <>
                   <button disabled={!!busy} onClick={() => setStatus(item, item.status === "approved" ? "draft" : "approved")}>{t("ip.approve")}</button>
                   <button disabled={!!busy} onClick={() => setStatus(item, item.status === "rejected" ? "draft" : "rejected")}>{t("ip.reject")}</button>
-                  <button disabled={!!busy} onClick={() => classifyItem(item)}>{t("ip.classifyNow")}</button>
-                  <button disabled={!!busy} onClick={() => trashItem(item)}>{t("ip.trash")}</button>
+                  <OverflowMenu label={t("common.more")}>
+                    <button disabled={!!busy} onClick={() => classifyItem(item)}>{t("ip.classifyNow")}</button>
+                    <button className="danger" disabled={!!busy} onClick={() => trashItem(item)}>{t("ip.trash")}</button>
+                  </OverflowMenu>
                 </>}
               </div>
             </div>

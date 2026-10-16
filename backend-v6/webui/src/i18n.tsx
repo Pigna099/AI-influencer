@@ -924,6 +924,17 @@ const en = {
   "jobs.dangerZone": "Danger zone",
   "common.more": "More actions",
   "lp.stages": "Workflow stages",
+  "ip.manageLoras": "Manage LoRAs ({count} selected)",
+  "ip.loraSearch": "Search LoRAs",
+  "ip.loraRemove": "Remove LoRA",
+  "jobs.state.all": "All",
+  "ip.review.help": "Keyboard shortcuts",
+  "pg.searchChats": "Search chats",
+  "lp.stage.next.character": "Next: set the profile picture (generate or upload), then the identity set is ready to build.",
+  "lp.stage.next.dataset": "Next: generate the canonical references per role, select them, then create the pose variations.",
+  "lp.stage.next.training": "Next: queue training with the selected photos, validate the grid, then activate.",
+  "pg.inspectorTabs": "Inspector sections",
+  "jobs.maintenance": "Maintenance",
 } as const;
 
 type Catalog = typeof en;

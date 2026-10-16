@@ -1074,9 +1074,23 @@ Progress log — UI modification plan (16 October 2026, first hour):
 - **ContextSelector** primitive added and adopted in Video (character selector at the top below
   1280 px; the fixed rail is hidden there). Jobs KPI strip restyled as labelled cards; chat empty
   state compact with a New chat action.
-- Remaining (next hours): full staged LoRA workflow, CompactToolbar primitive, review mode
-  full-width, drawer focus trap + restoration tests, visual regression pass, LoRA stage-only layout
-  at 812 px, Chat restructure.
+- Remaining (next hours): CompactToolbar primitive, visual regression pass, Dataset source header
+  overflow, Images review refinements, BenchmarkPanel full-width comparison.
+
+Progress log — UI modification plan (16 October 2026, second hour, 18:48-19:05):
+- Drawer focus trap (Tab cycling, focus enters the panel) + drawer tests (Escape, focus restore,
+  closed state); 16 frontend tests green.
+- Images generator: selected LoRAs as removable chips, "Manage LoRAs" disclosure with search; card
+  low-frequency actions (classify/trash) moved into an overflow menu.
+- `OverflowMenu` primitive extracted and adopted in Images and Video cards.
+- LoRA: one stage at a time (stepper) with per-stage next-action hints.
+- Jobs: state chips (All/Active/Failed/Succeeded/Canceled), maintenance behind a Maintenance
+  disclosure, purge inside the Danger zone.
+- Chat: conversations search, compact fan-notes preview, inspector tabs (Character/Memory/Timing),
+  review shortcuts behind a help disclosure.
+- Dataset: the card thumb selects the item (details) and "+ New source" is now a modal instead of
+  occupying rail space.
+- Home: compact service pills (auto-fit grid).
 
 Refactor incrementally from the current files.
 

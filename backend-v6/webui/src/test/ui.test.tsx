@@ -5,6 +5,7 @@ import AsyncBoundary from "../components/ui/AsyncBoundary";
 import StatusBadge from "../components/ui/StatusBadge";
 import JobProgress from "../components/ui/JobProgress";
 import InspectorDrawer from "../components/ui/InspectorDrawer";
+import OverflowMenu from "../components/ui/OverflowMenu";
 
 describe("AsyncBoundary", () => {
   it("shows the loading skeleton while loading", () => {
@@ -92,5 +93,14 @@ describe("InspectorDrawer", () => {
   it("does not render when closed", () => {
     render(<InspectorDrawer open={false} onClose={() => {}} title="Hidden" closeLabel="Close">x</InspectorDrawer>);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("OverflowMenu", () => {
+  it("keeps actions reachable through the disclosure", () => {
+    render(<OverflowMenu label="More actions"><button>Delete</button></OverflowMenu>);
+    const summary = screen.getByLabelText("More actions");
+    expect(summary).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
   });
 });

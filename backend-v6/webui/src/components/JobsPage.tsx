@@ -164,9 +164,15 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
           eyebrow={t("jobs.title")}
           title={t("jobs.subtitle")}
           aside={<div className="library-toolbar jobs-filters">
-            <select value={state} onChange={e => setState(e.target.value)} aria-label={t("jobs.filterState")}>
-              {["all", "active", "queued", "running", "succeeded", "failed", "canceled"].map(value => <option key={value} value={value}>{value === "all" ? t("jobs.filterState") : t(`jobs.state.${value}` as "jobs.state.queued")}</option>)}
-            </select>
+            <div className="state-chips" role="group" aria-label={t("jobs.filterState")}>
+              {(["all", "active", "failed", "succeeded", "canceled"] as const).map(value => <button
+                key={value}
+                type="button"
+                className={state === value ? "on" : undefined}
+                aria-pressed={state === value}
+                onClick={() => setState(value)}
+              >{value === "all" ? t("jobs.state.all") : t(`jobs.state.${value}` as "jobs.state.failed")}</button>)}
+            </div>
             <select value={type} onChange={e => setType(e.target.value)} aria-label={t("jobs.filterType")}>
               <option value="all">{t("jobs.filterType")}</option>
               {JOB_TYPES.map(value => <option key={value} value={value}>{t(`jobs.type.${value}` as "jobs.type.training")}</option>)}
@@ -191,6 +197,8 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
           <small className="muted">{t("jobs.errorsByCode")}</small>
           <ul>{errorsByCode.map(entry => <li key={entry.code} title={entry.code}><span>{t(`jobs.error.${entry.code}` as "jobs.error.checkpoint_missing")}</span><b>{entry.count}</b></li>)}</ul>
         </div>}
+        <details className="maintenance-panel">
+          <summary>{t("jobs.maintenance")}</summary>
         <div className="maintenance-row">
           <button disabled={busy} onClick={() => reconcile(false)}>{t("jobs.scanOrphans")}</button>
           <details className="danger-zone-inline"><summary>{t("jobs.dangerZone")}</summary>
@@ -200,6 +208,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
             ? <span>{t("jobs.orphansFound", { count: reconcileReport.orphans })} <button disabled={busy} className="danger" onClick={() => reconcile(true)}>{t("jobs.deleteOrphans")}</button></span>
             : <span>{reconcileReport.removed > 0 ? t("jobs.orphansRemoved", { count: reconcileReport.removed, gb: (reconcileReport.freed_bytes / 1024 ** 3).toFixed(2) }) : t("jobs.noOrphans")}</span>)}
         </div>
+        </details>
         {metrics && <details className="metrics-detail">
           <summary>{t("jobs.metrics.details")}</summary>
           <div className="metrics-grid">

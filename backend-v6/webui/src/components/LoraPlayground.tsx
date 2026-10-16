@@ -441,6 +441,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
         <div className="lora-content">
           <section className="lora-step" hidden={stage !== 0}>
             <div className="lora-step-head"><span className="step-badge">1</span><h2>{t("lp.step.character")}</h2></div>
+            <p className="muted">{t("lp.stage.next.character")}</p>
             {character ? <div className="lora-avatar">
               <CharacterAvatar character={character} index={0} onView={(url, alt) => setViewer({ url, alt })} altTemplate={t("pg.avatarAlt")} />
               <div>
@@ -469,11 +470,13 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
           </section>
           <section className="lora-step" hidden={stage !== 1}>
             <div className="lora-step-head"><span className="step-badge">2</span><h2>{t("lp.step.dataset")}</h2></div>
+            <p className="muted">{t("lp.stage.next.dataset")}</p>
             <p className="muted">{t("lp.step.datasetHint")}</p>
             <DatasetPanel character={character} datasets={datasets} busy={!!busy} perform={perform} refresh={() => refresh(characterId)} onView={(url, alt) => setViewer({ url, alt })} />
           </section>
           <section className="lora-step" hidden={stage !== 2}>
             <div className="lora-step-head"><span className="step-badge">3</span><h2>{t("lp.step.training")}</h2></div>
+            <p className="muted">{t("lp.stage.next.training")}</p>
             <p className="muted">{t("lp.step.trainingHint")}</p>
             <details className="create-details" open={!loras.length}>
             <summary>+ {t("lp.create")}</summary>

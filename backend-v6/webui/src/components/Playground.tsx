@@ -80,6 +80,8 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
   const [lastActivity, setLastActivity] = useState(Date.now());
   const [newMemory, setNewMemory] = useState("");
   const [historyPage, setHistoryPage] = useState(1);
+  const [convSearch, setConvSearch] = useState("");
+  const [inspectorTab, setInspectorTab] = useState<"character" | "memory" | "timing">("character");
   const generation = useRef(0);
   const character = characters.find(c => c.id === characterId);
   const fan = fans.find(f => f.id === fanId);
@@ -331,9 +333,15 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
         <div className="section-title"><h2>{t("pg.playFan")}</h2><button aria-label={t("pg.createFan")} onClick={() => openFan("new")} disabled={!!busy}>+</button></div>
         <label className="sr-only" htmlFor="fan-select">{t("pg.fanAccount")}</label><select id="fan-select" value={fanId} onChange={e => setFanId(e.target.value)} disabled={!!busy}>
           <option value="" disabled>{t("pg.chooseFan")}</option>{fans.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
-        {fan && <div className="fan-note"><div><span>{t("pg.fanNotes")}</span><button onClick={() => openFan(fan)} disabled={!!busy}>{t("common.edit")}</button></div><p>{fan.notes || t("pg.noNotes")}</p><small>{t("pg.notesHint")}</small></div>}
+        {fan && <details className="fan-note-compact"><summary>{t("pg.fanNotes")}: {(fan.notes || t("pg.noNotes")).slice(0, 40)}</summary><div className="fan-note"><div><span>{t("pg.fanNotes")}</span><button onClick={() => openFan(fan)} disabled={!!busy}>{t("common.edit")}</button></div><p>{fan.notes || t("pg.noNotes")}</p><small>{t("pg.notesHint")}</small></div></details>}
         <div className="section-title history-title"><h2>{t("pg.conversations")}</h2><span>{conversations.length}</span></div>
-        <div className="history-list">{conversations.slice(0, historyPage * 10).map(c => <div className="history-row" key={c.id}>
+        <input className="conv-search" value={convSearch} disabled={!!busy} onChange={e => setConvSearch(e.target.value)} placeholder={t("pg.searchChats")} aria-label={t("pg.searchChats")} maxLength={60} />
+        <div className="history-list">{conversations.filter(c => {
+          const query = convSearch.trim().toLowerCase();
+          if (!query) return true;
+          const characterName = characters.find(item => item.id === c.character_id)?.name || "";
+          return `${c.title} ${c.model} ${characterName}`.toLowerCase().includes(query);
+        }).slice(0, historyPage * 10).map(c => <div className="history-row" key={c.id}>
           <button className={conversation?.id === c.id ? "selected" : ""} disabled={!!busy}
           onClick={() => void perform(t("pg.busy.loadChat"), async () => { generation.current += 1; setMessages([]); setAutoNudge(false); setConversation(c); setModel(c.model); await refresh(c.id); })}>
           <strong>{c.model}{!!c.unread && <span className="unread-badge" aria-label={t("chat.unreadAria", { count: c.unread })}>{c.unread}</span>}</strong><small>{new Date(c.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · v{c.character_snapshot.version}</small></button>
@@ -384,6 +392,12 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
         </> : <BenchmarkPanel character={character} fanId={fanId} models={chatModels} onBusy={setBusy} />}
       </main>
       <aside className="inspector">
+        <div className="view-tabs inspector-tabs" role="tablist" aria-label={t("pg.inspectorTabs")}>
+          <button role="tab" aria-selected={inspectorTab === "character"} onClick={() => setInspectorTab("character")}>{t("pg.characterSettings")}</button>
+          <button role="tab" aria-selected={inspectorTab === "memory"} onClick={() => setInspectorTab("memory")}>{t("pg.memory.title")}</button>
+          <button role="tab" aria-selected={inspectorTab === "timing"} onClick={() => setInspectorTab("timing")}>{t("pg.times.title")}</button>
+        </div>
+        {inspectorTab === "character" && (
         <details className="inspector-settings" open><summary>{t("pg.characterSettings")}</summary>
         {character && <label className="image-checkpoint">{t("pg.imageStyle")}<select value={character.image_style || "real"} disabled={!!busy} onChange={e => void perform(t("pg.busy.style"), async () => {
           const updated = await api.setImageStyle(character.id, e.target.value as "anime" | "real");
@@ -429,7 +443,8 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
           </div>
         </details>}
         </details>
-
+        )}
+        {inspectorTab === "memory" && (<>
         <div className="section-title"><h2>{t("pg.memory.title")}</h2><span>{memories.length}</span></div>
         <p className="scope-label">{character?.name || t("pg.characterFallback")} × {fan?.name || "Fan"}</p>
         {conversation?.memory_status === "pending" && <p className="memory-status" role="status"><span className="spinner" /> {t("pg.memory.extracting")}</p>}
@@ -444,10 +459,13 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
             if (!window.confirm(t("pg.memory.clearConfirm", { fan: fan.name, character: character.name }))) return;
             void perform(t("pg.busy.clearMemory"), async () => { await api.request(`/api/characters/${characterId}/memories?${scope}`, { method: "DELETE" }); setMemories([]); });
           }}>{t("pg.memory.clear")}</button>}</>}
+        </>)}
+        {inspectorTab === "timing" && (<>
         <div className="rail-divider" /><div className="section-title"><h2>{t("pg.times.title")}</h2></div>
         <p className="muted">{t("pg.times.note")}</p>
         <div className="metric-list">{metrics.map(m => <article key={m.model}><strong>{m.model}</strong><div><b>{m.mean_seconds.toFixed(2)} s</b><span>{t("pg.times.mean", { count: m.samples })}</span></div><small>{t("pg.times.detail", { median: m.median_seconds.toFixed(2), load: m.mean_load_seconds.toFixed(2) })}</small></article>)}
           {!metrics.length && <p className="muted">{t("pg.times.empty")}</p>}</div>
+        </>)}
       </aside>
     </div>
     {editing && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={t("form.aria")}><CharacterForm character={editing === "new" ? undefined : editing} models={chatModels} onSave={saveCharacter} onCancel={() => setEditing(null)} /></div></div>}

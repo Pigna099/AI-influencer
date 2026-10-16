@@ -5,6 +5,7 @@ import AppHeader from "./ui/AppHeader";
 import AsyncBoundary from "./ui/AsyncBoundary";
 import InspectorDrawer from "./ui/InspectorDrawer";
 import ContextSelector from "./ui/ContextSelector";
+import OverflowMenu from "./ui/OverflowMenu";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import AdvancedSettings from "./ui/AdvancedSettings";
 import StatusBadge from "./ui/StatusBadge";
@@ -89,7 +90,7 @@ function VideoCard({ item, sourceImage, busy, onDelete, onReview, onError }: {
           <option value="suggestive">{t("ip.label.suggestive")}</option>
           <option value="explicit">{t("ip.label.explicit")}</option>
         </select>
-        <details className="overflow-menu"><summary aria-label={t("common.more")}>⋯</summary><div><button className="danger" disabled={busy} onClick={() => onDelete(item)}>{t("common.delete")}</button></div></details>
+        <OverflowMenu label={t("common.more")}><button className="danger" disabled={busy} onClick={() => onDelete(item)}>{t("common.delete")}</button></OverflowMenu>
       </div>
     </div>
   </article>;

@@ -40,7 +40,7 @@ function DatasetThumb({ item, onView, select, videoLabel, openLabel, selectLabel
     }
     if (url) onView(url, item.caption || item.filename, false);
   };
-  return <div className="dataset-thumb">
+  return <div className="dataset-thumb" onClick={select} role="button" tabIndex={0} aria-label={selectLabel} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); } }}>
     {url ? <img src={url} alt={item.caption || item.filename} loading="lazy" /> : <span className="spinner" />}
     {item.kind === "video" && <span className="badge video">▶ {videoLabel}</span>}
     <StatusBadge status={item.status} />
@@ -57,6 +57,7 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
   const [sourceId, setSourceId] = useState("");
   const isNarrow = useMediaQuery("(max-width: 1279px)");
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [images, setImages] = useState<DatasetImage[]>([]);
   const [selected, setSelected] = useState<DatasetImage | null>(null);
   const [name, setName] = useState("");
@@ -238,17 +239,8 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
     {notice && <div className="info-banner" role="status">{notice}<button onClick={() => setNotice("")} aria-label={t("common.close")}>×</button></div>}
     <div className="workspace dataset-workspace">
       <aside className="character-rail">
-        <details className="create-details" open={!sources.length}>
-          <summary>+ {t("ds.newSource")}</summary>
-          <div className="ip-form">
-          <label>{t("ds.name")}<input value={name} disabled={!!busy} onChange={e => setName(e.target.value)} maxLength={120} /></label>
-          <label>{t("ds.kind")}<select value={kind} disabled={!!busy} onChange={e => setKind(e.target.value as "telegram" | "urls" | "folder" | "x" | "nextcloud")}><option value="telegram">{t("ds.kind.telegram")}</option><option value="urls">{t("ds.kind.urls")}</option><option value="folder">{t("ds.kind.folder")}</option><option value="x">{t("ds.kind.x")}</option><option value="nextcloud">{t("ds.kind.nextcloud")}</option></select></label>
-          <label>{t("ds.reference")}<textarea rows={3} value={reference} disabled={!!busy} onChange={e => setReference(e.target.value)} placeholder={kind === "telegram" ? t("ds.reference.telegram") : kind === "urls" ? t("ds.reference.urls") : kind === "x" ? t("ds.reference.x") : kind === "nextcloud" ? t("ds.reference.nextcloud") : t("ds.reference.folder")} maxLength={20000} /></label>
-          <label>{t("ds.limit")}<input type="number" min="1" max="2000" value={limit} disabled={!!busy} onChange={e => setLimit(Math.max(1, Math.min(2000, Number(e.target.value))))} /></label>
-          <label className="auto-label">{t("ds.classify")} <input type="checkbox" checked={classify} disabled={!!busy} onChange={e => setClassify(e.target.checked)} /></label>
-            <button className="primary" disabled={!!busy || !name.trim() || !reference.trim()} onClick={createSource}>{t("ds.create")}</button>
-          </div>
-        </details>
+        <button type="button" className="primary new-source-button" disabled={!!busy} onClick={() => setSourceModalOpen(true)}>+ {t("ds.newSource")}</button>
+
         <div className="rail-divider" />
         <div className="section-title"><h2>{t("ds.sources")}</h2><span>{sources.length}</span></div>
         <div className="dataset-sources">{sources.map(item => <button key={item.id} className={`dataset-source ${sourceId === item.id ? "selected" : ""}`} disabled={!!busy} onClick={() => setSourceId(item.id)}>
@@ -299,6 +291,19 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
         ? <InspectorDrawer open={detailsOpen} onClose={() => setDetailsOpen(false)} title={t("ds.details")} closeLabel={t("common.close")}>{detailsContent}</InspectorDrawer>
         : <aside className="inspector dataset-inspector">{detailsContent}</aside>}
     </div>
+    {sourceModalOpen && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={t("ds.newSource")}>
+      <div className="section-title"><h2>{t("ds.newSource")}</h2><button type="button" onClick={() => setSourceModalOpen(false)} aria-label={t("common.close")}>×</button></div>
+      <div className="ip-form">
+          <div className="ip-form">
+          <label>{t("ds.name")}<input value={name} disabled={!!busy} onChange={e => setName(e.target.value)} maxLength={120} /></label>
+          <label>{t("ds.kind")}<select value={kind} disabled={!!busy} onChange={e => setKind(e.target.value as "telegram" | "urls" | "folder" | "x" | "nextcloud")}><option value="telegram">{t("ds.kind.telegram")}</option><option value="urls">{t("ds.kind.urls")}</option><option value="folder">{t("ds.kind.folder")}</option><option value="x">{t("ds.kind.x")}</option><option value="nextcloud">{t("ds.kind.nextcloud")}</option></select></label>
+          <label>{t("ds.reference")}<textarea rows={3} value={reference} disabled={!!busy} onChange={e => setReference(e.target.value)} placeholder={kind === "telegram" ? t("ds.reference.telegram") : kind === "urls" ? t("ds.reference.urls") : kind === "x" ? t("ds.reference.x") : kind === "nextcloud" ? t("ds.reference.nextcloud") : t("ds.reference.folder")} maxLength={20000} /></label>
+          <label>{t("ds.limit")}<input type="number" min="1" max="2000" value={limit} disabled={!!busy} onChange={e => setLimit(Math.max(1, Math.min(2000, Number(e.target.value))))} /></label>
+          <label className="auto-label">{t("ds.classify")} <input type="checkbox" checked={classify} disabled={!!busy} onChange={e => setClassify(e.target.checked)} /></label>
+            <button className="primary" disabled={!!busy || !name.trim() || !reference.trim()} onClick={createSource}>{t("ds.create")}</button>
+          </div>
+      </div>
+    </div></div>}
     {viewer && <Lightbox src={viewer.url} alt={viewer.alt} video={viewer.video} onClose={() => setViewer(null)} />}
     {profileDraft && <div className="modal-backdrop"><div className="modal fan-editor" role="dialog" aria-modal="true" aria-label={t("ds.profileTitle")}>
       <h2>{t("ds.profileTitle")}</h2>

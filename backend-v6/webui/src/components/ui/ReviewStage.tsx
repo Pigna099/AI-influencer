@@ -55,7 +55,7 @@ export default function ReviewStage({ item, index, total, anchorUrl, overlay, bu
         <small className="review-counter">{index + 1} / {total}</small>
       </div>
       <p className="review-caption">{item.caption || item.prompt}</p>
-      <small className="muted">{t("ip.review.shortcuts")}</small>
+      <details className="review-help"><summary>{t("ip.review.help")}</summary><small className="muted">{t("ip.review.shortcuts")}</small></details>
     </div>
   </div>;
 }

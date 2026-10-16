@@ -538,3 +538,34 @@
 .stage-stepper button { display: inline-flex; align-items: center; gap: 6px; font-size: .75rem; padding: .35rem .6rem; }
 .stage-stepper button.on { border-color: var(--accent); background: var(--accent-soft); }
 .stage-stepper .step-badge { width: 18px; height: 18px; font-size: .68rem; }
+
+.lora-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-2); border-radius: 8px; padding: 2px 6px; background: var(--surface-2); font-size: .68rem; }
+.lora-chip button { border: 0; background: none; padding: 0 2px; font-size: .85rem; line-height: 1; }
+.lora-manager { margin-top: 4px; }
+.lora-manager > summary { cursor: pointer; font-size: .72rem; color: #9db2cf; }
+.lora-manager > input { margin: 6px 0; font-size: .75rem; }
+
+.state-chips { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid #2b3850; border-radius: 8px; background: #172336; }
+.state-chips button { border: 0; background: transparent; padding: .28rem .55rem; font-size: .72rem; border-radius: 6px; color: #b9cbe2; }
+.state-chips button.on { background: var(--accent-soft); color: #fff; }
+
+.conv-search { margin-bottom: 8px; font-size: .78rem; }
+.fan-note-compact > summary { cursor: pointer; font-size: .74rem; color: #9db2cf; padding: 6px 0; }
+.review-help summary { cursor: pointer; font-size: .72rem; color: #8ba0bd; }
+
+.overflow-menu > div { display: grid; gap: 6px; min-width: 150px; }
+.overflow-menu > div button { font-size: .7rem; padding: .3rem .5rem; }
+
+
+.flag-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; }
+.flag-card { padding: 8px 10px; }
+.flag-card small { font-size: .68rem; }
+
+.inspector-tabs { margin-bottom: 12px; flex-wrap: wrap; }
+.inspector-tabs button { font-size: .72rem; padding: .32rem .5rem; }
+
+
+.new-source-button { width: 100%; margin-bottom: 8px; }
+
+.maintenance-panel { margin-bottom: 12px; }
+.maintenance-panel > summary { cursor: pointer; font-size: .78rem; color: #8ba0bd; margin-bottom: 6px; }
