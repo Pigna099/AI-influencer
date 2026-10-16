@@ -614,3 +614,7 @@
 .gpu-gauge { width: 92px; height: 58px; }
 .gpu-card { padding: 10px 12px; gap: 8px; }
 .gpu-card-side { gap: 5px; }
+
+.filter-input { width: 150px; font-size: .75rem; padding: .3rem .5rem; }
+
+.review-overlay-sibling { opacity: .35; mix-blend-mode: screen; }

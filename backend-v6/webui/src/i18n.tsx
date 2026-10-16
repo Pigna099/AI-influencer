@@ -944,6 +944,11 @@ const en = {
   "pg.settings": "Settings",
   "hint.selectFan": "Select a fan first.",
   "hint.selectModels": "Select at least one model to compare.",
+  "ds.searchImages": "Search images",
+  "ds.status.ready": "Ready",
+  "ds.status.pending": "Pending",
+  "ds.status.failed": "Failed",
+  "ip.review.overlayPrev": "Overlay previous",
 } as const;
 
 type Catalog = typeof en;

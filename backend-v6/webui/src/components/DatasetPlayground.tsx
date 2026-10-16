@@ -60,6 +60,8 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
   const isNarrow = useMediaQuery("(max-width: 1279px)");
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
+  const [imageSearch, setImageSearch] = useState("");
+  const [imageStatusFilter, setImageStatusFilter] = useState("");
   const [images, setImages] = useState<DatasetImage[]>([]);
   const [selected, setSelected] = useState<DatasetImage | null>(null);
   const [name, setName] = useState("");
@@ -87,6 +89,12 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
   const source = sources.find(item => item.id === sourceId) || null;
   const active = source && ["pending", "importing", "classifying"].includes(source.status);
   const readyCount = images.filter(item => item.status === "ready").length;
+  const visibleImages = images.filter(item => {
+    if (imageStatusFilter && item.status !== imageStatusFilter) return false;
+    const query = imageSearch.trim().toLowerCase();
+    if (!query) return true;
+    return `${item.caption} ${item.filename} ${(item.tags || []).join(" ")}`.toLowerCase().includes(query);
+  });
   const waitingCount = images.filter(item => item.status === "pending").length;
   const failedCount = images.filter(item => item.status === "failed" || item.status === "blocked").length;
 
@@ -271,6 +279,13 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
         {!active && !!images.length && (waitingCount > 0 || failedCount > 0) && <p className="readiness-line">{t("ds.queueReady", { count: readyCount })}{waitingCount > 0 ? ` · ${t("ds.queueWaiting", { count: waitingCount })}` : ""}{failedCount > 0 ? ` · ${t("ds.queueFailed", { count: failedCount })}` : ""}</p>}
         <div className="library-toolbar">
           <button className={waitingCount > 0 ? "primary" : undefined} disabled={!!busy || !source} onClick={classifySource}>{t("ds.classifyPending")}</button>
+          <input className="filter-input" value={imageSearch} disabled={!!busy} onChange={e => setImageSearch(e.target.value)} placeholder={t("ds.searchImages")} aria-label={t("ds.searchImages")} maxLength={80} />
+          <select className="saved-filter-select" value={imageStatusFilter} disabled={!!busy} onChange={e => setImageStatusFilter(e.target.value)} aria-label={t("ip.statusFilter")}>
+            <option value="">{t("ip.statusAll")}</option>
+            <option value="ready">{t("ds.status.ready")}</option>
+            <option value="pending">{t("ds.status.pending")}</option>
+            <option value="failed">{t("ds.status.failed")}</option>
+          </select>
           <OverflowMenu label={t("common.more")}>
             <button disabled={!!busy || !source} onClick={exportSource}>{t("ds.export")}</button>
             <button disabled={!!busy || !source} onClick={generateProfile}>{t("ds.profile")}</button>
@@ -286,7 +301,7 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
             loadingText={t("common.loadingData")}
             emptyState={<EmptyState symbol="◎" title={t("ds.noImages")} />}
           >
-          <div className="library-grid">{images.map(item => <article className={`library-card status-${item.status === "ready" ? "approved" : item.status === "failed" || item.status === "blocked" ? "rejected" : ""}`} key={item.id}>
+          <div className="library-grid">{visibleImages.map(item => <article className={`library-card status-${item.status === "ready" ? "approved" : item.status === "failed" || item.status === "blocked" ? "rejected" : ""}`} key={item.id}>
             <DatasetThumb item={item} onView={(url, alt, video) => setViewer({ url, alt, video })} select={() => setSelected(item)} videoLabel={t("ds.video")} openLabel={t("ds.openMedia")} selectLabel={t("ds.selectItem")} />
             <div className="library-meta">
               <p>{item.caption || item.filename}</p>

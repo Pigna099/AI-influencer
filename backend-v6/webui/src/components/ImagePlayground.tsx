@@ -671,6 +671,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
             total={library.length}
             anchorUrl={anchorUrl}
             overlay={anchorOverlay}
+            sibling={reviewIndex > 0 ? library[reviewIndex - 1] : undefined}
             busy={!!busy}
             onStatus={setStatus}
             onLabel={(item, label) => void perform("", async () => updateItem(await api.patchLibraryItem(item.id, { content_label: label })))}
