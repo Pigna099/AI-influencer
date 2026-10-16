@@ -7,6 +7,7 @@ import AsyncBoundary from "./ui/AsyncBoundary";
 import EmptyState from "./ui/EmptyState";
 import JobProgress from "./ui/JobProgress";
 import PageHeader from "./ui/PageHeader";
+import CompactToolbar from "./ui/CompactToolbar";
 import StatusBadge from "./ui/StatusBadge";
 
 const JOB_TYPES = [
@@ -163,7 +164,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
         <PageHeader
           eyebrow={t("jobs.title")}
           title={t("jobs.subtitle")}
-          aside={<div className="library-toolbar jobs-filters">
+          aside={<CompactToolbar label={t("jobs.filters")} className="library-toolbar jobs-filters">
             <div className="state-chips" role="group" aria-label={t("jobs.filterState")}>
               {(["all", "active", "failed", "succeeded", "canceled"] as const).map(value => <button
                 key={value}
@@ -181,7 +182,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
               <option value="all">{t("jobs.filterCharacter")}</option>
               {characters.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
-          </div>}
+          </CompactToolbar>}
         />
         {metrics && <div className="metrics-strip">
           <span><b>{metrics.jobs.by_state.running + metrics.jobs.by_state.queued}</b> {t("jobs.metrics.active")}</span>

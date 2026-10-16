@@ -598,3 +598,5 @@
 
 .home-characters { gap: 8px; }
 .home-character { padding: 10px; }
+
+.compact-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

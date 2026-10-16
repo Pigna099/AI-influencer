@@ -939,6 +939,8 @@ const en = {
   "vd.searchSource": "Search source images",
   "vd.selectSource": "Select a source image",
   "home.recentJobs": "Recent jobs",
+  "ip.libraryToolbar": "Library toolbar",
+  "jobs.filters": "Job filters",
 } as const;
 
 type Catalog = typeof en;

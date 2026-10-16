@@ -7,6 +7,7 @@ import Lightbox from "./Lightbox";
 import AsyncBoundary from "./ui/AsyncBoundary";
 import InspectorDrawer from "./ui/InspectorDrawer";
 import OverflowMenu from "./ui/OverflowMenu";
+import CompactToolbar from "./ui/CompactToolbar";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import ReviewStage from "./ui/ReviewStage";
 import AdvancedSettings from "./ui/AdvancedSettings";
@@ -620,7 +621,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
           aside={<span className="library-count">{t("ip.imagesCount", { count: library.length })}</span>}
         />
         <div className="library-scroll">
-          <div className="bulk-bar">
+          <CompactToolbar label={t("ip.libraryToolbar")} className="bulk-bar">
             <button type="button" className="narrow-only" onClick={() => setGeneratorOpen(true)}>{t("ip.generator")}</button>
             <div className="view-tabs" role="tablist" aria-label={t("ip.mode")}>
               <button role="tab" aria-selected={!trashView && mode === "grid"} disabled={!!busy} onClick={() => { setTrashView(false); setMode("grid"); }}>{t("ip.mode.grid")}</button>
@@ -656,7 +657,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
               <input className="saved-filter-name" value={savedName} disabled={!!busy} onChange={e => setSavedName(e.target.value)} placeholder={t("ip.savedFilters.name")} maxLength={40} />
               <button type="button" disabled={!!busy || !savedName.trim()} onClick={saveFilter}>{t("common.save")}</button>
             </>}
-          </div>
+          </CompactToolbar>
           <AsyncBoundary
             loading={!libraryLoaded}
             empty={!library.length}
