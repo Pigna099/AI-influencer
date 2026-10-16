@@ -429,7 +429,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
           eyebrow="LoRA"
           title={character?.name || t("lp.title")}
           subtitle={t("lp.subtitle")}
-          aside={<><span className="library-count">{loras.length} LoRA</span><button type="button" onClick={() => (isNarrow ? setGuideDrawerOpen(true) : toggleGuide())}>{guideOpen ? t("lp.guide.hide") : t("lp.guide.show")}</button></>}
+          aside={<><span className="library-count">{loras.length} LoRA</span><button type="button" onClick={() => (isNarrow ? setGuideDrawerOpen(true) : toggleGuide())}>{isNarrow ? t("lp.guide.title") : guideOpen ? t("lp.guide.hide") : t("lp.guide.show")}</button></>}
         />
         {busy && <p className="memory-status lora-busy" role="status"><span className="spinner" />{busy} <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
         {readiness && <p className="readiness-line" role="status">{readiness}</p>}

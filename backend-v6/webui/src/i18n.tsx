@@ -819,7 +819,7 @@ const en = {
   "ip.label.suggestive": "Suggestive",
   "ip.label.explicit": "Explicit",
   "jobs.metrics.missingCheckpoints": "{count} LoRAs missing checkpoint",
-  "jobs.metrics.backup": "Last backup {date} ({mb} MB)",
+  "jobs.metrics.backup": "Last backup {date} ({size})",
   "jobs.metrics.details": "System metrics",
   "jobs.metrics.byType": "Jobs by type",
   "jobs.metrics.avgRun": "avg run",

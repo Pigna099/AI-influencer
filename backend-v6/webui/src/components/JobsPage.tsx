@@ -192,7 +192,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
           <span><b>{Math.round(metrics.library.approval_rate * 100)}%</b> {t("jobs.metrics.approval")}</span>
           <span>{t("jobs.metrics.storage", { files: metrics.storage.media_files, gb: (metrics.storage.media_bytes / 1024 ** 3).toFixed(2), free: Math.round(metrics.storage.disk_free_bytes / 1024 ** 3) })}</span>
           {metrics.models.loras_missing_checkpoint > 0 && <span className="warn">⚠ {t("jobs.metrics.missingCheckpoints", { count: metrics.models.loras_missing_checkpoint })}</span>}
-          {metrics.backups.last_at && <span>{t("jobs.metrics.backup", { date: new Date(metrics.backups.last_at).toLocaleDateString(), mb: Math.round((metrics.backups.size_bytes || 0) / 1024 ** 2) })}</span>}
+          {metrics.backups.last_at && <span>{t("jobs.metrics.backup", { date: new Date(metrics.backups.last_at).toLocaleDateString(), size: (metrics.backups.size_bytes || 0) >= 1024 ** 2 ? `${Math.round((metrics.backups.size_bytes || 0) / 1024 ** 2)} MB` : `${Math.max(1, Math.round((metrics.backups.size_bytes || 0) / 1024))} KB` })}</span>}
         </div>}
         {!!errorsByCode.length && <div className="errors-by-code">
           <small className="muted">{t("jobs.errorsByCode")}</small>
