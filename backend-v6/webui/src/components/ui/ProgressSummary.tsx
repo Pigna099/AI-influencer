@@ -5,9 +5,10 @@ interface Props {
   failed: number;
   total: number;
   showCounts?: boolean;
+  showLabel?: boolean;
 }
 
-export default function ProgressSummary({ label, completed, pending, failed, total, showCounts = true }: Props) {
+export default function ProgressSummary({ label, completed, pending, failed, total, showCounts = true, showLabel = true }: Props) {
   const done = completed + failed;
   const percent = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   return (
@@ -15,7 +16,7 @@ export default function ProgressSummary({ label, completed, pending, failed, tot
       <div className="job-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label={label}>
         <i style={{ width: `${percent}%` }} />
       </div>
-      <small>{label}</small>
+      {showLabel && <small>{label}</small>}
       {showCounts && <div className="progress-counts">
         <span className="ok">✓ {completed}</span>
         {pending > 0 && <span className="busy">◷ {pending}</span>}

@@ -14,7 +14,7 @@ import Lightbox from "./Lightbox";
 
 const detailFields = ["pose", "setting", "lighting", "scene", "outfit", "body", "skin", "camera", "mood", "art_style"] as const;
 
-function DatasetThumb({ item, onView, select, videoLabel, openLabel, selectLabel }: { item: DatasetImage; onView: (url: string, alt: string, video?: boolean) => void; select: () => void; videoLabel: string; openLabel: string; selectLabel: string }) {
+function DatasetThumb({ item, onView, select, remove, videoLabel, openLabel, selectLabel, deleteLabel }: { item: DatasetImage; onView: (url: string, alt: string, video?: boolean) => void; select: () => void; remove: () => void; videoLabel: string; openLabel: string; selectLabel: string; deleteLabel: string }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
     let objectUrl = "";
@@ -49,6 +49,7 @@ function DatasetThumb({ item, onView, select, videoLabel, openLabel, selectLabel
     <div className="dataset-thumb-actions">
       <button type="button" disabled={!url} onClick={() => void openMedia()}>{openLabel}</button>
       <button type="button" onClick={select}>{selectLabel}</button>
+      <OverflowMenu label="More"><button className="danger" type="button" onClick={remove}>{deleteLabel}</button></OverflowMenu>
     </div>
   </div>;
 }
@@ -275,6 +276,7 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
           failed={0}
           total={source.status === "classifying" ? source.imported || source.total : source.total}
           showCounts={false}
+          showLabel={false}
         />}
         {!active && !!images.length && (waitingCount > 0 || failedCount > 0) && <p className="readiness-line">{t("ds.queueReady", { count: readyCount })}{waitingCount > 0 ? ` · ${t("ds.queueWaiting", { count: waitingCount })}` : ""}{failedCount > 0 ? ` · ${t("ds.queueFailed", { count: failedCount })}` : ""}</p>}
         <div className="library-toolbar">
@@ -302,7 +304,7 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
             emptyState={<EmptyState symbol="◎" title={t("ds.noImages")} />}
           >
           <div className="library-grid">{visibleImages.map(item => <article className={`library-card status-${item.status === "ready" ? "approved" : item.status === "failed" || item.status === "blocked" ? "rejected" : ""}`} key={item.id}>
-            <DatasetThumb item={item} onView={(url, alt, video) => setViewer({ url, alt, video })} select={() => setSelected(item)} videoLabel={t("ds.video")} openLabel={t("ds.openMedia")} selectLabel={t("ds.selectItem")} />
+            <DatasetThumb item={item} onView={(url, alt, video) => setViewer({ url, alt, video })} select={() => setSelected(item)} remove={() => removeImage(item)} videoLabel={t("ds.video")} openLabel={t("ds.openMedia")} selectLabel={t("ds.selectItem")} deleteLabel={t("common.delete")} />
             <div className="library-meta">
               <p>{item.caption || item.filename}</p>
               {!!item.tags.length && <div className="library-tags">{item.tags.slice(0, 8).map(tag => <span key={tag}>{tag}</span>)}</div>}
