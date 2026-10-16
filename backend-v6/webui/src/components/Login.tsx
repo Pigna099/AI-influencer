@@ -47,7 +47,7 @@ export default function Login({ onLogin }: LoginProps) {
       <div className="max-w-md w-full">
         <div className="bg-gray-900 rounded-xl p-8 shadow-2xl border border-gray-800">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-blue-400 mb-2">AI influencer playground v4</h1>
+            <h1 className="text-3xl font-bold text-blue-400 mb-2">AI influencer playground v6</h1>
             <p className="text-gray-400">{t("login.subtitle")}</p>
             <div className="mt-4 flex justify-center"></div>
           </div>

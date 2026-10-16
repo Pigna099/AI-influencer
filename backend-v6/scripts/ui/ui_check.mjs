@@ -1,9 +1,12 @@
 // Visual/responsive smoke check: verifies no horizontal overflow on every route at 812/1280/1440 px
 // and saves screenshots to /tmp/ui_shots. Usage (from backend-v6/webui):
 //   npm i -D puppeteer && node ../scripts/ui/ui_check.mjs && npm uninstall puppeteer
-import puppeteer from 'puppeteer';
+import { createRequire } from "module";
+import { pathToFileURL } from "url";
+const require = createRequire(new URL("../../webui/package.json", import.meta.url));
+const puppeteer = (await import(pathToFileURL(require.resolve("puppeteer")).href)).default;
 
-const API_KEY = "bBDAZASPSUGES0ydj8KAh-E78H3yyXWP-YgKMR7kMts";
+const API_KEY = process.env.API_KEY || "";
 const ROUTES = ["/", "/chat", "/images", "/video", "/dataset", "/loras", "/jobs"];
 const WIDTHS = [812, 1280, 1440];
 
