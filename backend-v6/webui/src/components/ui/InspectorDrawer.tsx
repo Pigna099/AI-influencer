@@ -11,14 +11,20 @@ interface Props {
 
 export default function InspectorDrawer({ open, onClose, title, summary, closeLabel, children }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (!open) return;
+    triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const handler = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handler);
     panelRef.current?.focus();
-    return () => window.removeEventListener("keydown", handler);
+    return () => {
+      window.removeEventListener("keydown", handler);
+      const trigger = triggerRef.current;
+      if (trigger) window.setTimeout(() => trigger.focus(), 0);
+    };
   }, [open, onClose]);
   if (!open) return null;
   return (

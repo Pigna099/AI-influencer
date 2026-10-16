@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { useState } from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import AsyncBoundary from "../components/ui/AsyncBoundary";
 import StatusBadge from "../components/ui/StatusBadge";
 import JobProgress from "../components/ui/JobProgress";
+import InspectorDrawer from "../components/ui/InspectorDrawer";
 
 describe("AsyncBoundary", () => {
   it("shows the loading skeleton while loading", () => {
@@ -65,5 +67,29 @@ describe("JobProgress", () => {
     const bar = screen.getByRole("progressbar", { name: "job #1" });
     expect(bar).toHaveAttribute("aria-valuenow", "100");
     expect(bar.querySelector("i")).toHaveStyle({ width: "100%" });
+  });
+});
+
+describe("InspectorDrawer", () => {
+  it("closes on Escape and restores focus to the trigger", async () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return <>
+        <button onClick={() => setOpen(true)}>Open panel</button>
+        <InspectorDrawer open={open} onClose={() => setOpen(false)} title="Generator" closeLabel="Close">content</InspectorDrawer>
+      </>;
+    }
+    render(<Harness />);
+    const trigger = screen.getByRole("button", { name: "Open panel" });
+    fireEvent.click(trigger);
+    expect(screen.getByRole("dialog", { name: "Generator" })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  it("does not render when closed", () => {
+    render(<InspectorDrawer open={false} onClose={() => {}} title="Hidden" closeLabel="Close">x</InspectorDrawer>);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
