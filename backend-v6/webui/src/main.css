@@ -603,3 +603,14 @@
 
 
 .dataset-details dd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+
+.label-pill { display: inline-block; font-size: .6rem; text-transform: uppercase; letter-spacing: .04em; border-radius: 5px; padding: 1px 5px; }
+.label-pill.label-sfw { background: var(--st-ok-bg); color: var(--st-ok-fg); }
+.label-pill.label-suggestive { background: var(--st-busy-bg); color: var(--st-busy-fg); }
+.label-pill.label-explicit { background: var(--st-bad-bg); color: var(--st-bad-fg); }
+
+
+.gpu-gauge { width: 92px; height: 58px; }
+.gpu-card { padding: 10px 12px; gap: 8px; }
+.gpu-card-side { gap: 5px; }

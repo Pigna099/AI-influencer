@@ -942,6 +942,8 @@ const en = {
   "ip.libraryToolbar": "Library toolbar",
   "jobs.filters": "Job filters",
   "pg.settings": "Settings",
+  "hint.selectFan": "Select a fan first.",
+  "hint.selectModels": "Select at least one model to compare.",
 } as const;
 
 type Catalog = typeof en;
