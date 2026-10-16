@@ -11,16 +11,19 @@ function renderWithProviders(ui: React.ReactNode) {
 
 describe("AppHeader", () => {
   it("marks the current page in the navigation", () => {
-    renderWithProviders(<AppHeader current="/images" onLogout={() => {}} />);
-    const images = screen.getByRole("link", { name: "Images" });
-    expect(images).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute("aria-current");
+    const { container } = renderWithProviders(<AppHeader current="/images" onLogout={() => {}} />);
+    const wideNav = container.querySelector(".top-nav-wide");
+    expect(wideNav).toBeTruthy();
+    const images = wideNav!.querySelector('a[aria-current="page"]');
+    expect(images?.textContent).toBe("Images");
+    expect(wideNav!.querySelectorAll('a[aria-current="page"]').length).toBe(1);
   });
 
   it("shows the logout button and optional label", () => {
     renderWithProviders(<AppHeader current="/chat" onLogout={() => {}} label="Sandbox" />);
     expect(screen.getByText("Sandbox")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Menu and account")).toBeInTheDocument();
   });
 });
 

@@ -1054,6 +1054,27 @@ Progress log — 15 October 2026 (first slice):
 
 ## 20. Frontend implementation map
 
+Progress log — UI modification plan (16 October 2026, first hour):
+- **P0**: fixed the untranslated `jobs.state.active` label and the `{imported}` placeholder in the
+  dataset classifying progress; header/tray semantics unified (tray badge = "N jobs need attention"
+  when failures exist, otherwise "N jobs running"); route scroll reset on navigation
+  (`RouteScrollReset` in `App.tsx`); compact 58 px header with an account menu (Logout + nav on
+  narrow screens); bulk toolbar in Images appears only with a selection.
+- **Responsive foundation**: `useMediaQuery` hook, `InspectorDrawer` primitive, breakpoint CSS
+  (below 1280 px workspaces stack instead of clipping; nav collapses below 1024 px; panel resizers
+  hidden).
+- **Phase 3 migrations**: Images generator, Video generator, LoRA guide and Dataset details are now
+  drawers below 1280 px (single instance via conditional render, Escape closes, focus moves into the
+  panel); LoRA guide column no longer duplicates a close control.
+- **Density/polish**: humanized durations (`formatDuration`: `3h 31m`, `2m 1s`, `18s`) in Jobs and
+  LoRA ETAs and metrics; failure chips show readable error labels with the raw code in the tooltip;
+  Home attention items are compact clickable cards; GPU process lists collapsed by default; Home
+  services/GPUs moved into a remembered "System and infrastructure" section; Purge trash nested in a
+  Danger zone; video Delete moved to an overflow menu.
+- Remaining (next hours): full staged LoRA workflow, ContextSelector, CompactToolbar/KpiStrip
+  primitives, review mode full-width, drawer focus trap + restoration tests, visual regression pass,
+  LoRA stage-only layout at 812 px, Chat restructure.
+
 Refactor incrementally from the current files.
 
 - `App.tsx`: character-scoped routing, feature flags, global job tray.

@@ -5,6 +5,8 @@ import AppHeader from "./ui/AppHeader";
 import CharacterAvatar from "./CharacterAvatar";
 import Lightbox from "./Lightbox";
 import AsyncBoundary from "./ui/AsyncBoundary";
+import InspectorDrawer from "./ui/InspectorDrawer";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import ReviewStage from "./ui/ReviewStage";
 import AdvancedSettings from "./ui/AdvancedSettings";
 import PageHeader from "./ui/PageHeader";
@@ -170,6 +172,8 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   const [reviewId, setReviewId] = useState("");
   const [anchorOverlay, setAnchorOverlay] = useState(false);
   const [anchorUrl, setAnchorUrl] = useState("");
+  const isNarrow = useMediaQuery("(max-width: 1279px)");
+  const [generatorOpen, setGeneratorOpen] = useState(false);
   const [libraryHasMore, setLibraryHasMore] = useState(false);
   const LIBRARY_PAGE = 60;
 
@@ -487,124 +491,9 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
     });
   };
 
-  return <div className="playground theme-images">
-    <AppHeader current="/images" onLogout={onLogout} busy={!!busy} />
-    {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
-    <div className="workspace image-workspace" style={{ gridTemplateColumns: `225px minmax(320px, 1fr) 6px ${panelWidth}px` }}>
-      <aside className="character-rail">
-        <div className="section-title"><h2>{t("ip.characters")}</h2><span>{characters.length}</span></div>
-        <div className="character-list">{characters.map((item, index) => <button key={item.id} disabled={!!busy} onClick={() => selectCharacter(item)} className={`character-row ${characterId === item.id ? "selected" : ""}`}>
-          <CharacterAvatar character={item} index={index} onView={(url, alt) => setViewer({ url, alt })} altTemplate={t("pg.avatarAlt")} /><span><strong>{item.name}</strong><small>{item.image_style === "anime" ? t("pg.style.anime") : t("pg.style.real")}</small></span></button>)}
-          {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}</div>
-        <div className="rail-divider" />
-        <div className="section-title"><h2>{t("ip.filters")}</h2></div>
-        <label className="image-checkpoint">{t("ip.statusFilter")}
-          <select value={statusFilter} disabled={!!busy} onChange={e => setStatusFilter(e.target.value)}>
-            <option value="">{t("ip.statusAll")}</option><option value="draft">{t("ip.statusDraft")}</option><option value="approved">{t("ip.statusApproved")}</option><option value="rejected">{t("ip.statusRejected")}</option>
-          </select>
-        </label>
-        <label className="image-checkpoint">{t("ip.style")}
-          <select value={styleFilter} disabled={!!busy} onChange={e => setStyleFilter(e.target.value)}>
-            <option value="">{t("ip.styleAll")}</option><option value="real">{t("pg.style.real")}</option><option value="anime">{t("pg.style.anime")}</option>
-          </select>
-        </label>
-      </aside>
-      <main className="main-panel">
-        <PageHeader
-          eyebrow={character ? t("pg.personalityVersion", { version: character.version }) : t("ip.title")}
-          title={character?.name || t("ip.selectCharacter")}
-          subtitle={t("ip.subtitle")}
-          aside={<span className="library-count">{t("ip.imagesCount", { count: library.length })}</span>}
-        />
-        <div className="library-scroll">
-          <div className="bulk-bar">
-            <div className="view-tabs" role="tablist" aria-label={t("ip.mode")}>
-              <button role="tab" aria-selected={!trashView && mode === "grid"} disabled={!!busy} onClick={() => { setTrashView(false); setMode("grid"); }}>{t("ip.mode.grid")}</button>
-              <button role="tab" aria-selected={!trashView && mode === "review"} disabled={!!busy} onClick={() => { setTrashView(false); setMode("review"); }}>{t("ip.mode.review")}</button>
-              <button role="tab" aria-selected={trashView} disabled={!!busy} onClick={() => { setTrashView(true); setMode("grid"); }}>{t("ip.mode.trash")}</button>
-            </div>
-            {trashView && <button className="danger" disabled={!!busy || !library.length} onClick={() => { if (window.confirm(t("ip.emptyTrashConfirm"))) { setBusy(t("ip.emptyTrash")); void api.purgeTrash(0).then(() => setLibrary([])).catch(() => undefined).finally(() => setBusy("")); } }}>{t("ip.emptyTrash")}</button>}
-            {mode === "grid" ? <>
-              <label><input type="checkbox" disabled={!!busy || !library.length} checked={selectedIds.length > 0 && selectedIds.length === library.length} onChange={e => setSelectedIds(e.target.checked ? library.map(entry => entry.id) : [])} /> {t("bulk.selectAll")}</label>
-              <button disabled={!!busy || !selectedIds.length} onClick={() => bulkStatus("approved")}>{t("ip.approve")}</button>
-              <button disabled={!!busy || !selectedIds.length} onClick={() => bulkStatus("rejected")}>{t("ip.reject")}</button>
-              <button disabled={!!busy || !selectedIds.length} onClick={() => bulkStatus("draft")}>{t("ip.statusDraft")}</button>
-              <select className="saved-filter-select" value={addToCollection} disabled={!!busy || !collections.length || !selectedIds.length} onChange={e => setAddToCollection(e.target.value)} aria-label={t("ip.addToCollection")}>
-                <option value="">{t("ip.addToCollection")}</option>
-                {collections.map(entry => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
-              </select>
-              <button type="button" disabled={!!busy || !addToCollection || !selectedIds.length} onClick={addSelectedToCollection}>{t("ip.collectionAdd")}</button>
-              <button className="danger" disabled={!!busy || !selectedIds.length} onClick={removeSelected}>{t("bulk.deleteSelected", { count: selectedIds.length })}</button>
-            </> : <label className="auto-label"><input type="checkbox" checked={anchorOverlay} onChange={e => setAnchorOverlay(e.target.checked)} disabled={!anchorUrl} /> {t("ip.review.overlay")} <kbd>O</kbd></label>}
-            {mode === "grid" && !trashView && <>
-              <label className="auto-label"><input type="checkbox" checked={dupOnly} onChange={e => setDupOnly(e.target.checked)} disabled={!duplicateGroups} /> {t("ip.duplicates", { count: duplicateGroups })}</label>
-              <select className="saved-filter-select" value={collectionFilter} disabled={!!busy || !collections.length} onChange={e => setCollectionFilter(e.target.value)} aria-label={t("ip.collection")}>
-                <option value="">{t("ip.collectionAll")}</option>
-                {collections.map(entry => <option key={entry.id} value={entry.id}>{entry.name} ({entry.count})</option>)}
-              </select>
-              <select className="saved-filter-select" value="" disabled={!!busy || !savedFilters.length} onChange={e => applyFilter(e.target.value)} aria-label={t("ip.savedFilters")}>
-                <option value="">{t("ip.savedFilters")}</option>
-                {savedFilters.map(entry => <option key={entry.name} value={entry.name}>{entry.name}</option>)}
-              </select>
-              {appliedFilter && <button type="button" className="danger" disabled={!!busy} onClick={deleteFilter} aria-label={t("ip.savedFilters.delete")}>×</button>}
-              <input className="saved-filter-name" value={savedName} disabled={!!busy} onChange={e => setSavedName(e.target.value)} placeholder={t("ip.savedFilters.name")} maxLength={40} />
-              <button type="button" disabled={!!busy || !savedName.trim()} onClick={saveFilter}>{t("common.save")}</button>
-            </>}
-          </div>
-          <AsyncBoundary
-            loading={!libraryLoaded}
-            empty={!library.length}
-            skeleton="grid"
-            loadingText={t("common.loadingData")}
-            emptyState={<EmptyState symbol="◎" title={t("ip.empty")} />}
-          >
-          {mode === "review" && reviewItem && <ReviewStage
-            item={reviewItem}
-            index={reviewIndex}
-            total={library.length}
-            anchorUrl={anchorUrl}
-            overlay={anchorOverlay}
-            busy={!!busy}
-            onStatus={setStatus}
-            onLabel={(item, label) => void perform("", async () => updateItem(await api.patchLibraryItem(item.id, { content_label: label })))}
-            onRating={setRating}
-            onNavigate={navigateReview}
-            onView={(url, alt) => setViewer({ url, alt })}
-          />}
-          {mode === "review" && <div className="review-strip">{library.map(item => <button key={item.id} type="button" className={`review-thumb ${item.id === reviewId ? "selected" : ""} status-${item.status}`} onClick={() => setReviewId(item.id)}>
-            <LibraryThumb item={item} onView={(url, alt) => setViewer({ url, alt })} alt={item.caption || item.prompt} />
-          </button>)}</div>}
-          <div className="library-grid" style={mode === "review" ? { display: "none" } : undefined}>{displayed.map(item => <article className={`library-card status-${item.status}`} key={item.id}>
-            <div className="library-thumb">
-              <LibraryThumb item={item} onView={(url, alt) => setViewer({ url, alt })} alt={item.caption || item.prompt} />
-              <span className={`badge ${item.status}`}>{statusLabel(item)}</span>
-              {(duplicateSize.map[item.id] || 1) > 1 && <span className="badge dup-badge">×{duplicateSize.map[item.id]}</span>}
-              <label className="select-check" title={t("bulk.select")}><input type="checkbox" checked={selectedIds.includes(item.id)} disabled={!!busy} onChange={() => toggleSelectedId(item.id)} /></label>
-            </div>
-            <div className="library-meta">
-              <div className="library-stars" role="group" aria-label={t("ip.rating")}>{[1, 2, 3, 4, 5].map(value => <button key={value} className={item.rating >= value ? "on" : ""} disabled={!!busy} onClick={() => setRating(item, value)} aria-label={`${value}/5`}>★</button>)}</div>
-              <p>{item.caption || item.prompt}</p>
-              {!!item.tags.length && <div className="library-tags">{item.tags.slice(0, 8).map(tag => <span key={tag}>{tag}</span>)}</div>}
-              <small>{item.content_label || "suggestive"} · {item.style} · {(item.checkpoint || "").replace(".safetensors", "")} · {t("ip.used")} {item.used_count} · {item.source === "chat" ? t("ip.sourceChat") : t("ip.sourcePlayground")}</small>
-              <div className="library-actions">
-                {trashView ? <>
-                  <button disabled={!!busy} onClick={() => restoreItem(item)}>{t("ip.restore")}</button>
-                  <button className="danger" disabled={!!busy} onClick={() => removeItem(item)}>{t("ip.deleteForever")}</button>
-                </> : <>
-                  <button disabled={!!busy} onClick={() => setStatus(item, item.status === "approved" ? "draft" : "approved")}>{t("ip.approve")}</button>
-                  <button disabled={!!busy} onClick={() => setStatus(item, item.status === "rejected" ? "draft" : "rejected")}>{t("ip.reject")}</button>
-                  <button disabled={!!busy} onClick={() => classifyItem(item)}>{t("ip.classifyNow")}</button>
-                  <button disabled={!!busy} onClick={() => trashItem(item)}>{t("ip.trash")}</button>
-                </>}
-              </div>
-            </div>
-          </article>)}</div>
-          {libraryHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreLibrary}>{t("common.loadMore")}</button></div>}
-          </AsyncBoundary>
-        </div>
-      </main>
-      <div className="panel-resizer" role="separator" aria-orientation="vertical" title={t("ip.resizePanel")} onMouseDown={startResize} />
-      <aside className="inspector image-inspector">
+  const inspectorContent = (
+    <>
+
         <div className="section-title"><h2>{t("ip.generatePanel")}</h2>{character?.avatar_filename && <span title={t("ip.referenceOn")}>◉</span>}</div>
         <div className="ip-form">
           <label>{t("ip.preset")}<select value={presetId} disabled={!!busy} onChange={e => setPresetId(e.target.value)}>
@@ -686,7 +575,133 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
             <PoseLibrary poses={poses} busy={!!busy} perform={perform} onView={(url, alt) => setViewer({ url, alt })} onChange={refreshPoses} />
           </details>
         </div>
+    </>
+  );
+
+  return <div className="playground theme-images">
+    <AppHeader current="/images" onLogout={onLogout} busy={!!busy} />
+    {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
+    <div className="workspace image-workspace" style={{ gridTemplateColumns: `225px minmax(320px, 1fr) 6px ${panelWidth}px` }}>
+      <aside className="character-rail">
+        <div className="section-title"><h2>{t("ip.characters")}</h2><span>{characters.length}</span></div>
+        <div className="character-list">{characters.map((item, index) => <button key={item.id} disabled={!!busy} onClick={() => selectCharacter(item)} className={`character-row ${characterId === item.id ? "selected" : ""}`}>
+          <CharacterAvatar character={item} index={index} onView={(url, alt) => setViewer({ url, alt })} altTemplate={t("pg.avatarAlt")} /><span><strong>{item.name}</strong><small>{item.image_style === "anime" ? t("pg.style.anime") : t("pg.style.real")}</small></span></button>)}
+          {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}</div>
+        <div className="rail-divider" />
+        <div className="section-title"><h2>{t("ip.filters")}</h2></div>
+        <label className="image-checkpoint">{t("ip.statusFilter")}
+          <select value={statusFilter} disabled={!!busy} onChange={e => setStatusFilter(e.target.value)}>
+            <option value="">{t("ip.statusAll")}</option><option value="draft">{t("ip.statusDraft")}</option><option value="approved">{t("ip.statusApproved")}</option><option value="rejected">{t("ip.statusRejected")}</option>
+          </select>
+        </label>
+        <label className="image-checkpoint">{t("ip.style")}
+          <select value={styleFilter} disabled={!!busy} onChange={e => setStyleFilter(e.target.value)}>
+            <option value="">{t("ip.styleAll")}</option><option value="real">{t("pg.style.real")}</option><option value="anime">{t("pg.style.anime")}</option>
+          </select>
+        </label>
       </aside>
+      <main className="main-panel">
+        <PageHeader
+          eyebrow={character ? t("pg.personalityVersion", { version: character.version }) : t("ip.title")}
+          title={character?.name || t("ip.selectCharacter")}
+          subtitle={t("ip.subtitle")}
+          aside={<span className="library-count">{t("ip.imagesCount", { count: library.length })}</span>}
+        />
+        <div className="library-scroll">
+          <div className="bulk-bar">
+            <button type="button" className="narrow-only" onClick={() => setGeneratorOpen(true)}>{t("ip.generator")}</button>
+            <div className="view-tabs" role="tablist" aria-label={t("ip.mode")}>
+              <button role="tab" aria-selected={!trashView && mode === "grid"} disabled={!!busy} onClick={() => { setTrashView(false); setMode("grid"); }}>{t("ip.mode.grid")}</button>
+              <button role="tab" aria-selected={!trashView && mode === "review"} disabled={!!busy} onClick={() => { setTrashView(false); setMode("review"); }}>{t("ip.mode.review")}</button>
+              <button role="tab" aria-selected={trashView} disabled={!!busy} onClick={() => { setTrashView(true); setMode("grid"); }}>{t("ip.mode.trash")}</button>
+            </div>
+            {trashView && <button className="danger" disabled={!!busy || !library.length} onClick={() => { if (window.confirm(t("ip.emptyTrashConfirm"))) { setBusy(t("ip.emptyTrash")); void api.purgeTrash(0).then(() => setLibrary([])).catch(() => undefined).finally(() => setBusy("")); } }}>{t("ip.emptyTrash")}</button>}
+            {mode === "grid" ? <>
+              <label><input type="checkbox" disabled={!!busy || !library.length} checked={selectedIds.length > 0 && selectedIds.length === library.length} onChange={e => setSelectedIds(e.target.checked ? library.map(entry => entry.id) : [])} /> {t("bulk.selectAll")}</label>
+              {selectedIds.length > 0 && <>
+                <button disabled={!!busy} onClick={() => bulkStatus("approved")}>{t("ip.approve")}</button>
+                <button disabled={!!busy} onClick={() => bulkStatus("rejected")}>{t("ip.reject")}</button>
+                <button disabled={!!busy} onClick={() => bulkStatus("draft")}>{t("ip.statusDraft")}</button>
+                <select className="saved-filter-select" value={addToCollection} disabled={!!busy || !collections.length} onChange={e => setAddToCollection(e.target.value)} aria-label={t("ip.addToCollection")}>
+                  <option value="">{t("ip.addToCollection")}</option>
+                  {collections.map(entry => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
+                </select>
+                <button type="button" disabled={!!busy || !addToCollection} onClick={addSelectedToCollection}>{t("ip.collectionAdd")}</button>
+                <button className="danger" disabled={!!busy} onClick={removeSelected}>{t("bulk.deleteSelected", { count: selectedIds.length })}</button>
+              </>}
+            </> : <label className="auto-label"><input type="checkbox" checked={anchorOverlay} onChange={e => setAnchorOverlay(e.target.checked)} disabled={!anchorUrl} /> {t("ip.review.overlay")} <kbd>O</kbd></label>}
+            {mode === "grid" && !trashView && <>
+              <label className="auto-label"><input type="checkbox" checked={dupOnly} onChange={e => setDupOnly(e.target.checked)} disabled={!duplicateGroups} /> {t("ip.duplicates", { count: duplicateGroups })}</label>
+              <select className="saved-filter-select" value={collectionFilter} disabled={!!busy || !collections.length} onChange={e => setCollectionFilter(e.target.value)} aria-label={t("ip.collection")}>
+                <option value="">{t("ip.collectionAll")}</option>
+                {collections.map(entry => <option key={entry.id} value={entry.id}>{entry.name} ({entry.count})</option>)}
+              </select>
+              <select className="saved-filter-select" value="" disabled={!!busy || !savedFilters.length} onChange={e => applyFilter(e.target.value)} aria-label={t("ip.savedFilters")}>
+                <option value="">{t("ip.savedFilters")}</option>
+                {savedFilters.map(entry => <option key={entry.name} value={entry.name}>{entry.name}</option>)}
+              </select>
+              {appliedFilter && <button type="button" className="danger" disabled={!!busy} onClick={deleteFilter} aria-label={t("ip.savedFilters.delete")}>×</button>}
+              <input className="saved-filter-name" value={savedName} disabled={!!busy} onChange={e => setSavedName(e.target.value)} placeholder={t("ip.savedFilters.name")} maxLength={40} />
+              <button type="button" disabled={!!busy || !savedName.trim()} onClick={saveFilter}>{t("common.save")}</button>
+            </>}
+          </div>
+          <AsyncBoundary
+            loading={!libraryLoaded}
+            empty={!library.length}
+            skeleton="grid"
+            loadingText={t("common.loadingData")}
+            emptyState={<EmptyState symbol="◎" title={t("ip.empty")} />}
+          >
+          {mode === "review" && reviewItem && <ReviewStage
+            item={reviewItem}
+            index={reviewIndex}
+            total={library.length}
+            anchorUrl={anchorUrl}
+            overlay={anchorOverlay}
+            busy={!!busy}
+            onStatus={setStatus}
+            onLabel={(item, label) => void perform("", async () => updateItem(await api.patchLibraryItem(item.id, { content_label: label })))}
+            onRating={setRating}
+            onNavigate={navigateReview}
+            onView={(url, alt) => setViewer({ url, alt })}
+          />}
+          {mode === "review" && <div className="review-strip">{library.map(item => <button key={item.id} type="button" className={`review-thumb ${item.id === reviewId ? "selected" : ""} status-${item.status}`} onClick={() => setReviewId(item.id)}>
+            <LibraryThumb item={item} onView={(url, alt) => setViewer({ url, alt })} alt={item.caption || item.prompt} />
+          </button>)}</div>}
+          <div className="library-grid" style={mode === "review" ? { display: "none" } : undefined}>{displayed.map(item => <article className={`library-card status-${item.status}`} key={item.id}>
+            <div className="library-thumb">
+              <LibraryThumb item={item} onView={(url, alt) => setViewer({ url, alt })} alt={item.caption || item.prompt} />
+              <span className={`badge ${item.status}`}>{statusLabel(item)}</span>
+              {(duplicateSize.map[item.id] || 1) > 1 && <span className="badge dup-badge">×{duplicateSize.map[item.id]}</span>}
+              <label className="select-check" title={t("bulk.select")}><input type="checkbox" checked={selectedIds.includes(item.id)} disabled={!!busy} onChange={() => toggleSelectedId(item.id)} /></label>
+            </div>
+            <div className="library-meta">
+              <div className="library-stars" role="group" aria-label={t("ip.rating")}>{[1, 2, 3, 4, 5].map(value => <button key={value} className={item.rating >= value ? "on" : ""} disabled={!!busy} onClick={() => setRating(item, value)} aria-label={`${value}/5`}>★</button>)}</div>
+              <p>{item.caption || item.prompt}</p>
+              {!!item.tags.length && <div className="library-tags">{item.tags.slice(0, 8).map(tag => <span key={tag}>{tag}</span>)}</div>}
+              <small>{item.content_label || "suggestive"} · {item.style} · {(item.checkpoint || "").replace(".safetensors", "")} · {t("ip.used")} {item.used_count} · {item.source === "chat" ? t("ip.sourceChat") : t("ip.sourcePlayground")}</small>
+              <div className="library-actions">
+                {trashView ? <>
+                  <button disabled={!!busy} onClick={() => restoreItem(item)}>{t("ip.restore")}</button>
+                  <button className="danger" disabled={!!busy} onClick={() => removeItem(item)}>{t("ip.deleteForever")}</button>
+                </> : <>
+                  <button disabled={!!busy} onClick={() => setStatus(item, item.status === "approved" ? "draft" : "approved")}>{t("ip.approve")}</button>
+                  <button disabled={!!busy} onClick={() => setStatus(item, item.status === "rejected" ? "draft" : "rejected")}>{t("ip.reject")}</button>
+                  <button disabled={!!busy} onClick={() => classifyItem(item)}>{t("ip.classifyNow")}</button>
+                  <button disabled={!!busy} onClick={() => trashItem(item)}>{t("ip.trash")}</button>
+                </>}
+              </div>
+            </div>
+          </article>)}</div>
+          {libraryHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreLibrary}>{t("common.loadMore")}</button></div>}
+          </AsyncBoundary>
+        </div>
+      </main>
+      <div className="panel-resizer" role="separator" aria-orientation="vertical" title={t("ip.resizePanel")} onMouseDown={startResize} />
+
+      {isNarrow
+        ? <InspectorDrawer open={generatorOpen} onClose={() => setGeneratorOpen(false)} title={t("ip.generator")} closeLabel={t("common.close")}>{inspectorContent}</InspectorDrawer>
+        : <aside className="inspector image-inspector">{inspectorContent}</aside>}
     </div>
     {viewer && <Lightbox src={viewer.url} alt={viewer.alt} onClose={() => setViewer(null)} />}
   </div>;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Routes, Route, useNavigate } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import Login from "./components/Login";
 import HomePage from "./components/HomePage";
 import Playground from "./components/Playground";
@@ -10,6 +10,17 @@ import VideoPlayground from "./components/VideoPlayground";
 import JobsPage from "./components/JobsPage";
 
 const SESSION_HOURS = 12;
+
+function RouteScrollReset() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document
+      .querySelectorAll(".home-scroll, .library-scroll, .message-scroll, .character-rail, .inspector, .lora-content, .main-panel")
+      .forEach(element => element.scrollTo({ top: 0 }));
+  }, [pathname]);
+  return null;
+}
 
 function App() {
   const [apiKey, setApiKey] = useState<string | null>(null);
@@ -46,7 +57,9 @@ function App() {
   }
 
   return (
-    <Routes>
+    <>
+      <RouteScrollReset />
+      <Routes>
       <Route path="/" element={<HomePage onLogout={handleLogout} />} />
       <Route path="/chat" element={<Playground onLogout={handleLogout} />} />
       <Route path="/images" element={<ImagePlayground onLogout={handleLogout} />} />
@@ -54,7 +67,8 @@ function App() {
       <Route path="/loras" element={<LoraPlayground onLogout={handleLogout} />} />
       <Route path="/video" element={<VideoPlayground onLogout={handleLogout} />} />
       <Route path="/jobs" element={<JobsPage onLogout={handleLogout} />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }
 

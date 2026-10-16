@@ -10,6 +10,9 @@ const NO_OLLAMA_MODELS: never[] = [];
 import DatasetPanel from "./DatasetPanel";
 import StatusBadge from "./ui/StatusBadge";
 import JobProgress from "./ui/JobProgress";
+import { formatDuration } from "../lib/format";
+import InspectorDrawer from "./ui/InspectorDrawer";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import DangerZone from "./ui/DangerZone";
 import IdentityPanel from "./ui/IdentityPanel";
 import PageHeader from "./ui/PageHeader";
@@ -168,6 +171,8 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   const [avatarCheckpoint, setAvatarCheckpoint] = useState("");
   const [avatarPrompt, setAvatarPrompt] = useState("");
   const [guideOpen, setGuideOpen] = useState(() => localStorage.getItem("lora_guide") !== "0");
+  const isNarrow = useMediaQuery("(max-width: 1279px)");
+  const [guideDrawerOpen, setGuideDrawerOpen] = useState(false);
   const toggleGuide = () => {
     const next = !guideOpen;
     setGuideOpen(next);
@@ -382,8 +387,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     const elapsed = (Date.now() - new Date(job.started_at).getTime()) / 1000;
     if (elapsed < 10) return null;
     const remaining = (elapsed * (total - step)) / step;
-    if (remaining < 60) return t("jobs.etaSeconds", { seconds: Math.round(remaining) });
-    return t("jobs.etaMinutes", { minutes: Math.round(remaining / 60) });
+    return t("jobs.eta", { time: formatDuration(Math.max(1, remaining)) });
   };
 
   const progressPercent = (job: TrainingJob) => {
@@ -391,6 +395,22 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     const total = job.progress?.total ?? 0;
     return total > 0 ? Math.min(100, Math.round((step / total) * 100)) : 0;
   };
+
+  const guideContent = (
+    <>
+
+        <div className="section-title"><h2>{t("lp.guide.title")}</h2><button type="button" onClick={toggleGuide} aria-label={t("lp.guide.hide")}>×</button></div>
+        <p className="muted">{t("lp.guide.intro")}</p>
+        <section><h3>{t("lp.guide.character")}</h3><p>{t("lp.guide.characterText")}</p></section>
+        <section><h3>{t("lp.guide.dataset")}</h3><p>{t("lp.guide.datasetText")}</p></section>
+        <section><h3>{t("lp.guide.training")}</h3><p>{t("lp.guide.trainingText")}</p>
+          <ul><li>{t("lp.guide.rank")}</li><li>{t("lp.guide.stepsTraining")}</li><li>{t("lp.guide.activation")}</li></ul></section>
+        <section><h3>{t("lp.guide.usage")}</h3><p>{t("lp.guide.usageText")}</p>
+          <ul><li>{t("lp.guide.weights")}</li><li>{t("lp.guide.clip")}</li><li>{t("lp.guide.poses")}</li></ul></section>
+        <section><h3>{t("lp.guide.glossary")}</h3>
+          <ul><li>{t("lp.guide.glossaryCheckpoint")}</li><li>{t("lp.guide.glossaryLora")}</li><li>{t("lp.guide.glossaryTrigger")}</li><li>{t("lp.guide.glossaryIpadapter")}</li><li>{t("lp.guide.glossaryControlnet")}</li><li>{t("lp.guide.glossaryQwen")}</li></ul></section>
+    </>
+  );
 
   return <div className="playground theme-lora">
     <AppHeader current="/loras" onLogout={onLogout} busy={!!busy} />
@@ -408,7 +428,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
           eyebrow="LoRA"
           title={character?.name || t("lp.title")}
           subtitle={t("lp.subtitle")}
-          aside={<><span className="library-count">{loras.length} LoRA</span><button type="button" onClick={toggleGuide}>{guideOpen ? t("lp.guide.hide") : t("lp.guide.show")}</button></>}
+          aside={<><span className="library-count">{loras.length} LoRA</span><button type="button" onClick={() => (isNarrow ? setGuideDrawerOpen(true) : toggleGuide())}>{guideOpen ? t("lp.guide.hide") : t("lp.guide.show")}</button></>}
         />
         {busy && <p className="memory-status lora-busy" role="status"><span className="spinner" />{busy} <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
         {readiness && <p className="readiness-line" role="status">{readiness}</p>}
@@ -498,18 +518,8 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
           </section>
         </div>
       </main>
-      {guideOpen && <aside className="lora-guide">
-        <div className="section-title"><h2>{t("lp.guide.title")}</h2><button type="button" onClick={toggleGuide} aria-label={t("lp.guide.hide")}>×</button></div>
-        <p className="muted">{t("lp.guide.intro")}</p>
-        <section><h3>{t("lp.guide.character")}</h3><p>{t("lp.guide.characterText")}</p></section>
-        <section><h3>{t("lp.guide.dataset")}</h3><p>{t("lp.guide.datasetText")}</p></section>
-        <section><h3>{t("lp.guide.training")}</h3><p>{t("lp.guide.trainingText")}</p>
-          <ul><li>{t("lp.guide.rank")}</li><li>{t("lp.guide.stepsTraining")}</li><li>{t("lp.guide.activation")}</li></ul></section>
-        <section><h3>{t("lp.guide.usage")}</h3><p>{t("lp.guide.usageText")}</p>
-          <ul><li>{t("lp.guide.weights")}</li><li>{t("lp.guide.clip")}</li><li>{t("lp.guide.poses")}</li></ul></section>
-        <section><h3>{t("lp.guide.glossary")}</h3>
-          <ul><li>{t("lp.guide.glossaryCheckpoint")}</li><li>{t("lp.guide.glossaryLora")}</li><li>{t("lp.guide.glossaryTrigger")}</li><li>{t("lp.guide.glossaryIpadapter")}</li><li>{t("lp.guide.glossaryControlnet")}</li><li>{t("lp.guide.glossaryQwen")}</li></ul></section>
-      </aside>}
+      {!isNarrow && guideOpen && <aside className="lora-guide">{guideContent}</aside>}
+      {isNarrow && <InspectorDrawer open={guideDrawerOpen} onClose={() => setGuideDrawerOpen(false)} title={t("lp.guide.title")} closeLabel={t("common.close")}>{guideContent}</InspectorDrawer>}
     </div>
     {viewer && <Lightbox src={viewer.url} alt={viewer.alt} onClose={() => setViewer(null)} />}
     {editing && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={t("form.aria")}><CharacterForm character={editing === "new" ? undefined : editing} models={NO_OLLAMA_MODELS} onSave={saveCharacter} onCancel={() => setEditing(null)} /></div></div>}

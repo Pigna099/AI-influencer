@@ -3,6 +3,8 @@ import { api, Character, LibraryImage, VideoClip } from "../api";
 import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import AsyncBoundary from "./ui/AsyncBoundary";
+import InspectorDrawer from "./ui/InspectorDrawer";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import AdvancedSettings from "./ui/AdvancedSettings";
 import StatusBadge from "./ui/StatusBadge";
 import PageHeader from "./ui/PageHeader";
@@ -86,7 +88,7 @@ function VideoCard({ item, sourceImage, busy, onDelete, onReview, onError }: {
           <option value="suggestive">{t("ip.label.suggestive")}</option>
           <option value="explicit">{t("ip.label.explicit")}</option>
         </select>
-        <button className="danger" disabled={busy} onClick={() => onDelete(item)}>{t("common.delete")}</button>
+        <details className="overflow-menu"><summary aria-label={t("common.more")}>⋯</summary><div><button className="danger" disabled={busy} onClick={() => onDelete(item)}>{t("common.delete")}</button></div></details>
       </div>
     </div>
   </article>;
@@ -128,6 +130,8 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   const [sourceId, setSourceId] = useState("");
   const [lastImageId, setLastImageId] = useState("");
   const [reviewFilter, setReviewFilter] = useState("");
+  const isNarrow = useMediaQuery("(max-width: 1279px)");
+  const [generatorOpen, setGeneratorOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [videosHasMore, setVideosHasMore] = useState(false);
   const VIDEOS_PAGE = 50;
@@ -283,41 +287,9 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
     })();
   };
 
-  return <div className="playground theme-images">
-    <AppHeader current="/video" onLogout={onLogout} busy={!!busy} />
-    {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
-    <div className="workspace image-workspace" style={{ gridTemplateColumns: "225px minmax(320px, 1fr) 380px" }}>
-      <aside className="character-rail">
-        <div className="section-title"><h2>{t("ip.characters")}</h2><span>{characters.length}</span></div>
-        <div className="rail-list">{characters.map(item => <button key={item.id} className={item.id === characterId ? "selected" : ""} disabled={!!busy} onClick={() => setCharacterId(item.id)}>{item.name}</button>)}</div>
-        {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}
-      </aside>
-      <main className="main-panel">
-        <PageHeader
-          eyebrow={characterId ? t("vd.subtitle") : t("ip.title")}
-          title={characters.find(item => item.id === characterId)?.name || t("vd.selectCharacter")}
-          subtitle={t("vd.subtitle")}
-          aside={<div className="section-actions"><select className="saved-filter-select" value={reviewFilter} disabled={!!busy} onChange={e => setReviewFilter(e.target.value)} aria-label={t("vd.reviewFilter")}>
-            <option value="">{t("vd.reviewAll")}</option>
-            <option value="draft">{t("ip.statusDraft")}</option>
-            <option value="approved">{t("ip.statusApproved")}</option>
-            <option value="rejected">{t("ip.statusRejected")}</option>
-          </select><span className="library-count">{t("vd.count", { count: videos.length })}</span></div>}
-        />
-        <div className="library-scroll">
-          <AsyncBoundary
-            loading={!loaded}
-            empty={!videos.length}
-            skeleton="grid"
-            loadingText={t("common.loadingData")}
-            emptyState={<EmptyState symbol="▶" title={t("vd.empty")} />}
-          >
-          <div className="video-grid">{videos.map(item => <VideoCard key={item.id} item={item} sourceImage={library.find(image => image.id === item.source_image_id)} busy={!!busy} onDelete={removeVideo} onReview={reviewVideo} onError={setError} />)}</div>
-          {videosHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreVideos}>{t("common.loadMore")}</button></div>}
-          </AsyncBoundary>
-        </div>
-      </main>
-      <aside className="inspector image-inspector">
+  const inspectorContent = (
+    <>
+
         <div className="section-title"><h2>{t("vd.generatePanel")}</h2></div>
         {busy && <p className="memory-status" role="status"><span className="spinner" />{busy} <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
         <div className="ip-form">
@@ -385,7 +357,46 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
           {!busy && characterId && mode === "image" && !!library.length && !sourceId && <small className="hint">{t("hint.selectSource")}</small>}
           {!busy && characterId && !prompt.trim() && <small className="hint">{t("hint.enterPrompt")}</small>}
         </div>
+    </>
+  );
+
+  return <div className="playground theme-images">
+    <AppHeader current="/video" onLogout={onLogout} busy={!!busy} />
+    {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
+    <div className="workspace image-workspace" style={{ gridTemplateColumns: "225px minmax(320px, 1fr) 380px" }}>
+      <aside className="character-rail">
+        <div className="section-title"><h2>{t("ip.characters")}</h2><span>{characters.length}</span></div>
+        <div className="rail-list">{characters.map(item => <button key={item.id} className={item.id === characterId ? "selected" : ""} disabled={!!busy} onClick={() => setCharacterId(item.id)}>{item.name}</button>)}</div>
+        {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}
       </aside>
+      <main className="main-panel">
+        <PageHeader
+          eyebrow={characterId ? t("vd.subtitle") : t("ip.title")}
+          title={characters.find(item => item.id === characterId)?.name || t("vd.selectCharacter")}
+          subtitle={t("vd.subtitle")}
+          aside={<div className="section-actions"><button type="button" className="narrow-only" onClick={() => setGeneratorOpen(true)}>{t("ip.generator")}</button><select className="saved-filter-select" value={reviewFilter} disabled={!!busy} onChange={e => setReviewFilter(e.target.value)} aria-label={t("vd.reviewFilter")}>
+            <option value="">{t("vd.reviewAll")}</option>
+            <option value="draft">{t("ip.statusDraft")}</option>
+            <option value="approved">{t("ip.statusApproved")}</option>
+            <option value="rejected">{t("ip.statusRejected")}</option>
+          </select><span className="library-count">{t("vd.count", { count: videos.length })}</span></div>}
+        />
+        <div className="library-scroll">
+          <AsyncBoundary
+            loading={!loaded}
+            empty={!videos.length}
+            skeleton="grid"
+            loadingText={t("common.loadingData")}
+            emptyState={<EmptyState symbol="▶" title={t("vd.empty")} />}
+          >
+          <div className="video-grid">{videos.map(item => <VideoCard key={item.id} item={item} sourceImage={library.find(image => image.id === item.source_image_id)} busy={!!busy} onDelete={removeVideo} onReview={reviewVideo} onError={setError} />)}</div>
+          {videosHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreVideos}>{t("common.loadMore")}</button></div>}
+          </AsyncBoundary>
+        </div>
+      </main>
+      {isNarrow
+        ? <InspectorDrawer open={generatorOpen} onClose={() => setGeneratorOpen(false)} title={t("vd.generatePanel")} closeLabel={t("common.close")}>{inspectorContent}</InspectorDrawer>
+        : <aside className="inspector image-inspector">{inspectorContent}</aside>}
     </div>
   </div>;
 }

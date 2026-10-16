@@ -21,18 +21,31 @@ interface Props {
 
 export default function AppHeader({ current, onLogout, busy, label }: Props) {
   const { t } = useI18n();
+  const currentLabel = LINKS.find(link => link.to === current)?.key;
   return (
     <header className="topbar">
-      <div className="brand"><span className="brand-mark">ai</span><h1>AI influencer playground <b>v6</b></h1></div>
+      <div className="brand"><span className="brand-mark">ai</span><h1>AI influencer playground <b>v6</b></h1>
+        {currentLabel && <span className="topbar-current">{t(currentLabel)}</span>}
+      </div>
       <div className="top-actions">
         {label && <span className="sandbox-label">{label}</span>}
-        <nav className="top-nav" aria-label={t("pg.navAria")}>
+        <nav className="top-nav top-nav-wide" aria-label={t("pg.navAria")}>
           {LINKS.map(link => (
             <Link key={link.to} className={link.to === current ? "selected" : undefined} aria-current={link.to === current ? "page" : undefined} to={link.to}>{t(link.key)}</Link>
           ))}
         </nav>
         <JobTray />
-        <button onClick={onLogout} disabled={!!busy}>{t("pg.logout")}</button>
+        <details className="account-menu">
+          <summary aria-label={t("pg.accountMenu")} title={t("pg.accountMenu")}><span aria-hidden="true">☰</span></summary>
+          <div className="account-menu-body">
+            <nav className="top-nav top-nav-narrow" aria-label={t("pg.navAria")}>
+              {LINKS.map(link => (
+                <Link key={link.to} className={link.to === current ? "selected" : undefined} aria-current={link.to === current ? "page" : undefined} to={link.to}>{t(link.key)}</Link>
+              ))}
+            </nav>
+            <button onClick={onLogout} disabled={!!busy}>{t("pg.logout")}</button>
+          </div>
+        </details>
       </div>
     </header>
   );

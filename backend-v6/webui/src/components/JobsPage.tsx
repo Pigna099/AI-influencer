@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, Character, ExecutionJob, JobEvent } from "../api";
+import { formatDuration } from "../lib/format";
 import { useI18n } from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import AsyncBoundary from "./ui/AsyncBoundary";
@@ -14,15 +15,14 @@ const JOB_TYPES = [
 ];
 const PAGE = 50;
 
-function jobEta(job: ExecutionJob, t: (key: "jobs.etaSeconds" | "jobs.etaMinutes", values?: Record<string, number>) => string): string | null {
+function jobEta(job: ExecutionJob, t: (key: "jobs.eta", values?: Record<string, string>) => string): string | null {
   const current = job.progress?.current;
   const total = job.progress?.total;
   if (!current || !total || !job.started_at || current <= 0) return null;
   const elapsed = (Date.now() - new Date(job.started_at).getTime()) / 1000;
   if (elapsed < 5) return null;
   const remaining = (elapsed * (total - current)) / current;
-  if (remaining < 60) return t("jobs.etaSeconds", { seconds: Math.max(1, Math.round(remaining)) });
-  return t("jobs.etaMinutes", { minutes: Math.round(remaining / 60) });
+  return t("jobs.eta", { time: formatDuration(Math.max(1, remaining)) });
 }
 
 function progressPercent(job: ExecutionJob) {
@@ -181,7 +181,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
           <span><b>{metrics.jobs.by_state.running + metrics.jobs.by_state.queued}</b> {t("jobs.metrics.active")}</span>
           <span><b>{metrics.jobs.by_state.succeeded}</b> {t("jobs.metrics.succeeded")}</span>
           <span><b>{metrics.jobs.by_state.failed}</b> {t("jobs.metrics.failed")}</span>
-          {Object.entries(metrics.jobs.avg_run_seconds).slice(0, 4).map(([type, seconds]) => <span key={type}>{t(`jobs.type.${type}` as "jobs.type.training")} ≈ {seconds}s</span>)}
+          {Object.entries(metrics.jobs.avg_run_seconds).slice(0, 4).map(([type, seconds]) => <span key={type}>{t(`jobs.type.${type}` as "jobs.type.training")} ≈ {formatDuration(seconds)}</span>)}
           <span><b>{Math.round(metrics.library.approval_rate * 100)}%</b> {t("jobs.metrics.approval")}</span>
           <span>{t("jobs.metrics.storage", { files: metrics.storage.media_files, gb: (metrics.storage.media_bytes / 1024 ** 3).toFixed(2), free: Math.round(metrics.storage.disk_free_bytes / 1024 ** 3) })}</span>
           {metrics.models.loras_missing_checkpoint > 0 && <span className="warn">⚠ {t("jobs.metrics.missingCheckpoints", { count: metrics.models.loras_missing_checkpoint })}</span>}
@@ -189,11 +189,13 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
         </div>}
         {!!errorsByCode.length && <div className="errors-by-code">
           <small className="muted">{t("jobs.errorsByCode")}</small>
-          <ul>{errorsByCode.map(entry => <li key={entry.code}><code>{entry.code}</code><b>{entry.count}</b></li>)}</ul>
+          <ul>{errorsByCode.map(entry => <li key={entry.code} title={entry.code}><span>{t(`jobs.error.${entry.code}` as "jobs.error.checkpoint_missing")}</span><b>{entry.count}</b></li>)}</ul>
         </div>}
         <div className="maintenance-row">
           <button disabled={busy} onClick={() => reconcile(false)}>{t("jobs.scanOrphans")}</button>
-          <button disabled={busy} onClick={() => { if (window.confirm(t("jobs.purgeTrashConfirm"))) { setBusy(true); void api.purgeTrash(30).then(result => setReconcileReport({ orphans: 0, removed: result.purged, freed_bytes: 0, sample: [] })).catch(e => setError(e instanceof Error ? e.message : String(e))).finally(() => setBusy(false)); } }}>{t("jobs.purgeTrash")}</button>
+          <details className="danger-zone-inline"><summary>{t("jobs.dangerZone")}</summary>
+            <button className="danger" disabled={busy} onClick={() => { if (window.confirm(t("jobs.purgeTrashConfirm"))) { setBusy(true); void api.purgeTrash(30).then(result => setReconcileReport({ orphans: 0, removed: result.purged, freed_bytes: 0, sample: [] })).catch(e => setError(e instanceof Error ? e.message : String(e))).finally(() => setBusy(false)); } }}>{t("jobs.purgeTrash")}</button>
+          </details>
           {reconcileReport && (reconcileReport.orphans > 0
             ? <span>{t("jobs.orphansFound", { count: reconcileReport.orphans })} <button disabled={busy} className="danger" onClick={() => reconcile(true)}>{t("jobs.deleteOrphans")}</button></span>
             : <span>{reconcileReport.removed > 0 ? t("jobs.orphansRemoved", { count: reconcileReport.removed, gb: (reconcileReport.freed_bytes / 1024 ** 3).toFixed(2) }) : t("jobs.noOrphans")}</span>)}
@@ -211,8 +213,8 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
                     <td>{states.succeeded ?? 0}</td>
                     <td>{states.failed ?? 0}</td>
                     <td>{states.canceled ?? 0}</td>
-                    <td>{metrics.jobs.avg_run_seconds[type] != null ? `${metrics.jobs.avg_run_seconds[type]}s` : "—"}</td>
-                    <td>{metrics.jobs.avg_queue_seconds[type] != null ? `${metrics.jobs.avg_queue_seconds[type]}s` : "—"}</td>
+                    <td>{metrics.jobs.avg_run_seconds[type] != null ? formatDuration(metrics.jobs.avg_run_seconds[type]) : "—"}</td>
+                    <td>{metrics.jobs.avg_queue_seconds[type] != null ? formatDuration(metrics.jobs.avg_queue_seconds[type]) : "—"}</td>
                   </tr>)}
                 </tbody>
               </table>

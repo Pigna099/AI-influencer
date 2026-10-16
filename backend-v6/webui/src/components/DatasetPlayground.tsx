@@ -3,6 +3,8 @@ import { api, CharacterProfile, DatasetImage, DatasetSource } from "../api";
 import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import AsyncBoundary from "./ui/AsyncBoundary";
+import InspectorDrawer from "./ui/InspectorDrawer";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import PageHeader from "./ui/PageHeader";
 import StatusBadge from "./ui/StatusBadge";
 import EmptyState from "./ui/EmptyState";
@@ -53,6 +55,8 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
   const { t } = useI18n();
   const [sources, setSources] = useState<DatasetSource[]>([]);
   const [sourceId, setSourceId] = useState("");
+  const isNarrow = useMediaQuery("(max-width: 1279px)");
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [images, setImages] = useState<DatasetImage[]>([]);
   const [selected, setSelected] = useState<DatasetImage | null>(null);
   const [name, setName] = useState("");
@@ -212,6 +216,22 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
     });
   };
 
+  const detailsContent = (
+    <>
+
+        <div className="section-title"><h2>{t("ds.details")}</h2></div>
+        {!selected && <p className="muted">{t("ds.noImageSelected")}</p>}
+        {selected && <>
+          <p className="scope-label">{selected.kind === "video" ? t("ds.video") : t("ds.image")} · {selected.status}{selected.kind === "image" ? ` · ${selected.width}×${selected.height}` : ""}</p>
+          <p className="dataset-caption">{selected.kind === "video" ? t("ds.videoNoCaption") : selected.caption}</p>
+          <dl className="dataset-details">{detailFields.map(field => <div key={field}><dt>{t(`ds.fields.${field}` as "ds.fields.pose")}</dt><dd>{selected.details?.[field] || "—"}</dd></div>)}</dl>
+          {!!selected.tags.length && <div className="library-tags">{selected.tags.map(tag => <span key={tag}>{tag}</span>)}</div>}
+          {selected.kind === "image" && <button disabled={!!busy} onClick={() => extractPose(selected)}>{t("ds.poseExtract")}</button>}
+          <button className="danger text-button" disabled={!!busy} onClick={() => removeImage(selected)}>{t("common.delete")}</button>
+        </>}
+    </>
+  );
+
   return <div className="playground theme-dataset">
     <AppHeader current="/dataset" onLogout={onLogout} busy={!!busy} />
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
@@ -274,18 +294,10 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
           </AsyncBoundary>
         </div>
       </main>
-      <aside className="inspector dataset-inspector">
-        <div className="section-title"><h2>{t("ds.details")}</h2></div>
-        {!selected && <p className="muted">{t("ds.noImageSelected")}</p>}
-        {selected && <>
-          <p className="scope-label">{selected.kind === "video" ? t("ds.video") : t("ds.image")} · {selected.status}{selected.kind === "image" ? ` · ${selected.width}×${selected.height}` : ""}</p>
-          <p className="dataset-caption">{selected.kind === "video" ? t("ds.videoNoCaption") : selected.caption}</p>
-          <dl className="dataset-details">{detailFields.map(field => <div key={field}><dt>{t(`ds.fields.${field}` as "ds.fields.pose")}</dt><dd>{selected.details?.[field] || "—"}</dd></div>)}</dl>
-          {!!selected.tags.length && <div className="library-tags">{selected.tags.map(tag => <span key={tag}>{tag}</span>)}</div>}
-          {selected.kind === "image" && <button disabled={!!busy} onClick={() => extractPose(selected)}>{t("ds.poseExtract")}</button>}
-          <button className="danger text-button" disabled={!!busy} onClick={() => removeImage(selected)}>{t("common.delete")}</button>
-        </>}
-      </aside>
+      <button type="button" className="narrow-only details-toggle" onClick={() => setDetailsOpen(true)}>{t("ds.details")}</button>
+      {isNarrow
+        ? <InspectorDrawer open={detailsOpen} onClose={() => setDetailsOpen(false)} title={t("ds.details")} closeLabel={t("common.close")}>{detailsContent}</InspectorDrawer>
+        : <aside className="inspector dataset-inspector">{detailsContent}</aside>}
     </div>
     {viewer && <Lightbox src={viewer.url} alt={viewer.alt} video={viewer.video} onClose={() => setViewer(null)} />}
     {profileDraft && <div className="modal-backdrop"><div className="modal fan-editor" role="dialog" aria-modal="true" aria-label={t("ds.profileTitle")}>

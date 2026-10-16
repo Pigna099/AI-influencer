@@ -23,8 +23,11 @@ export default function JobTray() {
   }, []);
 
   if (!active && !failed) return null;
+  const label = failed
+    ? t("jobs.trayAttention", { count: failed })
+    : t("jobs.trayRunning", { count: active });
   return (
-    <Link className="job-tray" to="/jobs" aria-label={t("jobs.trayAria")}>
+    <Link className="job-tray" to="/jobs" aria-label={label} title={label}>
       {active > 0 && <span className="job-tray-active" role="status"><span className="spinner" />{active}</span>}
       {failed > 0 && <span className="job-tray-failed">{failed}</span>}
     </Link>

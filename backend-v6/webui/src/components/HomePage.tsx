@@ -34,6 +34,7 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
   const [savingPlan, setSavingPlan] = useState(false);
 
   const [overview, setOverview] = useState<Awaited<ReturnType<typeof api.getOverview>> | null>(null);
+  const [infraOpen, setInfraOpen] = useState(() => localStorage.getItem("home_infra") !== "0");
 
   useEffect(() => {
     api.getDefaults().then(setDefaults).catch(() => undefined);
@@ -223,16 +224,18 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
       <section>
         <div className="section-title"><h2>{t("home.attention.title")}</h2></div>
         {overview && (overview.draft_images + overview.draft_videos + overview.jobs_failed + overview.jobs_running + overview.characters_incomplete + overview.characters_undisclosed > 0 ? (
-          <div className="attention-list">
-            {overview.characters_undisclosed > 0 && <Link to="/loras"><span>{t("home.attention.undisclosed", { count: overview.characters_undisclosed })}</span><b>{t("home.attention.open")}</b></Link>}
-            {overview.characters_incomplete > 0 && <Link to="/loras"><span>{t("home.attention.incompleteCharacters", { count: overview.characters_incomplete })}</span><b>{t("home.attention.open")}</b></Link>}
-            {overview.draft_images > 0 && <Link to="/images"><span>{t("home.attention.draftImages", { count: overview.draft_images })}</span><b>{t("home.attention.open")}</b></Link>}
-            {overview.draft_videos > 0 && <Link to="/video"><span>{t("home.attention.draftVideos", { count: overview.draft_videos })}</span><b>{t("home.attention.open")}</b></Link>}
-            {overview.jobs_failed > 0 && <Link to="/loras"><span>{t("home.attention.failedJobs", { count: overview.jobs_failed })}</span><b>{t("home.attention.open")}</b></Link>}
-            {overview.jobs_running > 0 && <Link to="/loras"><span>{t("home.attention.runningJobs", { count: overview.jobs_running })}</span><b>{t("home.attention.open")}</b></Link>}
+          <div className="attention-cards">
+            {overview.characters_undisclosed > 0 && <Link className="attention-card" to="/loras"><b>{overview.characters_undisclosed}</b><span>{t("home.attention.undisclosed", { count: overview.characters_undisclosed })}</span></Link>}
+            {overview.characters_incomplete > 0 && <Link className="attention-card" to="/loras"><b>{overview.characters_incomplete}</b><span>{t("home.attention.incompleteCharacters", { count: overview.characters_incomplete })}</span></Link>}
+            {overview.draft_images > 0 && <Link className="attention-card" to="/images"><b>{overview.draft_images}</b><span>{t("home.attention.draftImages", { count: overview.draft_images })}</span></Link>}
+            {overview.draft_videos > 0 && <Link className="attention-card" to="/video"><b>{overview.draft_videos}</b><span>{t("home.attention.draftVideos", { count: overview.draft_videos })}</span></Link>}
+            {overview.jobs_failed > 0 && <Link className="attention-card" to="/jobs"><b>{overview.jobs_failed}</b><span>{t("home.attention.failedJobs", { count: overview.jobs_failed })}</span></Link>}
+            {overview.jobs_running > 0 && <Link className="attention-card" to="/jobs"><b>{overview.jobs_running}</b><span>{t("home.attention.runningJobs", { count: overview.jobs_running })}</span></Link>}
           </div>
         ) : <p className="muted">{t("home.attention.empty")}</p>)}
       </section>
+      <details className="home-infra" open={infraOpen} onToggle={e => { const open = (e.currentTarget as HTMLDetailsElement).open; setInfraOpen(open); localStorage.setItem("home_infra", open ? "1" : "0"); }}>
+      <summary><h2>{t("home.infra.title")}</h2><span className="muted">{t("home.infra.hint")}</span></summary>
       <section>
         <div className="section-title"><h2>{t("home.status")}</h2><button disabled={loading} onClick={() => void load()}>{t("lp.refresh")}</button></div>
         <div className="flag-grid">{flags.map(flag => <div className={`flag-card ${flag.state}`} key={flag.key}>
@@ -273,6 +276,7 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
           : <div className="gpu-list">{[0, 1, 2, 3].map(index => <GpuCard key={index} gpu={{ index }} role={planUsage(index)} busy={savingPlan} onRole={role => setPlanUsage(index, role)} />)}</div>}
         {gpu && !gpu.available && <p className="muted">{gpu.error || t("pg.gpu.unavailable")}</p>}
       </section>
+      </details>
       <section>
         <details className="home-section" open>
           <summary><h2>{t("home.characters")}</h2><span>{characters.length}</span></summary>

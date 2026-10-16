@@ -98,12 +98,15 @@ export default function GpuCard({ gpu, role, busy, onRole }: {
         </div>
       </div>
       {live && !!gpu.processes.length && (
-        <ul>{gpu.processes.map(process => (
-          <li key={`${gpu.index}-${process.pid}-${process.name}`}>
-            <span title={process.name}>{process.name}</span>
-            <b>{gb(process.vram)}</b>
-          </li>
-        ))}</ul>
+        <details className="gpu-processes">
+          <summary>{t("home.gpu.processes", { count: gpu.processes.length })}</summary>
+          <ul>{gpu.processes.map(process => (
+            <li key={`${gpu.index}-${process.pid}-${process.name}`}>
+              <span title={process.name}>{process.name}</span>
+              <b>{gb(process.vram)}</b>
+            </li>
+          ))}</ul>
+        </details>
       )}
     </article>
   );
