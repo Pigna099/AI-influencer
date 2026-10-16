@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { I18nProvider } from "../i18n";
 
@@ -68,6 +68,6 @@ describe("Dataset page reachability", () => {
     expect(screen.getByRole("button", { name: /New source/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Classify unclassified" })).toBeInTheDocument();
     // Export lives inside the overflow disclosure: assert it is present in the DOM.
-    expect(screen.getByText("Export")).toBeInTheDocument();
+    expect(screen.getByText("Export JSONL")).toBeInTheDocument();
   });
 });
