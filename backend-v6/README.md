@@ -391,6 +391,19 @@ I test automatici usano un database temporaneo SQLite con chiavi esterne attive.
 - **Griglie grandi**: virtualizzazione con `content-visibility` per libreria/video/dataset/identity.
 - **CORS**: origini consentite configurabili (`CORS_ORIGINS`), default locale.
 
+## Nuovo flusso dataset LoRA (16 ottobre 2026)
+
+Il dataset per la LoRA si costruisce in quest'ordine:
+
+1. **Foto profilo** (anchor) — generata o caricata con validazione.
+2. **Identity set** (scheda LoRA): genera il set multi-angolo dall'anchor, rivedi e **congela** 6-10
+   candidati accettati.
+3. **Dataset** (Fase 1 "Genera identita'"): le immagini vengono create **editando le foto
+   accettate dell'identity set** (faccia + corporatura), non con text-to-image. Se l'identity set
+   non e' congelato il pulsante e' bloccato e l'API risponde 400 con la spiegazione.
+   La varieta' di scena arriva dai prompt; gli angoli dal set canonico. La famiglia del dataset si
+   sceglie alla creazione (real/pony/anime/qwen-image; oggi si usa qwen-image).
+
 ## Limiti attuali
 
 Il playground usa una chiave condivisa per il proprietario: i fan sono identità simulate, non utenti autenticati reali. L'estrazione memoria è un'attività in background non persistente: se l'API si arresta durante l'estrazione, la risposta salvata resta disponibile ma il ricordo potrebbe dover essere aggiunto manualmente. Le varianti di personalità del confronto non vengono salvate come personaggi: sono temporanee e servono a decidere cosa applicare con l'editor o con **Duplica**. Non sono implementati invio su OnlyFans/Fanvue, pagamenti, campagne o notifiche esterne. La pipeline immagini preesistente resta disponibile, ma non è il focus della v3.
