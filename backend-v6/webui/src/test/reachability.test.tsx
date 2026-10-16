@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { I18nProvider } from "../i18n";
 
@@ -69,5 +69,31 @@ describe("Dataset page reachability", () => {
     expect(screen.getByRole("button", { name: "Classify unclassified" })).toBeInTheDocument();
     // Export lives inside the overflow disclosure: assert it is present in the DOM.
     expect(screen.getByText("Export JSONL")).toBeInTheDocument();
+  });
+});
+
+describe("Narrow viewport behavior", () => {
+  it("opens the Images generator in a drawer below 1280 px", async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes("1279"),
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      renderPage(<ImagePlayground onLogout={() => {}} />);
+      const generatorButton = await screen.findByRole("button", { name: "Generator" });
+      fireEvent.click(generatorButton);
+      expect(await screen.findByRole("dialog", { name: "Generator" })).toBeInTheDocument();
+      fireEvent.keyDown(window, { key: "Escape" });
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    } finally {
+      window.matchMedia = original;
+    }
   });
 });
