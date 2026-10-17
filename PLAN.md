@@ -1036,6 +1036,9 @@ Progress log — 15 October 2026 (first slice):
 ## 19. Phase 13 — Observability, quality, and operations
 
 Progress log — 17 October 2026 (alerts):
+- Keyboard audit (`scripts/ui/tab_order_check.mjs`): 18 Tab stops per route, 0 invisible or
+  off-viewport focus targets. Final sweeps after the day's changes: axe 0 serious violations, no
+  horizontal overflow on 21 route/width combinations.
 - `GET /api/alerts`: deduplicated, actionable alerts each tied to a domain object (`key`,
   `severity`, `object_type`, `object_id`, `title`, `remediation`, `since`): failed jobs (with the
   structured error summary/remediation), characters missing policy details or AI disclosure, LoRAs
