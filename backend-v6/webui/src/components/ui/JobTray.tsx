@@ -130,7 +130,8 @@ export default function JobTray() {
         {job.state === "running" && total > 0 && <JobProgress percent={percent} label={`${current}/${total}${job.progress?.unit ? ` ${job.progress.unit}` : ""}`} />}
         <span className="job-tray-row-meta">
           {job.state === "running" && total > 0 && <small>{current}/{total}{job.progress?.unit ? ` ${job.progress.unit}` : ""}</small>}
-          <small>{eta(job)}</small>
+          {(job.state === "running" || job.state === "queued") && <small>{eta(job)}</small>}
+          {withError && job.finished_at && <small>{new Date(job.finished_at).toLocaleString()}</small>}
         </span>
         {withError && job.error_info && <small className="job-tray-error">{job.error_info.summary}</small>}
       </button>
