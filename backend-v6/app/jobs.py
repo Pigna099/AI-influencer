@@ -184,6 +184,48 @@ def is_stale(job: ExecutionJob, reference: datetime | None = None) -> bool:
     return moment - beat > stale_after(job.type)
 
 
+IN_PROCESS_JOB_TYPES = (
+    "image",
+    "avatar",
+    "video",
+    "dataset_import",
+    "dataset_classify",
+    "dataset_generate",
+    "dataset_variation",
+    "consistency_check",
+    "identity_run",
+    "lora_validation",
+    "pose_extract",
+)
+
+
+def fail_interrupted_jobs(db) -> int:
+    """Fail active in-process jobs: their worker threads die with the API process.
+
+    Jobs executed by the external trainer worker (training) are left untouched.
+    """
+    jobs = db.scalars(
+        select(ExecutionJob).where(
+            ExecutionJob.state.in_(ACTIVE_STATES),
+            ExecutionJob.type.in_(IN_PROCESS_JOB_TYPES),
+        )
+    ).all()
+    for job in jobs:
+        finish_job(
+            db,
+            job,
+            state="failed",
+            error_info={
+                "code": "interrupted_by_restart",
+                "summary": "The app restarted while this job was running.",
+                "remediation": "Retry the job from its page.",
+                "technical_details": f"state before restart: {job.state}, heartbeat: {job.heartbeat_at}",
+            },
+            message="recovered: interrupted by restart",
+        )
+    return len(jobs)
+
+
 def recover_stale(db, reference: datetime | None = None) -> int:
     """Fail active jobs whose heartbeat is older than their policy allows."""
     moment = reference or datetime.now(UTC)

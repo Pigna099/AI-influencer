@@ -31,6 +31,7 @@ vi.mock("../api", () => {
     getDatasets: vi.fn().mockResolvedValue([]),
     getPoses: vi.fn().mockResolvedValue([]),
     getJobSummary: vi.fn().mockResolvedValue({ active: [], failed: [], active_count: 0, failed_count: 0 }),
+    getDatasetSources: vi.fn().mockResolvedValue([]),
     getIdentityRuns: vi.fn().mockResolvedValue([]),
     interruptGeneration: vi.fn(),
   };
@@ -71,6 +72,28 @@ describe("LoraPlayground structured errors", () => {
 
 import { resetLoraWorkspaceState } from "../hooks/useLoraWorkspaceState";
 import { api } from "../api";
+
+const ACTIVE_JOB = {
+  id: "job-active",
+  type: "dataset_classify",
+  state: "running",
+  character_id: null,
+  dataset_id: null,
+  asset_id: null,
+  external_id: "source-1",
+  progress: { current: 26, total: 70, unit: "images" },
+  queue_position: null,
+  worker: "api",
+  gpu: null,
+  heartbeat_at: new Date().toISOString(),
+  idempotency_key: null,
+  error_info: null,
+  cancel_requested: false,
+  retry_of: null,
+  created_at: new Date(Date.now() - 30_000).toISOString(),
+  started_at: new Date(Date.now() - 20_000).toISOString(),
+  finished_at: null,
+};
 
 const TWO_CHARACTERS = [
   { id: "c1", name: "Nikita", version: 1, image_style: "real" },
@@ -126,5 +149,39 @@ describe("LoraPlayground workspace persistence", () => {
     await waitFor(() => expect(nikita.className).toContain("selected"));
     expect(screen.getByRole("button", { name: /LoRA dataset/ })).toHaveAttribute("aria-current", "step");
     expect(window.sessionStorage.getItem("lora_workspace_v1")).toContain('"characterId":"c1"');
+  });
+});
+
+describe("global job tray", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetLoraWorkspaceState();
+  });
+
+  it("opens a popover with active job progress and a link to Jobs", async () => {
+    vi.mocked(api.getJobSummary).mockResolvedValue({
+      active: [ACTIVE_JOB as never],
+      failed: [],
+      active_count: 1,
+      failed_count: 0,
+    });
+    renderPage();
+    const tray = await screen.findByRole("button", { name: /jobs running/i });
+    fireEvent.click(tray);
+    expect(await screen.findByText("Dataset classification")).toBeInTheDocument();
+    expect(screen.getByText("26/70 images")).toBeInTheDocument();
+    expect(screen.getByText(/^ETA /)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View all jobs" })).toBeInTheDocument();
+  });
+
+  it("shows an accessible combined label when there are active and failed jobs", async () => {
+    vi.mocked(api.getJobSummary).mockResolvedValue({
+      active: [ACTIVE_JOB as never],
+      failed: [{ ...ACTIVE_JOB, id: "job-failed", state: "failed" } as never],
+      active_count: 1,
+      failed_count: 1,
+    });
+    renderPage();
+    expect(await screen.findByRole("button", { name: /1 active jobs, 1 jobs need attention/i })).toBeInTheDocument();
   });
 });

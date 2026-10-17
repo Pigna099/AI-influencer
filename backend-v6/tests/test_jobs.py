@@ -139,3 +139,23 @@ def test_video_concurrency_guard_per_character():
     )
     assert response.status_code == 409
     assert "already running" in response.json()["detail"]
+
+
+def test_interrupted_in_process_jobs_fail_but_training_survives():
+    from app.db import Session
+    from app.jobs import create_job, fail_interrupted_jobs, start_job
+
+    with Session.begin() as db:
+        running = create_job(db, type="dataset_classify", external_id="src-1")
+        start_job(db, running, worker="api")
+        training = create_job(db, type="training", external_id="job-1")
+        start_job(db, training, worker="trainer")
+        running_id, training_id = running.id, training.id
+
+    with Session.begin() as db:
+        assert fail_interrupted_jobs(db) == 1
+
+    listing = {job["id"]: job for job in client.get("/api/jobs", params={"limit": 50}).json()}
+    assert listing[running_id]["state"] == "failed"
+    assert listing[running_id]["error_info"]["code"] == "interrupted_by_restart"
+    assert listing[training_id]["state"] == "running"

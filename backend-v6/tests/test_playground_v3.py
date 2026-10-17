@@ -1294,3 +1294,44 @@ def test_dataset_source_counters_explain_skipped_attempts(monkeypatch):
     assert source["total"] == 1
     assert source["pending"] == 1 and source["ready"] == 0
     assert source["skipped"] == 82
+
+
+def test_reconcile_recovers_stale_classify_job_without_summary_poll(monkeypatch):
+    data = png_bytes()
+    monkeypatch.setattr("app.dataset.download_image", lambda url: (data, ".png"))
+    from datetime import UTC, datetime, timedelta
+
+    from app.dataset import reconcile_classifying_sources
+    from app.db import DatasetSource, Session, now
+    from app.jobs import create_job, start_job
+
+    created = client.post(
+        "/api/dataset/sources",
+        json={
+            "name": "Startup reconcile dataset",
+            "kind": "urls",
+            "reference": "https://example.com/a.png",
+            "limit": 10,
+            "classify": False,
+        },
+    )
+    source_id = created.json()["id"]
+    with Session.begin() as db:
+        source = db.get(DatasetSource, source_id)
+        source.status = "classifying"
+        source.updated_at = now()
+        job = create_job(db, type="dataset_classify", external_id=source_id)
+        start_job(db, job, worker="api")
+        job.heartbeat_at = datetime.now(UTC) - timedelta(seconds=3600)
+        job_id = job.id
+
+    with Session.begin() as db:
+        assert reconcile_classifying_sources(db) == 1
+
+    with Session() as db:
+        from app.db import ExecutionJob
+
+        job = db.get(ExecutionJob, job_id)
+        assert job.state == "failed" and job.error_info["code"] == "stale_heartbeat"
+        source = db.get(DatasetSource, source_id)
+        assert source.status == "stalled"

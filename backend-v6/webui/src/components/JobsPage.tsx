@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api, Character, ExecutionJob, JobEvent } from "../api";
 import { formatDuration } from "../lib/format";
 import { useI18n } from "../i18n";
@@ -85,9 +86,10 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
   const { t } = useI18n();
   const [jobs, setJobs] = useState<ExecutionJob[]>([]);
   const [characters, setCharacters] = useState<Character[]>([]);
-  const [state, setState] = useState("all");
-  const [type, setType] = useState("all");
-  const [characterId, setCharacterId] = useState("all");
+  const [searchParams] = useSearchParams();
+  const [state, setState] = useState(searchParams.get("state") || "all");
+  const [type, setType] = useState(searchParams.get("type") || "all");
+  const [characterId, setCharacterId] = useState(searchParams.get("character_id") || "all");
   const [loaded, setLoaded] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [busy, setBusy] = useState(false);

@@ -1050,16 +1050,36 @@ def classify_source_job(source_id: str, job_id: str, *, worker: str = "api") -> 
 
 
 def reconcile_classifying_sources(db) -> int:
-    """Sources stuck in ``classifying`` with no active job become resumable again."""
-    active = set(
-        db.scalars(
-            select(ExecutionJob.external_id).where(
-                ExecutionJob.type == "dataset_classify",
-                ExecutionJob.state.in_(("queued", "running")),
-                ExecutionJob.external_id.is_not(None),
-            )
+    """Sources stuck in ``classifying`` with no healthy job become resumable again.
+
+    Stale classification jobs (dead heartbeat, e.g. after an API restart) are failed
+    with the standard stale handling before the source is reconciled.
+    """
+    from .jobs import finish_job, is_stale
+
+    active: set[str] = set()
+    for job in db.scalars(
+        select(ExecutionJob).where(
+            ExecutionJob.type == "dataset_classify",
+            ExecutionJob.state.in_(("queued", "running")),
+            ExecutionJob.external_id.is_not(None),
         )
-    )
+    ):
+        if is_stale(job):
+            finish_job(
+                db,
+                job,
+                state="failed",
+                error_info={
+                    "code": "stale_heartbeat",
+                    "summary": "The job stopped sending heartbeats and was marked failed.",
+                    "remediation": "Resume the classification; if it keeps stalling check the API worker.",
+                    "technical_details": f"last heartbeat: {job.heartbeat_at}",
+                },
+                message="recovered: stale heartbeat",
+            )
+        else:
+            active.add(job.external_id)
     sources = db.scalars(select(DatasetSource).where(DatasetSource.status == "classifying")).all()
     reconciled = 0
     for source in sources:

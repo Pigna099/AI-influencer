@@ -38,13 +38,19 @@ from .video_api import router as video_router
 async def lifespan(application: FastAPI):
     try:
         from .dataset import reconcile_classifying_sources
+        from .jobs import fail_interrupted_jobs
 
         with Session.begin() as db:
+            interrupted = fail_interrupted_jobs(db)
             reconciled = reconcile_classifying_sources(db)
-        if reconciled:
-            logger.info("Reconciled %s classifying dataset source(s) at startup", reconciled)
+        if interrupted or reconciled:
+            logger.info(
+                "Startup recovery: %s interrupted job(s), %s classifying source(s) reconciled",
+                interrupted,
+                reconciled,
+            )
     except Exception:
-        logger.exception("Dataset classification reconciliation failed at startup")
+        logger.exception("Startup job recovery failed")
     task = asyncio.create_task(scheduler_loop()) if settings.scheduler_enabled else None
     yield
     if task is not None:
