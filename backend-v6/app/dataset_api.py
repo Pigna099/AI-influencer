@@ -12,9 +12,10 @@ from .auth import authorize
 from .char_schemas import StrictModel
 from .config import settings
 from .dataset import (
-    classification_running,
-    classify_source,
+    classification_counts,
+    classify_source_job,
     delete_source,
+    enqueue_classification,
     export_rows,
     image_out,
     media_counts,
@@ -70,7 +71,7 @@ def list_sources(limit: int = Query(100, ge=1, le=200), offset: int = Query(0, g
             select(DatasetSource).order_by(DatasetSource.created_at.desc()).limit(limit).offset(offset)
         ):
             images, videos = media_counts(db, source.id)
-            result.append(source_out(source, images, videos))
+            result.append(source_out(source, images, videos, classification_counts(db, source.id)))
         return result
 
 
@@ -98,7 +99,7 @@ def get_source(source_id: str):
     with Session() as db:
         source = required(db, DatasetSource, source_id)
         images, videos = media_counts(db, source.id)
-        return source_out(source, images, videos)
+        return source_out(source, images, videos, classification_counts(db, source.id))
 
 
 @router.delete("/dataset/sources/{source_id}")
@@ -113,10 +114,10 @@ def remove_source(source_id: str):
 def classify_source_images(source_id: str, background_tasks: BackgroundTasks):
     with Session() as db:
         required(db, DatasetSource, source_id)
-    if classification_running(source_id):
-        return {"started": False, "running": True}
-    background_tasks.add_task(classify_source, source_id, True)
-    return {"started": True}
+    result = enqueue_classification(source_id)
+    if result.get("started") and result.get("job_id"):
+        background_tasks.add_task(classify_source_job, source_id, result["job_id"], worker="api")
+    return result
 
 
 @router.post("/dataset/sources/{source_id}/profile")

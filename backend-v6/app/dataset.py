@@ -15,9 +15,10 @@ from sqlalchemy import delete, func, select
 
 from .char_schemas import CharacterProfile
 from .config import settings
-from .db import DatasetImage, DatasetSource, Session, now
+from .db import DatasetImage, DatasetSource, ExecutionJob, Session, now
 from .image_library import embed_library_text
 from .integrations.text import OllamaNotAvailable, chat
+from .jobs import create_job, finish_job, start_job, update_progress
 
 logger = logging.getLogger(__name__)
 CLASSIFY_STALE_SECONDS = 600
@@ -783,7 +784,7 @@ def run_import(source_id: str, reference: str, limit: int, classify: bool) -> No
                 source.error = "No images imported"
             source.updated_at = now()
         if classify:
-            classify_source(source_id)
+            start_classification(source_id)
     except Exception as error:
         logger.exception("Dataset import failed for %s", source_id)
         with Session.begin() as db:
@@ -855,6 +856,11 @@ def classify_image_record(image_id: str) -> bool:
             return False
         path = (settings.dataset_dir / item.source_id / item.filename).resolve()
     if not path.is_file() or not path.is_relative_to(settings.dataset_dir.resolve()):
+        with Session.begin() as db:
+            item = db.get(DatasetImage, image_id)
+            if item is not None and item.status not in ("ready", "blocked"):
+                item.status = "failed"
+                item.updated_at = now()
         return False
     description = describe_image(path.read_bytes())
     if not description:
@@ -888,80 +894,186 @@ def _description_text_from(description: dict) -> str:
     return " ".join(filter(None, parts))
 
 
-_running_classifications: set[str] = set()
+def classification_counts(db, source_id: str) -> dict:
+    rows = db.execute(
+        select(DatasetImage.status, func.count())
+        .where(DatasetImage.source_id == source_id, DatasetImage.kind == "image")
+        .group_by(DatasetImage.status)
+    ).all()
+    counts = {status: count for status, count in rows}
+    ready = counts.get("ready", 0)
+    blocked = counts.get("blocked", 0)
+    failed = counts.get("failed", 0)
+    pending = counts.get("pending", 0)
+    return {
+        "ready": ready,
+        "blocked": blocked,
+        "failed": failed,
+        "pending": pending,
+        "classified": ready + blocked + failed,
+        "total": ready + blocked + failed + pending,
+    }
 
 
-def classification_running(source_id: str) -> bool:
-    return source_id in _running_classifications
+def active_classification_job(db, source_id: str) -> ExecutionJob | None:
+    return db.scalar(
+        select(ExecutionJob).where(
+            ExecutionJob.type == "dataset_classify",
+            ExecutionJob.external_id == source_id,
+            ExecutionJob.state.in_(("queued", "running")),
+        )
+    )
 
 
-def classify_source(source_id: str, force: bool = False) -> None:
-    """Describe every image without a description (pending or failed).
-
-    With force=True (explicit action from the UI) a stuck ``classifying`` state is
-    restarted immediately; the in-process guard still prevents double work.
-    """
-    if source_id in _running_classifications:
-        return
+def enqueue_classification(source_id: str) -> dict:
+    """Create one idempotent classification job; duplicate requests reuse the active job."""
     with Session.begin() as db:
         source = db.get(DatasetSource, source_id)
         if source is None:
-            return
-        if not force and source.status == "classifying" and source.updated_at is not None:
-            elapsed = (now() - source.updated_at).total_seconds()
-            if elapsed < CLASSIFY_STALE_SECONDS:
-                return
+            return {"started": False, "state": "missing"}
+        active = active_classification_job(db, source_id)
+        if active is not None:
+            return {"started": False, "job_id": active.id, "state": active.state}
+        job = create_job(
+            db,
+            type="dataset_classify",
+            external_id=source_id,
+            message=f"classify source {source.name}",
+        )
         source.status = "classifying"
+        source.error = None
         source.updated_at = now()
-    _running_classifications.add(source_id)
-    try:
+        return {"started": True, "job_id": job.id, "state": "queued"}
+
+
+def start_classification(source_id: str, *, worker: str = "api") -> dict:
+    """Enqueue and run a classification job inline (used by imports)."""
+    result = enqueue_classification(source_id)
+    if result.get("started") and result.get("job_id"):
+        classify_source_job(source_id, result["job_id"], worker=worker)
         with Session() as db:
-            ids = list(
-                db.scalars(
-                    select(DatasetImage.id).where(
-                        DatasetImage.source_id == source_id,
-                        DatasetImage.status.in_(["pending", "failed"]),
-                        DatasetImage.kind == "image",
-                    )
+            job = db.get(ExecutionJob, result["job_id"])
+            result["state"] = job.state if job else "unknown"
+    return result
+
+
+def classify_source_job(source_id: str, job_id: str, *, worker: str = "api") -> None:
+    """Describe every image without a terminal description, tracked as an execution job."""
+    with Session.begin() as db:
+        job = db.get(ExecutionJob, job_id)
+        if job is None or job.state not in ("queued", "running"):
+            return
+        if job.state == "queued":
+            start_job(db, job, worker=worker)
+        update_progress(db, job, unit="images")
+        ids = list(
+            db.scalars(
+                select(DatasetImage.id).where(
+                    DatasetImage.source_id == source_id,
+                    DatasetImage.status.in_(["pending", "failed"]),
+                    DatasetImage.kind == "image",
                 )
             )
-        for index, image_id in enumerate(ids, start=1):
+        )
+        counts = classification_counts(db, source_id)
+        update_progress(db, job, current=counts["classified"], total=counts["total"])
+    try:
+        for image_id in ids:
+            with Session() as db:
+                job = db.get(ExecutionJob, job_id)
+                if job is not None and job.cancel_requested:
+                    with Session.begin() as db2:
+                        finish_job(db2, db2.get(ExecutionJob, job_id), state="canceled")
+                    break
             classify_image_record(image_id)
             with Session.begin() as db:
+                job = db.get(ExecutionJob, job_id)
                 source = db.get(DatasetSource, source_id)
+                counts = classification_counts(db, source_id)
+                if job is not None:
+                    update_progress(db, job, current=counts["classified"], total=counts["total"])
                 if source is not None:
-                    source.classified = index
+                    source.classified = counts["classified"]
                     source.updated_at = now()
         with Session.begin() as db:
+            job = db.get(ExecutionJob, job_id)
             source = db.get(DatasetSource, source_id)
+            counts = classification_counts(db, source_id)
             if source is not None:
-                ready = len(
-                    list(
-                        db.scalars(
-                            select(DatasetImage.id).where(
-                                DatasetImage.source_id == source_id,
-                                DatasetImage.kind == "image",
-                                DatasetImage.status.in_(["ready", "blocked", "failed"]),
-                            )
-                        )
-                    )
-                )
-                source.classified = ready
-                source.status = "ready"
+                source.classified = counts["classified"]
                 source.updated_at = now()
+                if counts["total"] == 0 or (counts["pending"] == 0 and counts["failed"] == 0):
+                    source.status = "ready"
+                elif counts["ready"] + counts["blocked"] > 0:
+                    source.status = "partial"
+                    source.error = f"{counts['failed']} images could not be described"
+                else:
+                    source.status = "failed"
+                    source.error = "No image could be described"
+            if job is not None and job.state == "running":
+                summary = f"{counts['ready']} ready, {counts['blocked']} blocked, {counts['failed']} failed"
+                if counts["ready"] + counts["blocked"] == 0 and counts["failed"] > 0:
+                    finish_job(
+                        db,
+                        job,
+                        state="failed",
+                        error_info={
+                            "code": "classification_failed",
+                            "summary": "No image could be described.",
+                            "remediation": "Check the vision model and the source files, then retry.",
+                            "technical_details": summary,
+                        },
+                    )
+                else:
+                    finish_job(db, job, state="succeeded", message=summary)
     except Exception as error:
         logger.exception("Dataset classification failed for %s", source_id)
         with Session.begin() as db:
+            job = db.get(ExecutionJob, job_id)
             source = db.get(DatasetSource, source_id)
             if source is not None:
                 source.status = "failed"
                 source.error = str(error)[:500]
                 source.updated_at = now()
-    finally:
-        _running_classifications.discard(source_id)
+            if job is not None and job.state in ("queued", "running"):
+                finish_job(
+                    db,
+                    job,
+                    state="failed",
+                    error_info={
+                        "code": "classification_failed",
+                        "summary": "Dataset classification failed.",
+                        "remediation": "Retry the classification; if it keeps failing check the vision model.",
+                        "technical_details": str(error)[:800],
+                    },
+                )
 
 
-def source_out(source: DatasetSource, images: int | None = None, videos: int = 0) -> dict:
+def reconcile_classifying_sources(db) -> int:
+    """Sources stuck in ``classifying`` with no active job become resumable again."""
+    active = set(
+        db.scalars(
+            select(ExecutionJob.external_id).where(
+                ExecutionJob.type == "dataset_classify",
+                ExecutionJob.state.in_(("queued", "running")),
+                ExecutionJob.external_id.is_not(None),
+            )
+        )
+    )
+    sources = db.scalars(select(DatasetSource).where(DatasetSource.status == "classifying")).all()
+    reconciled = 0
+    for source in sources:
+        if source.id in active:
+            continue
+        counts = classification_counts(db, source.id)
+        source.status = "stalled" if counts["pending"] or counts["failed"] else "ready"
+        source.updated_at = now()
+        reconciled += 1
+    return reconciled
+
+
+def source_out(source: DatasetSource, images: int | None = None, videos: int = 0, counts: dict | None = None) -> dict:
+    counts = counts or {}
     return {
         "id": source.id,
         "name": source.name,
@@ -972,6 +1084,11 @@ def source_out(source: DatasetSource, images: int | None = None, videos: int = 0
         "total": source.total,
         "imported": source.imported,
         "classified": source.classified,
+        "ready": counts.get("ready", 0),
+        "pending": counts.get("pending", 0),
+        "failed": counts.get("failed", 0),
+        "blocked": counts.get("blocked", 0),
+        "skipped": max(0, (source.imported or 0) - counts.get("total", 0)),
         "images": images if images is not None else (source.imported or 0),
         "videos": videos,
         "error": source.error,

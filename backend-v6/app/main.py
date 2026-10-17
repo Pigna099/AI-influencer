@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -7,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, text, update
+
+logger = logging.getLogger(__name__)
 
 from .alerts_api import router as alerts_router
 from .audit import router as audit_router
@@ -33,6 +36,15 @@ from .video_api import router as video_router
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
+    try:
+        from .dataset import reconcile_classifying_sources
+
+        with Session.begin() as db:
+            reconciled = reconcile_classifying_sources(db)
+        if reconciled:
+            logger.info("Reconciled %s classifying dataset source(s) at startup", reconciled)
+    except Exception:
+        logger.exception("Dataset classification reconciliation failed at startup")
     task = asyncio.create_task(scheduler_loop()) if settings.scheduler_enabled else None
     yield
     if task is not None:

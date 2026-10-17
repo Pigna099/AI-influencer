@@ -23,6 +23,7 @@ def list_jobs(
     state: str | None = None,
     type: str | None = None,
     character_id: str | None = None,
+    external_id: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
@@ -36,6 +37,8 @@ def list_jobs(
             query = query.where(ExecutionJob.type == type)
         if character_id:
             query = query.where(ExecutionJob.character_id == character_id)
+        if external_id:
+            query = query.where(ExecutionJob.external_id == external_id)
         jobs = db.scalars(query.order_by(ExecutionJob.created_at.desc()).limit(limit).offset(offset)).all()
         return [job_out(job, queue_position(db, job)) for job in jobs]
 
@@ -44,6 +47,9 @@ def list_jobs(
 def jobs_summary():
     with Session() as db:
         recover_stale(db)
+        from .dataset import reconcile_classifying_sources
+
+        reconcile_classifying_sources(db)
         prune_finished_jobs(db)
         active = db.scalars(select(ExecutionJob).where(ExecutionJob.state.in_(ACTIVE_STATES))).all()
         failed = db.scalars(select(ExecutionJob).where(ExecutionJob.state == "failed").order_by(ExecutionJob.created_at.desc()).limit(20)).all()

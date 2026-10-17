@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, CharacterProfile, DatasetImage, DatasetSource } from "../api";
+import { Link } from "react-router-dom";
+import { formatDuration } from "../lib/format";
+import { api, CharacterProfile, DatasetImage, DatasetSource, ExecutionJob } from "../api";
 import {useI18n} from "../i18n";
 import AppHeader from "./ui/AppHeader";
 import AsyncBoundary from "./ui/AsyncBoundary";
@@ -75,16 +77,14 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
   };
 
   const source = sources.find(item => item.id === sourceId) || null;
+  const [classifyJob, setClassifyJob] = useState<ExecutionJob | null>(null);
   const active = source && ["pending", "importing", "classifying"].includes(source.status);
-  const readyCount = images.filter(item => item.status === "ready").length;
   const visibleImages = images.filter(item => {
     if (imageStatusFilter && item.status !== imageStatusFilter) return false;
     const query = imageSearch.trim().toLowerCase();
     if (!query) return true;
     return `${item.caption} ${item.filename} ${(item.tags || []).join(" ")}`.toLowerCase().includes(query);
   });
-  const waitingCount = images.filter(item => item.status === "pending").length;
-  const failedCount = images.filter(item => item.status === "failed" || item.status === "blocked").length;
 
   const loadSources = useCallback(async () => {
     const listing = await api.getDatasetSources();
@@ -114,6 +114,19 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
     setSelected(null);
     void loadImages(sourceId).catch(() => undefined);
   }, [sourceId, loadImages]);
+
+  useEffect(() => {
+    if (!source || source.status !== "classifying") { setClassifyJob(null); return; }
+    let live = true;
+    const poll = () => {
+      void api.getJobs({ type: "dataset_classify", state: "active", external_id: source.id, limit: 1 })
+        .then(items => { if (live) setClassifyJob(items[0] || null); })
+        .catch(() => undefined);
+    };
+    poll();
+    const timer = window.setInterval(poll, 4000);
+    return () => { live = false; window.clearInterval(timer); };
+  }, [source?.id, source?.status]);
 
   useEffect(() => {
     if (!active) return;
@@ -275,19 +288,28 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
             {images.length ? <span className="library-count">{t("ip.imagesCount", { count: images.length })}</span> : undefined}
           </div>}
         />
-        {active && <p className="memory-status" role="status"><span className="spinner" />{source.status === "importing" ? t("ds.queueImporting", { imported: source.imported, total: source.total || "?" }) : source.status === "classifying" ? t("ds.queueClassifying", { classified: source.classified, total: source.imported || "?" }) : t("ds.queuePending")}</p>}
-        {active && <ProgressSummary
-          label={source.status === "classifying" ? t("ds.queueClassifying", { classified: source.classified, total: source.imported || "?" }) : t("ds.queueImporting", { imported: source.imported, total: source.total || "?" })}
-          completed={source.status === "classifying" ? source.classified : source.imported}
-          pending={Math.max(0, (source.status === "classifying" ? source.imported : source.total) - (source.status === "classifying" ? source.classified : source.imported))}
+        {active && source.status !== "classifying" && <p className="memory-status" role="status"><span className="spinner" />{source.status === "importing" ? t("ds.queueImporting", { imported: source.imported, total: source.total || "?" }) : t("ds.queuePending")}</p>}
+        {active && source.status === "importing" && <ProgressSummary
+          label={t("ds.queueImporting", { imported: source.imported, total: source.total || "?" })}
+          completed={source.imported}
+          pending={Math.max(0, (source.total || 0) - source.imported)}
           failed={0}
-          total={source.status === "classifying" ? source.imported || source.total : source.total}
+          total={source.total}
           showCounts={false}
           showLabel={false}
         />}
-        {!active && !!images.length && (waitingCount > 0 || failedCount > 0) && <p className="readiness-line">{t("ds.queueReady", { count: readyCount })}{waitingCount > 0 ? ` · ${t("ds.queueWaiting", { count: waitingCount })}` : ""}{failedCount > 0 ? ` · ${t("ds.queueFailed", { count: failedCount })}` : ""}</p>}
+        {source?.status === "classifying" && <div className="classify-row" role="status">
+          <span className="spinner" />
+          <span>{t("ds.queueClassifying", { classified: source.classified, total: source.total })}</span>
+          <span className="muted">{t("ds.classifyCounts", { ready: source.ready, pending: source.pending, failed: source.failed })}</span>
+          {classifyJob?.progress?.total ? <span className="muted">{t("jobs.eta", { time: formatDuration(Math.max(1, ((Date.now() - new Date(classifyJob.started_at || classifyJob.created_at).getTime()) / 1000) * ((classifyJob.progress.total - (classifyJob.progress.current || 0)) / Math.max(1, classifyJob.progress.current || 0)))) })}</span> : <span className="muted">{t("jobs.etaEstimating")}</span>}
+          <Link className="text-button" to="/jobs?type=dataset_classify">{t("ds.viewJob")}</Link>
+        </div>}
+        {source?.status === "stalled" && <p className="warning" role="status">{t("ds.stalled", { count: source.pending + source.failed })}</p>}
+        {source?.status === "failed" && source.error && <p className="warning" role="status">{source.error}</p>}
+        {source && !active && source.status !== "stalled" && (source.pending > 0 || source.failed > 0) && <p className="readiness-line">{t("ds.queueReady", { count: source.ready })}{source.pending > 0 ? ` · ${t("ds.queueWaiting", { count: source.pending })}` : ""}{source.failed > 0 ? ` · ${t("ds.queueFailed", { count: source.failed })}` : ""}{source.skipped > 0 ? ` · ${t("ds.skipped", { skipped: source.skipped })}` : ""}</p>}
         <div className="library-toolbar">
-          <button className={waitingCount > 0 ? "primary" : undefined} disabled={!!busy || !source} onClick={classifySource}>{t("ds.classifyPending")}</button>
+          <button className={source && (source.pending > 0 || source.status === "stalled") ? "primary" : undefined} disabled={!!busy || !source} onClick={classifySource}>{source?.status === "stalled" ? t("ds.resumeClassify") : source?.status === "failed" ? t("ds.retryClassify") : t("ds.classifyPending")}</button>
           <input className="filter-input" value={imageSearch} disabled={!!busy} onChange={e => setImageSearch(e.target.value)} placeholder={t("ds.searchImages")} aria-label={t("ds.searchImages")} maxLength={80} />
           <select className="saved-filter-select" value={imageStatusFilter} disabled={!!busy} onChange={e => setImageStatusFilter(e.target.value)} aria-label={t("ip.statusFilter")}>
             <option value="">{t("ip.statusAll")}</option>

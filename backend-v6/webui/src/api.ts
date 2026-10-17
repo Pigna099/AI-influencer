@@ -341,6 +341,11 @@ export interface DatasetSource {
   total: number;
   imported: number;
   classified: number;
+  ready: number;
+  pending: number;
+  failed: number;
+  blocked: number;
+  skipped: number;
   images: number;
   videos: number;
   error: string | null;
@@ -724,11 +729,12 @@ export class ApiClient {
     return this.request(`/api/library/${id}`, { method: "PATCH", body: JSON.stringify(data) });
   }
 
-  async getJobs(params: { state?: string; type?: string; character_id?: string; limit?: number; offset?: number } = {}): Promise<ExecutionJob[]> {
+  async getJobs(params: { state?: string; type?: string; character_id?: string; external_id?: string; limit?: number; offset?: number } = {}): Promise<ExecutionJob[]> {
     const query = new URLSearchParams();
     if (params.state) query.set("state", params.state);
     if (params.type) query.set("type", params.type);
     if (params.character_id) query.set("character_id", params.character_id);
+    if (params.external_id) query.set("external_id", params.external_id);
     query.set("limit", String(params.limit ?? 50));
     if (params.offset) query.set("offset", String(params.offset));
     return this.request(`/api/jobs?${query.toString()}`);
@@ -901,7 +907,7 @@ export class ApiClient {
     return this.request(`/api/dataset/sources/${id}`, { method: "DELETE" });
   }
 
-  async classifyDatasetSource(id: string): Promise<{started: boolean; running?: boolean}> {
+  async classifyDatasetSource(id: string): Promise<{started: boolean; job_id?: string; state?: string}> {
     return this.request(`/api/dataset/sources/${id}/classify`, { method: "POST" });
   }
 

@@ -1148,3 +1148,149 @@ def test_followup_marker_schedules_reengage(monkeypatch):
     assert body["ollama_metrics"]["followup_hours"] == 3.0
     refreshed = client.get(f"/api/conversations/{conv['id']}").json()
     assert (refreshed.get("pending_replies") or 0) >= 1
+
+
+def test_dataset_classification_is_a_durable_job(monkeypatch):
+    data = png_bytes()
+    monkeypatch.setattr("app.dataset.download_image", lambda url: (data, ".png"))
+    created = client.post(
+        "/api/dataset/sources",
+        json={
+            "name": "Durable dataset",
+            "kind": "urls",
+            "reference": "https://example.com/a.png",
+            "limit": 10,
+            "classify": False,
+        },
+    )
+    source_id = created.json()["id"]
+    response = client.post(f"/api/dataset/sources/{source_id}/classify")
+    payload = response.json()
+    assert response.status_code == 200 and payload["started"] is True
+    assert payload["job_id"]
+    listing = client.get("/api/jobs", params={"type": "dataset_classify"}).json()
+    assert len(listing) == 1
+    job = listing[0]
+    assert job["external_id"] == source_id and job["state"] == "succeeded"
+    assert job["progress"]["unit"] == "images" and job["progress"]["current"] == 1
+    source = client.get(f"/api/dataset/sources/{source_id}").json()
+    assert source["status"] == "ready"
+    assert source["ready"] == 1 and source["pending"] == 0 and source["classified"] == 1
+    assert source["total"] == 1
+
+
+def test_dataset_classify_duplicate_requests_reuse_active_job():
+    created = client.post(
+        "/api/dataset/sources",
+        json={
+            "name": "Busy dataset",
+            "kind": "urls",
+            "reference": "https://example.com/a.png",
+            "limit": 10,
+            "classify": False,
+        },
+    )
+    source_id = created.json()["id"]
+    from app.db import DatasetSource, Session, now
+    from app.jobs import create_job, start_job
+
+    with Session.begin() as db:
+        source = db.get(DatasetSource, source_id)
+        source.status = "classifying"
+        source.updated_at = now()
+        job = create_job(db, type="dataset_classify", external_id=source_id)
+        start_job(db, job, worker="api")
+        job_id = job.id
+
+    response = client.post(f"/api/dataset/sources/{source_id}/classify")
+    assert response.status_code == 200
+    assert response.json() == {"started": False, "job_id": job_id, "state": "running"}
+
+
+def test_dataset_classify_resume_preserves_ready_images(monkeypatch):
+    data = png_bytes()
+    monkeypatch.setattr("app.dataset.download_image", lambda url: (data, ".png"))
+    created = client.post(
+        "/api/dataset/sources",
+        json={
+            "name": "Resume dataset",
+            "kind": "urls",
+            "reference": "https://example.com/a.png",
+            "limit": 10,
+            "classify": False,
+        },
+    )
+    source_id = created.json()["id"]
+    images = client.get(f"/api/dataset/images?source_id={source_id}").json()
+    client.patch(f"/api/dataset/images/{images[0]['id']}", json={"status": "ready", "caption": "kept caption"})
+
+    response = client.post(f"/api/dataset/sources/{source_id}/classify")
+    assert response.json()["started"] is True
+    refreshed = client.get(f"/api/dataset/images?source_id={source_id}").json()
+    kept = next(item for item in refreshed if item["id"] == images[0]["id"])
+    assert kept["caption"] == "kept caption"
+
+
+def test_dataset_classify_stale_job_reconciles_to_stalled(monkeypatch):
+    data = png_bytes()
+    monkeypatch.setattr("app.dataset.download_image", lambda url: (data, ".png"))
+    from datetime import UTC, datetime, timedelta
+
+    from app.db import DatasetSource, Session, now
+    from app.jobs import create_job, start_job
+
+    created = client.post(
+        "/api/dataset/sources",
+        json={
+            "name": "Stale job dataset",
+            "kind": "urls",
+            "reference": "https://example.com/a.png",
+            "limit": 10,
+            "classify": False,
+        },
+    )
+    source_id = created.json()["id"]
+    images = client.get(f"/api/dataset/images?source_id={source_id}").json()
+    assert images
+    with Session.begin() as db:
+        source = db.get(DatasetSource, source_id)
+        source.status = "classifying"
+        source.updated_at = now()
+        job = create_job(db, type="dataset_classify", external_id=source_id)
+        start_job(db, job, worker="api")
+        job.heartbeat_at = datetime.now(UTC) - timedelta(seconds=3600)
+
+    client.get("/api/jobs/summary")
+    source = client.get(f"/api/dataset/sources/{source_id}").json()
+    assert source["status"] == "stalled"
+    assert source["pending"] == 1
+    listing = client.get("/api/jobs", params={"type": "dataset_classify"}).json()
+    assert listing[0]["state"] == "failed"
+    assert listing[0]["error_info"]["code"] == "stale_heartbeat"
+
+
+def test_dataset_source_counters_explain_skipped_attempts(monkeypatch):
+    data = png_bytes()
+    monkeypatch.setattr("app.dataset.download_image", lambda url: (data, ".png"))
+    created = client.post(
+        "/api/dataset/sources",
+        json={
+            "name": "Counters dataset",
+            "kind": "urls",
+            "reference": "https://example.com/a.png",
+            "limit": 10,
+            "classify": False,
+        },
+    )
+    source_id = created.json()["id"]
+    from app.db import DatasetSource, Session
+
+    with Session.begin() as db:
+        source = db.get(DatasetSource, source_id)
+        source.imported = 83
+
+    source = client.get(f"/api/dataset/sources/{source_id}").json()
+    assert source["imported"] == 83
+    assert source["total"] == 1
+    assert source["pending"] == 1 and source["ready"] == 0
+    assert source["skipped"] == 82

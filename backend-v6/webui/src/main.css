@@ -637,3 +637,4 @@
 .alert-dot.critical { background: var(--st-bad-fg); }
 .alert-dot.warning { background: var(--st-busy-fg); }
 .alert-dot.info { background: #7fd7cf; }
+.classify-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0 4px; font-size: .82rem; color: var(--text-2); }
