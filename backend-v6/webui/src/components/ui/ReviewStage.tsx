@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, LibraryImage } from "../../api";
 import { useI18n } from "../../i18n";
 
-export default function ReviewStage({ item, index, total, anchorUrl, overlay, sibling, busy, onStatus, onLabel, onRating, onNavigate, onView }: {
+export default function ReviewStage({ item, index, total, anchorUrl, overlay, sibling, busy, onStatus, onLabel, onRating, onNavigate, onView, onInfo }: {
   item: LibraryImage;
   index: number;
   total: number;
@@ -15,9 +15,12 @@ export default function ReviewStage({ item, index, total, anchorUrl, overlay, si
   onRating: (item: LibraryImage, rating: number) => void;
   onNavigate: (direction: -1 | 1) => void;
   onView: (url: string, alt: string) => void;
+  onInfo: () => void;
 }) {
   const { t } = useI18n();
   const [url, setUrl] = useState("");
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [overlaySibling, setOverlaySibling] = useState(false);
   const [siblingUrl, setSiblingUrl] = useState("");
 
@@ -43,45 +46,52 @@ export default function ReviewStage({ item, index, total, anchorUrl, overlay, si
     let objectUrl = "";
     let alive = true;
     setUrl("");
+    setFailed(false);
     api.fetchBlob(`/api/library/${item.id}/file?v=${encodeURIComponent(item.filename)}`)
       .then(blob => {
         if (!alive) return;
         objectUrl = URL.createObjectURL(blob);
         setUrl(objectUrl);
       })
-      .catch(() => setUrl(""));
+      .catch(() => { if (alive) setFailed(true); });
     return () => {
       alive = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [item.id, item.filename]);
+  }, [item.id, item.filename, attempt]);
 
   return <div className="review-layout">
     <div className="review-stage">
       <div className="review-image">
-        {url ? <img src={url} alt={item.caption || item.prompt} onClick={() => onView(url, item.caption || item.prompt)} /> : <span className="spinner" />}
+        {url
+          ? <img src={url} alt={item.caption || item.prompt} onClick={() => onView(url, item.caption || item.prompt)} />
+          : failed
+            ? <div className="review-error" role="alert">
+              <p>{t("ip.review.imageFailed")}</p>
+              <div className="section-actions">
+                <button type="button" onClick={() => setAttempt(value => value + 1)}>{t("ip.review.retry")}</button>
+                <button type="button" disabled={index >= total - 1} onClick={() => onNavigate(1)}>{t("ip.review.skip")}</button>
+              </div>
+            </div>
+            : <span className="spinner" />}
         {overlay && anchorUrl && <img className="review-overlay" src={anchorUrl} alt="" aria-hidden="true" />}
         {overlaySibling && siblingUrl && <img className="review-overlay review-overlay-sibling" src={siblingUrl} alt="" aria-hidden="true" />}
         <button type="button" className="review-prev" disabled={busy || index <= 0} onClick={() => onNavigate(-1)} aria-label={t("ip.review.prev")}>‹</button>
         <button type="button" className="review-next" disabled={busy || index >= total - 1} onClick={() => onNavigate(1)} aria-label={t("ip.review.next")}>›</button>
       </div>
-      <div className="review-controls">
-        <span className="library-stars" role="group" aria-label={t("ip.rating")}>{[1, 2, 3, 4, 5].map(value => <button key={value} className={item.rating >= value ? "on" : ""} disabled={busy} onClick={() => onRating(item, value)} aria-label={`${value}/5`}>★</button>)}</span>
-        <button disabled={busy} className={item.status === "approved" ? "selected" : undefined} onClick={() => onStatus(item, item.status === "approved" ? "draft" : "approved")}>{t("ip.approve")} <kbd>A</kbd></button>
-        <button disabled={busy} className={item.status === "rejected" ? "selected" : undefined} onClick={() => onStatus(item, item.status === "rejected" ? "draft" : "rejected")}>{t("ip.reject")} <kbd>R</kbd></button>
-        {sibling && <label className="auto-label"><input type="checkbox" checked={overlaySibling} onChange={e => setOverlaySibling(e.target.checked)} /> {t("ip.review.overlayPrev")}</label>}
-        <label className="review-label">{t("ip.contentLabel")}<select value={item.content_label || "suggestive"} disabled={busy} onChange={e => onLabel(item, e.target.value as "sfw" | "suggestive" | "explicit")}>
-          <option value="sfw">{t("ip.label.sfw")}</option>
-          <option value="suggestive">{t("ip.label.suggestive")}</option>
-          <option value="explicit">{t("ip.label.explicit")}</option>
-        </select></label>
-        <small className="review-counter">{index + 1} / {total}</small>
-      </div>
-      <details className="review-meta"><summary>{t("ip.review.metadata")}</summary>
-        <p className="review-caption">{item.caption || item.prompt}</p>
-        <small className="muted">{item.style} · {(item.checkpoint || "").replace(".safetensors", "")} · {t("ip.used")} {item.used_count} · seed {item.seed}</small>
-      </details>
-      <details className="review-help"><summary>{t("ip.review.help")}</summary><small className="muted">{t("ip.review.shortcuts")}</small></details>
+    </div>
+    <div className="review-controls">
+      <span className="library-stars" role="group" aria-label={t("ip.rating")}>{[1, 2, 3, 4, 5].map(value => <button key={value} className={item.rating >= value ? "on" : ""} disabled={busy} onClick={() => onRating(item, value)} aria-label={`${value}/5`}>★</button>)}</span>
+      <button disabled={busy} className={`review-decision ${item.status === "approved" ? "selected" : undefined}`} onClick={() => onStatus(item, item.status === "approved" ? "draft" : "approved")}>{t("ip.approve")} <kbd>A</kbd></button>
+      <button disabled={busy} className={`review-decision ${item.status === "rejected" ? "selected" : undefined}`} onClick={() => onStatus(item, item.status === "rejected" ? "draft" : "rejected")}>{t("ip.reject")} <kbd>R</kbd></button>
+      <label className="review-label">{t("ip.contentLabel")}<select value={item.content_label || "suggestive"} disabled={busy} onChange={e => onLabel(item, e.target.value as "sfw" | "suggestive" | "explicit")}>
+        <option value="sfw">{t("ip.label.sfw")}</option>
+        <option value="suggestive">{t("ip.label.suggestive")}</option>
+        <option value="explicit">{t("ip.label.explicit")}</option>
+      </select></label>
+      <button type="button" className="review-info-button" onClick={onInfo}>{t("ip.review.info")}</button>
+      {sibling && <label className="auto-label"><input type="checkbox" checked={overlaySibling} onChange={e => setOverlaySibling(e.target.checked)} /> {t("ip.review.overlayPrev")}</label>}
+      <small className="review-counter">{index + 1} / {total}</small>
     </div>
   </div>;
 }

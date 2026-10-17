@@ -42,10 +42,21 @@ function LibraryThumb({ item, onView, alt }: { item: LibraryImage; onView: (url:
   return <img src={url} alt={alt} loading="lazy" onClick={() => onView(url, alt)} />;
 }
 
+const REVIEW_STATE_KEY = "images_review_v1";
+
+function readReviewState(): { characterId?: string; mode?: "grid" | "review"; reviewId?: string } {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(REVIEW_STATE_KEY) || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 export default function ImagePlayground({ onLogout }: { onLogout: () => void }) {
   const { t } = useI18n();
   const [characters, setCharacters] = useState<Character[]>([]);
-  const [characterId, setCharacterId] = useState("");
+  const [characterId, setCharacterId] = useState(() => readReviewState().characterId || "");
   const [library, setLibrary] = useState<LibraryImage[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [checkpoints, setCheckpoints] = useState<CheckpointInfo[]>([]);
@@ -156,7 +167,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   }, [characterId, checkpointFamily, checkpoint, activeCharacterLora]);
 
   const [libraryLoaded, setLibraryLoaded] = useState(false);
-  const [mode, setMode] = useState<"grid" | "review">("grid");
+  const [mode, setMode] = useState<"grid" | "review">(() => (readReviewState().mode === "review" ? "review" : "grid"));
   const [trashView, setTrashView] = useState(false);
   const [dupOnly, setDupOnly] = useState(false);
   const [savedFilters, setSavedFilters] = useState<{ name: string; status: string; style: string }[]>(() => {
@@ -171,13 +182,19 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
   const [collections, setCollections] = useState<{ id: string; name: string; count: number }[]>([]);
   const [collectionFilter, setCollectionFilter] = useState("");
   const [addToCollection, setAddToCollection] = useState("");
-  const [reviewId, setReviewId] = useState("");
+  const [reviewId, setReviewId] = useState(() => readReviewState().reviewId || "");
   const [anchorOverlay, setAnchorOverlay] = useState(false);
   const [anchorUrl, setAnchorUrl] = useState("");
   const isNarrow = useMediaQuery("(max-width: 1279px)");
   const [generatorOpen, setGeneratorOpen] = useState(false);
   const [loraSearch, setLoraSearch] = useState("");
-  const [filmstripOpen, setFilmstripOpen] = useState(true);
+  const [filmstripOpen, setFilmstripOpen] = useState(() => {
+    const saved = sessionStorage.getItem("review_filmstrip");
+    if (saved === "1") return true;
+    if (saved === "0") return false;
+    return window.innerWidth >= 900;
+  });
+  const [reviewInfoOpen, setReviewInfoOpen] = useState(false);
   const [libraryHasMore, setLibraryHasMore] = useState(false);
   const LIBRARY_PAGE = 60;
 
@@ -326,6 +343,19 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
       setLibraryHasMore(items.length === LIBRARY_PAGE);
     });
   };
+
+  useEffect(() => {
+    sessionStorage.setItem(REVIEW_STATE_KEY, JSON.stringify({ characterId, mode, reviewId }));
+  }, [characterId, mode, reviewId]);
+
+  useEffect(() => {
+    sessionStorage.setItem("review_filmstrip", filmstripOpen ? "1" : "0");
+  }, [filmstripOpen]);
+
+  useEffect(() => {
+    if (mode !== "review" || !libraryHasMore || busy) return;
+    if (reviewIndex >= library.length - 5) loadMoreLibrary();
+  }, [mode, reviewIndex, library.length, libraryHasMore, busy]);
 
   useEffect(() => {
     void refresh(characterId).catch(() => undefined);
@@ -679,7 +709,20 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
             onRating={setRating}
             onNavigate={navigateReview}
             onView={(url, alt) => setViewer({ url, alt })}
+            onInfo={() => setReviewInfoOpen(true)}
           />}
+          {mode === "review" && reviewItem && <InspectorDrawer open={reviewInfoOpen} onClose={() => setReviewInfoOpen(false)} title={t("ip.review.metadata")} closeLabel={t("common.close")}>
+            <p className="review-caption">{reviewItem.caption || reviewItem.prompt}</p>
+            <dl className="dataset-details">
+              <div><dt>{t("ip.statusFilter")}</dt><dd>{statusLabel(reviewItem)}</dd></div>
+              <div><dt>{t("ip.contentLabel")}</dt><dd>{reviewItem.content_label || "suggestive"}</dd></div>
+              <div><dt>{t("ip.style")}</dt><dd>{reviewItem.style}</dd></div>
+              <div><dt>{t("ip.checkpoint")}</dt><dd>{(reviewItem.checkpoint || "").replace(".safetensors", "") || "—"}</dd></div>
+              <div><dt>{t("ip.used")}</dt><dd>{reviewItem.used_count}</dd></div>
+              <div><dt>seed</dt><dd>{reviewItem.seed ?? "—"}</dd></div>
+            </dl>
+            <p className="muted">{t("ip.review.shortcuts")}</p>
+          </InspectorDrawer>}
           {mode === "review" && <label className="auto-label filmstrip-toggle"><input type="checkbox" checked={filmstripOpen} onChange={e => setFilmstripOpen(e.target.checked)} /> {t("ip.review.filmstrip")}</label>}
           {mode === "review" && filmstripOpen && <div className="review-strip">{library.map(item => <button key={item.id} type="button" className={`review-thumb ${item.id === reviewId ? "selected" : ""} status-${item.status}`} onClick={() => setReviewId(item.id)}>
             <LibraryThumb item={item} onView={(url, alt) => setViewer({ url, alt })} alt={item.caption || item.prompt} />
@@ -711,7 +754,7 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
               </div>
             </div>
           </article>)}</div>
-          {libraryHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreLibrary}>{t("common.loadMore")}</button></div>}
+          {libraryHasMore && mode === "grid" && <div className="load-more"><button disabled={!!busy} onClick={loadMoreLibrary}>{t("common.loadMore")}</button></div>}
           </AsyncBoundary>
         </div>
       </main>
