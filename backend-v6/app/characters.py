@@ -124,6 +124,7 @@ from .integrations.gpu import gpu_status
 from .integrations.text import OllamaNotAvailable, chat, get_models, validate_model
 from .jobs import create_job, finish_job, start_job, update_progress
 from .scheduler import maybe_schedule_proactive, pending_for_conversation, schedule_reply
+from .settings_api import image_step_defaults
 
 logger = logging.getLogger(__name__)
 
@@ -360,7 +361,8 @@ def generate_library_images(character_id: str, body: LibraryGenerateInput):
         name = character.name
         profile = normalize_bible_profile(character.bible)
         avatar = character.avatar_filename
-        checkpoint = body.checkpoint or character.image_checkpoint
+        create_defaults = image_step_defaults(db, "create")
+        checkpoint = body.checkpoint or character.image_checkpoint or create_defaults["checkpoint"] or None
         style = body.style or character.image_style or "real"
         pose_paths: list[Path] = []
         if body.pose_ids:
@@ -384,7 +386,7 @@ def generate_library_images(character_id: str, body: LibraryGenerateInput):
     scene = translate_scene(body.prompt, style)
     prompt = build_prompt_from_profile(name, profile, scene, style, family)
     negative = body.negative or build_negative_prompt(family)
-    loras = [lora.model_dump() for lora in body.loras]
+    loras = [lora.model_dump() for lora in body.loras] or create_defaults["loras"]
     batch_max = max(1, settings.image_library_batch_max)
     count = min(body.count, batch_max)
 
@@ -988,7 +990,8 @@ def generate_avatar(character_id: str, body: AvatarInput | None = None):
         name = character.name
         profile = normalize_bible_profile(character.bible)
         old_avatar = character.avatar_filename
-        checkpoint = (body.checkpoint if body else None) or character.image_checkpoint
+        step_defaults = image_step_defaults(db, "character")
+        checkpoint = (body.checkpoint if body else None) or character.image_checkpoint or step_defaults["checkpoint"] or None
         style = (body.style if body else None) or character.image_style or "real"
         family = checkpoint_family(style, checkpoint)
     with Session.begin() as db:
@@ -1009,6 +1012,7 @@ def generate_avatar(character_id: str, body: AvatarInput | None = None):
             checkpoint=checkpoint,
             style=style,
             family=family,
+            loras=step_defaults["loras"],
             size_label="NSFW DEMO AVATAR",
         )
     except ComfyUIError as error:
@@ -1071,6 +1075,7 @@ def edit_avatar(character_id: str, body: AvatarEditInput):
                 400, "Reference-only material cannot be used as an identity anchor: change the source category first"
             )
         old_avatar = character.avatar_filename
+        edit_defaults = image_step_defaults(db, "edit")
     if not old_avatar:
         raise HTTPException(400, "Generate a profile picture before editing it")
     with Session.begin() as db:
@@ -1087,6 +1092,8 @@ def edit_avatar(character_id: str, body: AvatarEditInput):
             steps=body.steps,
             cfg=body.cfg,
             lora_weight=body.lora_weight,
+            unet_name=edit_defaults["checkpoint"] or None,
+            loras=edit_defaults["loras"],
         )
     except ComfyUIError as error:
         with Session.begin() as db:

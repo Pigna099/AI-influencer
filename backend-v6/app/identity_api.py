@@ -36,6 +36,7 @@ from .integrations.comfyui import ComfyUIError, pick_target, qwen_image_edit
 from .integrations.ollama import OllamaNotAvailable
 from .integrations.text import vision_json
 from .jobs import create_job, finish_job, start_job, update_progress
+from .settings_api import image_step_defaults
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +212,8 @@ def create_identity_run(character_id: str, body: IdentityRunInput):
         if not identity_core:
             profile = character.bible.get("profile", {}) if isinstance(character.bible, dict) else {}
             identity_core = str(profile.get("appearance") or profile.get("description") or "").strip()
-        model = body.model or settings.qwen_edit_unet_name
+        edit_defaults = image_step_defaults(db, "edit")
+        model = body.model or edit_defaults["checkpoint"] or settings.qwen_edit_unet_name
 
     selected = body.angles or [key for key, _fragment, _role in ANGLES]
     unknown = [key for key in selected if key not in ANGLE_INDEX]
@@ -256,7 +258,8 @@ def create_identity_run(character_id: str, body: IdentityRunInput):
             steps=body.steps,
             cfg=body.cfg,
             lora_weight=body.lora_weight,
-            unet_name=body.model,
+            unet_name=model,
+            loras=edit_defaults["loras"],
             base_url=pick_target(),
         )
         return angle_key, seed, prompt, data, meta
@@ -432,6 +435,7 @@ def regenerate_candidates(run_id: str, body: RegenerateInput):
         character_id = run.character_id
         model = run.model
         params = run.params or {}
+        edit_defaults = image_step_defaults(db, "edit")
 
     with Session.begin() as db:
         job = create_job(
@@ -455,7 +459,8 @@ def regenerate_candidates(run_id: str, body: RegenerateInput):
                 steps=int(params.get("steps", 4)),
                 cfg=float(params.get("cfg", 1.0)),
                 lora_weight=float(params.get("lora_weight", 1.0)),
-                unet_name=params.get("model") or None,
+                unet_name=params.get("model") or edit_defaults["checkpoint"] or None,
+                loras=edit_defaults["loras"],
                 base_url=pick_target(),
             )
         except ComfyUIError as error:

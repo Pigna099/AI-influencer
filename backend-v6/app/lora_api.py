@@ -38,6 +38,7 @@ from .image_library import average_hash
 from .integrations.comfyui import ComfyUIError, checkpoint_meta, generate_image, pick_target, qwen_image_edit
 from .integrations.faces import embedding_for, embedding_for_path, similarity_percent
 from .jobs import create_job, finish_job, request_cancel, start_job, update_progress
+from .settings_api import image_step_defaults
 
 router = APIRouter(prefix="/api", tags=["LoRA"], dependencies=[Depends(authorize)])
 
@@ -825,6 +826,7 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
         )
         start_job(db, job, worker="comfyui")
         job_id = job.id
+        edit_defaults = image_step_defaults(db, "edit")
     scene = translate_scene(body.prompt, style)
     parts = [trigger, character_prompt, scene]
     prompt = ", ".join(part for part in parts if part)
@@ -853,6 +855,8 @@ def generate_dataset_candidates(dataset_id: str, body: DatasetGenerate):
                 steps=settings.qwen_edit_steps,
                 cfg=settings.qwen_edit_cfg,
                 lora_weight=1.0,
+                unet_name=edit_defaults["checkpoint"] or None,
+                loras=edit_defaults["loras"],
                 base_url=pick_target(),
             )
             meta = {**meta, "identity_reference": True}
@@ -1016,6 +1020,7 @@ def generate_dataset_variations(dataset_id: str, body: DatasetVariations):
         )
         start_job(db, job, worker="comfyui-edit")
         job_id = job.id
+        edit_defaults = image_step_defaults(db, "edit")
     if not reference_paths and anchor_path is not None:
         reference_paths = [anchor_path]
     jobs: list[tuple[int, str, str, int]] = []
@@ -1037,7 +1042,8 @@ def generate_dataset_variations(dataset_id: str, body: DatasetVariations):
             steps=body.steps,
             cfg=body.cfg,
             lora_weight=body.lora_weight,
-            unet_name=body.model,
+            unet_name=body.model or edit_defaults["checkpoint"] or None,
+            loras=edit_defaults["loras"],
             base_url=pick_target(),
         )
         return prompt, seed, data, meta

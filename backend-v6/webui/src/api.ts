@@ -209,10 +209,16 @@ export interface GpuPlan {
   applied?: { media?: number[]; text?: number[]; applied_at?: string };
 }
 
+export interface StepDefaults {
+  checkpoint: string;
+  loras: { name: string; weight: number }[];
+}
+
 export interface AppDefaults {
   chat_model: string;
   image_checkpoint: string;
   video_model: "wan" | "ltx-distilled" | "ltx-dev" | "hunyuan";
+  image_steps: { character: StepDefaults; create: StepDefaults; edit: StepDefaults };
   text_provider?: string;
   vllm_available?: boolean;
 }

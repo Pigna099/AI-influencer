@@ -15,7 +15,35 @@ from .db import AppSetting, CharacterLora, ImageLibrary, Influencer, Session, Tr
 router = APIRouter(prefix="/api", tags=["Settings"], dependencies=[Depends(authorize)])
 
 DEFAULTS_KEY = "defaults"
-DEFAULT_DEFAULTS = {"chat_model": "", "image_checkpoint": "", "video_model": "wan"}
+DEFAULT_DEFAULTS = {
+    "chat_model": "",
+    "image_checkpoint": "",
+    "video_model": "wan",
+    "image_steps": {
+        "character": {"checkpoint": "", "loras": []},
+        "create": {"checkpoint": "", "loras": []},
+        "edit": {"checkpoint": "", "loras": []},
+    },
+}
+
+IMAGE_STEPS = ("character", "create", "edit")
+
+
+def image_step_defaults(db, step: str) -> dict:
+    """Default checkpoint and LoRAs for one image step (character/create/edit)."""
+    if step not in IMAGE_STEPS:
+        return {"checkpoint": "", "loras": []}
+    defaults = read_defaults(db)
+    data = (defaults.get("image_steps") or {}).get(step) or {}
+    checkpoint = str(data.get("checkpoint") or "")
+    if step == "create" and not checkpoint:
+        checkpoint = str(defaults.get("image_checkpoint") or "")
+    loras = [
+        {"name": str(item.get("name")), "weight": float(item.get("weight", 0.8))}
+        for item in (data.get("loras") or [])
+        if isinstance(item, dict) and item.get("name")
+    ]
+    return {"checkpoint": checkpoint, "loras": loras}
 
 
 @router.get("/overview")
@@ -56,10 +84,27 @@ def read_defaults(db) -> dict:
     return {**DEFAULT_DEFAULTS, **(row.value or {})}
 
 
+class LoraDefault(StrictModel):
+    name: str = Field(min_length=1, max_length=200)
+    weight: float = Field(default=0.8, ge=0, le=2)
+
+
+class StepDefaults(StrictModel):
+    checkpoint: str = Field(default="", max_length=200)
+    loras: list[LoraDefault] = Field(default_factory=list, max_length=20)
+
+
+class ImageSteps(StrictModel):
+    character: StepDefaults = Field(default_factory=StepDefaults)
+    create: StepDefaults = Field(default_factory=StepDefaults)
+    edit: StepDefaults = Field(default_factory=StepDefaults)
+
+
 class DefaultsInput(StrictModel):
     chat_model: str | None = Field(default=None, max_length=200)
     image_checkpoint: str | None = Field(default=None, max_length=200)
     video_model: Literal["wan", "ltx-distilled", "ltx-dev", "hunyuan"] | None = None
+    image_steps: ImageSteps | None = None
 
 
 @router.get("/settings/defaults")
@@ -84,6 +129,9 @@ def set_defaults(body: DefaultsInput):
         value = {**DEFAULT_DEFAULTS, **(row.value or {})}
         for key, item in body.model_dump(exclude_none=True).items():
             value[key] = item
+        if body.image_steps is not None:
+            # keep the legacy single-image field in sync with the create step
+            value["image_checkpoint"] = body.image_steps.create.checkpoint
         row.value = value
         row.updated_at = now()
         db.flush()

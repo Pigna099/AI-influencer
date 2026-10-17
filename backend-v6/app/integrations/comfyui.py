@@ -758,6 +758,7 @@ def qwen_image_edit(
     cfg: float | None = None,
     lora_weight: float = 1.0,
     unet_name: str | None = None,
+    loras: list[dict] | None = None,
     base_url: str | None = None,
     size_label: str = "QWEN EDIT DEMO",
 ) -> tuple[bytes, dict]:
@@ -806,7 +807,6 @@ def qwen_image_edit(
             "class_type": "LoraLoaderModelOnly",
             "inputs": {"model": ["5", 0], "lora_name": lora, "strength_model": lora_weight},
         },
-        "7": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["6", 0], "shift": settings.qwen_edit_shift}},
         "8": {"class_type": "CFGNorm", "inputs": {"model": ["7", 0], "strength": 1.0}},
         "9": {
             "class_type": "TextEncodeQwenImageEditPlus",
@@ -828,6 +828,18 @@ def qwen_image_edit(
         "13": {"class_type": "VAEDecode", "inputs": {"samples": ["12", 0], "vae": ["4", 0]}},
         "14": {"class_type": "SaveImage", "inputs": {"images": ["13", 0], "filename_prefix": "qwen_edit"}},
     }
+    model_ref = ["6", 0]
+    for index, extra in enumerate(loras or [], start=1):
+        name = str(extra.get("name") or "").strip()
+        if not name:
+            continue
+        node_id = f"xlora{index}"
+        workflow[node_id] = {
+            "class_type": "LoraLoaderModelOnly",
+            "inputs": {"model": model_ref, "lora_name": name, "strength_model": float(extra.get("weight", 0.8))},
+        }
+        model_ref = [node_id, 0]
+    workflow["7"] = {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": model_ref, "shift": settings.qwen_edit_shift}}
     started = time.perf_counter()
     data = _submit_and_wait(workflow, settings.qwen_edit_timeout, base_url=base_url)
     return data, {

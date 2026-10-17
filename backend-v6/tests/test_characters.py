@@ -807,3 +807,41 @@ def test_alerts_are_deduplicated_and_tied_to_objects():
     third = client.get("/api/alerts").json()
     assert len(third["alerts"]) == len(second["alerts"])
     assert len({alert["key"] for alert in third["alerts"]}) == len(third["alerts"])
+
+
+def test_image_step_defaults_roundtrip_and_wiring():
+    response = client.put(
+        "/api/settings/defaults",
+        json={
+            "image_steps": {
+                "character": {"checkpoint": "qwen_image_2.1_bf16.safetensors", "loras": []},
+                "create": {
+                    "checkpoint": "qwen_image_2512_bf16.safetensors",
+                    "loras": [{"name": "realistic_skin.safetensors", "weight": 0.7}],
+                },
+                "edit": {"checkpoint": "qwen_image_edit_2511_fp8mixed.safetensors", "loras": []},
+            }
+        },
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["image_steps"]["create"]["checkpoint"] == "qwen_image_2512_bf16.safetensors"
+    assert data["image_steps"]["create"]["loras"] == [{"name": "realistic_skin.safetensors", "weight": 0.7}]
+    assert data["image_steps"]["edit"]["checkpoint"] == "qwen_image_edit_2511_fp8mixed.safetensors"
+    # legacy field mirrors the create step so older clients keep working
+    assert data["image_checkpoint"] == "qwen_image_2512_bf16.safetensors"
+
+    created = client.post("/api/characters", json={"name": "Defaults Wiring", "profile": {"description": "adult"}}).json()
+    generated = client.post(
+        f"/api/characters/{created['id']}/library/generate",
+        json={"prompt": "test scene", "count": 1, "classify": False},
+    )
+    assert generated.status_code in (200, 201), generated.text
+    item = generated.json()[0]
+    assert item["checkpoint"] == "qwen_image_2512_bf16.safetensors"
+    assert item["loras"] == [{"name": "realistic_skin.safetensors", "weight": 0.7}]
+
+    client.put(
+        "/api/settings/defaults",
+        json={"image_steps": {"character": {"checkpoint": "", "loras": []}, "create": {"checkpoint": "", "loras": []}, "edit": {"checkpoint": "", "loras": []}}},
+    )

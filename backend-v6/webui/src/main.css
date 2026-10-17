@@ -687,3 +687,9 @@
 .summary-facts b.warn { color: var(--st-busy-fg); }
 .summary-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .identity-subview { margin-top: 12px; border-top: 1px solid var(--border-1); padding-top: 10px; }
+.defaults-step { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid var(--border-1); border-radius: 10px; background: var(--surface-2); }
+.defaults-step > label { display: block; font-size: .78rem; }
+.step-loras { display: grid; gap: 4px; }
+.step-loras summary { cursor: pointer; font-size: .75rem; color: var(--text-3); }
+.step-loras label { display: inline-flex; align-items: center; gap: 6px; font-size: .75rem; margin-right: 10px; }
+.step-loras input[type=checkbox] { width: auto; margin: 0; accent-color: var(--accent); }

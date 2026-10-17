@@ -80,8 +80,9 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
     try {
       setDefaults(await api.setDefaults({
         chat_model: defaults.chat_model,
-        image_checkpoint: defaults.image_checkpoint,
+        image_checkpoint: defaults.image_steps.create.checkpoint,
         video_model: defaults.video_model,
+        image_steps: defaults.image_steps,
       }));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -268,10 +269,34 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
             <option value="">{t("home.defaults.auto")}</option>
             {models.filter(model => model.chat_capable !== false).map(model => <option key={model.name} value={model.name}>{model.name}</option>)}
           </select></label>
-          <label>{t("home.defaults.image")}<select value={defaults?.image_checkpoint ?? ""} disabled={!defaults} onChange={e => setDefaults(current => current ? { ...current, image_checkpoint: e.target.value } : current)}>
-            <option value="">{t("home.defaults.auto")}</option>
-            {checkpoints.filter(item => item.usable).map(item => <option key={item.name} value={item.name}>{item.name} · {item.family}</option>)}
-          </select></label>
+          {(["character", "create", "edit"] as const).map(step => {
+            const stepDefaults = defaults?.image_steps?.[step] ?? { checkpoint: "", loras: [] };
+            const qwenModels = checkpoints.filter(item => item.usable && (
+              step === "edit"
+                ? /edit/i.test(item.name) && item.family === "qwen-image"
+                : item.family === "qwen-image" && !/edit/i.test(item.name)
+            ));
+            const toggleLora = (name: string, on: boolean) => setDefaults(current => {
+              if (!current) return current;
+              const loras = on
+                ? [...current.image_steps[step].loras.filter(item => item.name !== name), { name, weight: 0.8 }]
+                : current.image_steps[step].loras.filter(item => item.name !== name);
+              return { ...current, image_steps: { ...current.image_steps, [step]: { ...current.image_steps[step], loras } } };
+            });
+            return <div className="defaults-step" key={step}>
+              <label>{t(step === "character" ? "home.defaults.character" : step === "create" ? "home.defaults.create" : "home.defaults.edit")}
+                <select value={stepDefaults.checkpoint} disabled={!defaults} onChange={e => setDefaults(current => current ? { ...current, image_steps: { ...current.image_steps, [step]: { ...current.image_steps[step], checkpoint: e.target.value } } } : current)}>
+                  <option value="">{t("home.defaults.auto")}</option>
+                  {qwenModels.map(item => <option key={item.name} value={item.name}>{item.name}</option>)}
+                </select>
+              </label>
+              <details className="step-loras">
+                <summary>{t("home.defaults.loras", { count: stepDefaults.loras.length })}</summary>
+                {!loras.length && <small className="muted">{t("ip.noLoras")}</small>}
+                {loras.map(name => <label className="auto-label" key={name}><input type="checkbox" checked={stepDefaults.loras.some(item => item.name === name)} disabled={!defaults} onChange={e => toggleLora(name, e.target.checked)} /> {name.replace(".safetensors", "")}</label>)}
+              </details>
+            </div>;
+          })}
           <label>{t("home.defaults.video")}<select value={defaults?.video_model ?? "wan"} disabled={!defaults} onChange={e => setDefaults(current => current ? { ...current, video_model: e.target.value as AppDefaults["video_model"] } : current)}>
             <option value="wan">{t("vd.modelWan")}</option>
             <option value="ltx-distilled">{t("vd.modelLtxDistilled")}</option>
