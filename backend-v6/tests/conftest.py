@@ -13,6 +13,7 @@ os.environ["API_KEY"] = "test-key"
 os.environ["TEXT_PROVIDER"] = "mock"
 os.environ["IMAGE_PROVIDER"] = "mock"
 os.environ["SCHEDULER_ENABLED"] = "false"
+os.environ["LORA_MIN_TRAIN_IMAGES"] = "4"
 
 import pytest
 from sqlalchemy import event

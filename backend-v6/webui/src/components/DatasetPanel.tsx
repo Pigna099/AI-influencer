@@ -16,12 +16,26 @@ const STEP_IDS = ["ds-step-1", "ds-step-2", "ds-step-3"] as const;
 const STEP_LABELS: TranslationKey[] = ["lp.step1.title", "lp.step2.title", "lp.stepCurate.title"];
 
 const STANDARD_POSES = [
-  "standing_relaxed",
-  "walking",
-  "sitting",
+  "walking_street",
+  "sitting_cafe",
   "leaning_wall",
-  "lying_bed",
-  "looking_back",
+  "lying_bed_casual",
+  "gym_workout",
+  "kitchen_morning",
+  "car_selfie",
+  "beach_walk",
+  "night_out_dress",
+  "sofa_blanket",
+  "lingerie_bed",
+  "topless_mirror",
+  "shower_tease",
+  "bikini_poolside",
+  "dress_off_shoulder",
+  "bed_spread",
+  "stockings_chair",
+  "back_arch_bed",
+  "oil_body",
+  "bath_foam",
 ] as const;
 
 const WARNING_LABELS: Record<string, TranslationKey> = {

@@ -325,7 +325,9 @@ def test_training_from_dataset_materializes(monkeypatch):
         client.patch(f"/api/dataset-items/{item['id']}", json={"selected": True})
 
     lora = make_lora(character_id)
-    job = client.post(f"/api/loras/{lora['id']}/training-jobs", json={"dataset_id": dataset["id"]}).json()
+    response = client.post(f"/api/loras/{lora['id']}/training-jobs", json={"dataset_id": dataset["id"]})
+    assert response.status_code == 201, response.text
+    job = response.json()
     folder = Path(job["params"]["images_dir"])
     assert folder.is_dir()
     assert len(list(folder.glob("*.png"))) == 4
@@ -888,13 +890,13 @@ def test_canonical_reference_set_and_pose_variations(monkeypatch):
     assert all(item["selected"] is False for item in items)  # selection is always manual
 
     # Pose variations require at least one selected canonical reference.
-    blocked = client.post(f"/api/datasets/{dataset['id']}/pose-variations", json={"pose": "walking", "count": 2})
+    blocked = client.post(f"/api/datasets/{dataset['id']}/pose-variations", json={"pose": "walking_street", "count": 2})
     assert blocked.status_code == 400
     assert "Select at least one canonical reference" in blocked.json()["detail"]
 
     client.patch(f"/api/dataset-items/{items[0]['id']}", json={"selected": True})
     poses = client.post(
-        f"/api/datasets/{dataset['id']}/pose-variations", json={"pose": "walking", "count": 4}
+        f"/api/datasets/{dataset['id']}/pose-variations", json={"pose": "walking_street", "count": 4}
     )
     assert poses.status_code == 201, poses.text
     pose_items = poses.json()
@@ -903,3 +905,20 @@ def test_canonical_reference_set_and_pose_variations(monkeypatch):
 
     bad_pose = client.post(f"/api/datasets/{dataset['id']}/pose-variations", json={"pose": "moonwalk"})
     assert bad_pose.status_code == 400
+
+def test_training_requires_minimum_images(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "lora_min_train_images", 30)
+    monkeypatch.setattr("app.lora_api.generate_image", fake_generate)
+    character_id = make_character("Min Images")
+    dataset = make_dataset(character_id, trigger="min_ds")
+    items = client.post(
+        f"/api/datasets/{dataset['id']}/generate", json={"prompt": "portrait", "count": 4}
+    ).json()
+    for item in items:
+        client.patch(f"/api/dataset-items/{item['id']}", json={"selected": True})
+    lora = make_lora(character_id, "Min LoRA")
+    response = client.post(f"/api/loras/{lora['id']}/training-jobs", json={"dataset_id": dataset["id"]})
+    assert response.status_code == 400
+    assert "At least 30 selected images" in response.json()["detail"]

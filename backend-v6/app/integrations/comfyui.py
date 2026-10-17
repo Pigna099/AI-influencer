@@ -19,14 +19,41 @@ _pick_counter = 0
 PLACEHOLDERS = ("{{positive_prompt}}", "{{negative_prompt}}", "{{seed}}", "{{image_count}}")
 
 
-def comfyui_targets() -> list[str]:
-    """Primary ComfyUI instance plus the extra GPU instances (comma-separated COMFYUI_URLS)."""
-    targets = [settings.comfyui_url.rstrip("/")]
+_targets_cache: tuple[float, list[str]] = (0.0, [])
+
+
+def comfyui_targets(ttl_seconds: float = 10.0) -> list[str]:
+    """Live ComfyUI instances: configured URLs plus the standard per-GPU port range (8188-8191).
+
+    Instances that do not respond are skipped so batches spread across every running GPU.
+    """
+    global _targets_cache
+    moment = time.monotonic()
+    if moment - _targets_cache[0] < ttl_seconds and _targets_cache[1]:
+        return _targets_cache[1]
+    candidates: list[str] = [settings.comfyui_url.rstrip("/")]
     for url in (settings.comfyui_urls or "").split(","):
         url = url.strip().rstrip("/")
-        if url and url not in targets:
-            targets.append(url)
-    return targets
+        if url:
+            candidates.append(url)
+    for port in range(8188, 8192):
+        url = f"http://127.0.0.1:{port}"
+        if url not in candidates:
+            candidates.append(url)
+    live: list[str] = []
+    for url in candidates:
+        if url in live:
+            continue
+        try:
+            response = httpx.get(f"{url}/system_stats", timeout=1.5)
+            if response.status_code < 500:
+                live.append(url)
+        except httpx.HTTPError:
+            continue
+    if not live:
+        live = [settings.comfyui_url.rstrip("/")]
+    _targets_cache = (moment, live)
+    return live
 
 
 def _queue_depth(base_url: str) -> int:

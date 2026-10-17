@@ -799,6 +799,18 @@ Always show a compact “Effective recipe” before submission.
 
 ## 15. Phase 9 — Redesign video production
 
+Fixes — 17 October 2026:
+- **All media GPUs used**: `comfyui_targets()` now discovers every live instance (configured URLs +
+  standard ports 8188-8191, probed with a 10 s cache) and `COMFYUI_URLS` lists all four; a 4-image
+  reference batch dropped from 124 s to 65 s and instances 8190/8191 received jobs for the first time.
+- **Training minimum**: `LORA_MIN_TRAIN_IMAGES=30` — queueing a LoRA from a dataset now requires 30
+  selected images (target remains 60); preflight and UI hints updated; test added.
+- **Pose variations**: 20 standard poses instead of 6 — 10 daily life (street walk, cafe, wall,
+  bed casual, gym, kitchen, car, beach, night out, sofa) and 10 OnlyFans-style (lingerie, topless
+  mirror, shower, poolside, dress off shoulder, bed spread, stockings, looking back, oiled, bath),
+  with outfits/lifestyle in the prompts. UI list and labels updated.
+- vLLM stopped on this host: the GPU plan reserves all four GPUs for media (text=[]).
+
 Progress log — 15 October 2026 (second slice):
 - ETA on job progress: rate-based estimate shown for running jobs (Jobs page and LoRA training rows).
 - Large-grid virtualization: `content-visibility: auto` + intrinsic sizes on library/video/dataset/

@@ -603,6 +603,13 @@ def materialize_dataset(db, dataset: LoraDataset, stem: str) -> Path:
             .order_by(LoraDatasetItem.created_at)
         )
     )
+    minimum = settings.lora_min_train_images
+    if len(rows) < minimum:
+        raise HTTPException(
+            400,
+            f"At least {minimum} selected images are required to train a LoRA (now {len(rows)}). "
+            "Generate the canonical references and the pose variations, then select them.",
+        )
     folder = settings.media_dir.parent / "lora_datasets" / stem
     if folder.exists():
         shutil.rmtree(folder)
@@ -1151,12 +1158,28 @@ CANONICAL_ROLE_PROMPTS: dict[str, str] = {
 }
 
 STANDARD_POSES: dict[str, str] = {
-    "standing_relaxed": "standing relaxed, front view, natural light",
-    "walking": "walking toward the camera, candid photo, natural light",
-    "sitting": "sitting on a chair, legs crossed, natural light",
-    "leaning_wall": "leaning against a wall, casual pose",
-    "lying_bed": "lying on a bed, propped up on elbows, warm lamp light",
-    "looking_back": "standing, looking back over the shoulder, natural light",
+    # Daily life (10)
+    "walking_street": "walking on a sunny city street, casual jeans and a crop top, candid photo, natural light",
+    "sitting_cafe": "sitting at a cafe table with a coffee, oversized sweater, relaxed smile, natural light",
+    "leaning_wall": "leaning against a brick wall, denim shorts and a tank top, casual pose, golden hour",
+    "lying_bed_casual": "lying on the bed on her stomach, oversized t-shirt, looking at her phone, warm lamp light",
+    "gym_workout": "at the gym, sports bra and leggings, holding a dumbbell, mirror selfie, bright light",
+    "kitchen_morning": "in the kitchen in the morning, silk robe, making coffee, soft daylight",
+    "car_selfie": "sitting in the car with the seatbelt on, selfie angle, daylight",
+    "beach_walk": "walking on the beach, bikini with a sarong, hair in the wind, golden hour",
+    "night_out_dress": "night out, elegant mini dress, city lights in the background, flash photo",
+    "sofa_blanket": "relaxing on the sofa wrapped in a blanket, cozy evening, warm lamp light",
+    # OnlyFans-style (10)
+    "lingerie_bed": "kneeling on the bed in lace lingerie, looking over her shoulder, warm light",
+    "topless_mirror": "topless mirror selfie, arm covering her chest, bathroom light",
+    "shower_tease": "in the shower behind wet glass, steam, teasing look",
+    "bikini_poolside": "poolside in a tiny bikini, lying on a lounger, sunglasses, bright sun",
+    "dress_off_shoulder": "pulling her dress off one shoulder, teasing expression, bedroom light",
+    "bed_spread": "lying on her back on the bed in lingerie, arms above her head, soft light",
+    "stockings_chair": "sitting on a chair wearing stockings and an open shirt, legs crossed, dim room",
+    "back_arch_bed": "kneeling on the bed looking back at the camera, thong and crop top, warm light",
+    "oil_body": "lying on a towel, glistening skin, bikini straps slightly lowered, studio light",
+    "bath_foam": "in the bathtub covered in foam, one leg raised, playful expression",
 }
 
 
@@ -1628,11 +1651,12 @@ def lora_preflight(lora_id: str, dataset_id: str | None = None):
                     .join(ImageLibrary, LoraDatasetItem.image_id == ImageLibrary.id)
                     .where(LoraDatasetItem.dataset_id == dataset.id, LoraDatasetItem.selected.is_(True))
                 ) or 0
+                minimum = settings.lora_min_train_images
                 add(
                     "dataset_size",
-                    usable >= 4,
+                    usable >= minimum,
                     f"{usable} selected images are ready for training.",
-                    "Select at least 4 images (aim for 50-70).",
+                    f"Select at least {minimum} images (target 60).",
                 )
                 captions = db.scalars(
                     select(LoraDatasetItem.caption)

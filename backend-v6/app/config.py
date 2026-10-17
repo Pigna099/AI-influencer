@@ -89,6 +89,8 @@ class Settings(BaseSettings):
     face_model: str = "buffalo_l"
     insightface_home: Path = Path("data/insightface")
     face_similarity_enabled: bool = True
+    # Minimum selected images required to queue a LoRA training run (target dataset size is 60).
+    lora_min_train_images: int = 30
     qwen_edit_clip_name: str = "qwen_2.5_vl_7b_fp8_scaled.safetensors"
     qwen_edit_vae_name: str = "qwen_image_vae.safetensors"
     qwen_edit_lora_name: str = "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors"
