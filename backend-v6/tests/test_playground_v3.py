@@ -1335,3 +1335,30 @@ def test_reconcile_recovers_stale_classify_job_without_summary_poll(monkeypatch)
         assert job.state == "failed" and job.error_info["code"] == "stale_heartbeat"
         source = db.get(DatasetSource, source_id)
         assert source.status == "stalled"
+
+
+def test_checkpoint_preflight_falls_back_and_reports_missing(monkeypatch):
+    from app.integrations import comfyui
+
+    monkeypatch.setattr(comfyui, "instance_checkpoints", lambda base_url, ttl_seconds=60.0: [
+        "pornmasterPro_sdxlV11VAE.safetensors",
+        "playground-v2.5-1024px-aesthetic.fp16.safetensors",
+        "ltx-2.3-22b-dev-fp8.safetensors",
+    ])
+    resolved = comfyui.ensure_checkpoint_available("pornmasterProSDXL_sdxlV2VAE_1072864.safetensors", "real", "http://x")
+    assert resolved == "pornmasterPro_sdxlV11VAE.safetensors"
+    assert comfyui.ensure_checkpoint_available("pornmasterPro_sdxlV11VAE.safetensors", "real", "http://x") == "pornmasterPro_sdxlV11VAE.safetensors"
+
+    monkeypatch.setattr(comfyui, "instance_checkpoints", lambda base_url, ttl_seconds=60.0: [
+        "ltx-2.3-22b-dev-fp8.safetensors",
+        "qwen_image_2512_bf16.safetensors",
+    ])
+    try:
+        comfyui.ensure_checkpoint_available("pornmasterProSDXL_sdxlV2VAE_1072864.safetensors", "real", "http://x")
+    except comfyui.ComfyUIError as error:
+        assert "not installed" in str(error)
+    else:
+        raise AssertionError("expected ComfyUIError")
+
+    monkeypatch.setattr(comfyui, "instance_checkpoints", lambda base_url, ttl_seconds=60.0: None)
+    assert comfyui.ensure_checkpoint_available("anything.safetensors", "real", "http://x") == "anything.safetensors"

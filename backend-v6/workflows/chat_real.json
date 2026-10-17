@@ -1,11 +1,11 @@
 {
   "4": {
     "inputs": {
-      "ckpt_name": "pornmasterProSDXL_sdxlV2VAE_1072864.safetensors"
+      "ckpt_name": "pornmasterPro_sdxlV11VAE.safetensors"
     },
     "class_type": "CheckpointLoaderSimple",
     "_meta": {
-      "title": "Checkpoint pornmasterProSDXL_sdxlV2VAE_1072864.safetensors"
+      "title": "Checkpoint pornmasterPro_sdxlV11VAE.safetensors"
     }
   },
   "6": {

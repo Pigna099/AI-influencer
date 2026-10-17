@@ -56,6 +56,62 @@ def comfyui_targets(ttl_seconds: float = 10.0) -> list[str]:
     return live
 
 
+_checkpoints_cache: dict[str, tuple[float, list[str]]] = {}
+
+
+def instance_checkpoints(base_url: str, ttl_seconds: float = 60.0) -> list[str] | None:
+    """Checkpoint names available on one ComfyUI instance (None when it cannot be read)."""
+    moment = time.monotonic()
+    cached = _checkpoints_cache.get(base_url)
+    if cached and moment - cached[0] < ttl_seconds:
+        return cached[1]
+    try:
+        response = httpx.get(f"{base_url}/object_info/CheckpointLoaderSimple", timeout=3)
+        response.raise_for_status()
+        names = response.json()["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
+        result = [str(name) for name in names]
+    except (httpx.HTTPError, KeyError, TypeError, ValueError):
+        return None
+    _checkpoints_cache[base_url] = (moment, result)
+    return result
+
+
+def workflow_checkpoint(workflow: dict) -> str | None:
+    for node in workflow.values():
+        if isinstance(node, dict) and node.get("class_type") == "CheckpointLoaderSimple":
+            name = (node.get("inputs") or {}).get("ckpt_name")
+            if isinstance(name, str) and name:
+                return name
+    return None
+
+
+def ensure_checkpoint_available(checkpoint: str | None, family: str, base_url: str) -> str | None:
+    """Validate a checkpoint before submitting; fall back to a sibling of the same family.
+
+    Returns the checkpoint to use (possibly a fallback) or None when the workflow default
+    should be kept. Raises ComfyUIError with a readable message when nothing usable exists.
+    """
+    available = instance_checkpoints(base_url)
+    if available is None:
+        return checkpoint
+    name = checkpoint
+    if name is None:
+        return None
+    if name in available:
+        return checkpoint
+    fallback = next(
+        (candidate for candidate in available if checkpoint_meta(candidate)["usable"] and checkpoint_meta(candidate)["family"] == family),
+        None,
+    )
+    if fallback:
+        logger.warning("Checkpoint %s is not installed; using %s instead", name, fallback)
+        return fallback
+    raise ComfyUIError(
+        f"Checkpoint '{name}' is not installed on the ComfyUI instance and no other {family} "
+        "checkpoint is available. Install the model or pick another checkpoint in the generator."
+    )
+
+
 def _queue_depth(base_url: str) -> int:
     try:
         response = httpx.get(f"{base_url}/queue", timeout=2)
@@ -1426,6 +1482,9 @@ def generate_image(
         if not workflow_path.is_file():
             raise ComfyUIError("Pose workflow not found")
     workflow = json.loads(workflow_path.read_text())
+    resolved = ensure_checkpoint_available(checkpoint or workflow_checkpoint(workflow), family or style, base_url)
+    if resolved:
+        checkpoint = resolved
     replacements = {
         "{{positive_prompt}}": prompt,
         "{{negative_prompt}}": negative_prompt,

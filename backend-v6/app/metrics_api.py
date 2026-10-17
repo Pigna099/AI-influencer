@@ -1,5 +1,6 @@
 """Operational metrics: queue/run times, success rates, asset and dataset coverage."""
 
+import json
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,7 +21,7 @@ from .db import (
     Session,
     VideoClip,
 )
-from .integrations.comfyui import checkpoint_meta
+from .integrations.comfyui import checkpoint_meta, get_checkpoints, workflow_checkpoint
 
 router = APIRouter(prefix="/api", tags=["Metrics"], dependencies=[Depends(authorize)])
 
@@ -72,13 +73,21 @@ def get_metrics():
             select(func.count()).select_from(LoraDatasetItem).where(LoraDatasetItem.selected.is_(True))
         ) or 0
 
+        available_checkpoints = {item["name"] for item in get_checkpoints()}
         missing_checkpoints = []
         for lora in db.scalars(
             select(CharacterLora).where(CharacterLora.base_checkpoint.is_not(None))
         ).all():
             meta = checkpoint_meta(lora.base_checkpoint or "")
-            if not meta.get("usable"):
+            if not meta.get("usable") or (available_checkpoints and lora.base_checkpoint not in available_checkpoints):
                 missing_checkpoints.append(lora.name)
+        for workflow_path in sorted(Path("workflows").glob("*.json")):
+            try:
+                name = workflow_checkpoint(json.loads(workflow_path.read_text()))
+            except (OSError, ValueError):
+                continue
+            if name and available_checkpoints and name not in available_checkpoints:
+                missing_checkpoints.append(f"{workflow_path.name}: {name}")
 
         backup_info: dict = {}
         backups_dir = settings.media_dir.parent.parent / "backups"
