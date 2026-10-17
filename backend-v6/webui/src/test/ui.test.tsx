@@ -117,3 +117,20 @@ describe("ProgressSummary", () => {
     expect(screen.getByText("73%")).toBeInTheDocument();
   });
 });
+
+describe("design tokens", () => {
+  it("defines every shared surface, border and status token", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync("src/main.css", "utf8");
+    const tokens = [
+      "--surface-0", "--surface-1", "--surface-2", "--surface-3",
+      "--border-1", "--border-2",
+      "--text-1", "--text-2", "--text-3",
+      "--st-ok-bg", "--st-ok-fg", "--st-busy-bg", "--st-busy-fg",
+      "--st-bad-bg", "--st-bad-fg", "--st-neutral-bg", "--st-neutral-fg",
+    ];
+    for (const token of tokens) {
+      expect(css, `${token} must be defined`).toMatch(new RegExp(`${token}:\\s*#`));
+    }
+  });
+});

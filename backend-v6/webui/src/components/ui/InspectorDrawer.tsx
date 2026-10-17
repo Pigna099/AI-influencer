@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef } from "react";
+import { ReactNode, useEffect, useId, useRef } from "react";
 
 interface Props {
   open: boolean;
@@ -6,15 +6,20 @@ interface Props {
   title: string;
   summary?: string;
   closeLabel: string;
+  size?: "default" | "wide";
+  footer?: ReactNode;
   children: ReactNode;
 }
 
-export default function InspectorDrawer({ open, onClose, title, summary, closeLabel, children }: Props) {
+export default function InspectorDrawer({ open, onClose, title, summary, closeLabel, size = "default", footer, children }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
   useEffect(() => {
     if (!open) return;
     triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const handler = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
@@ -48,6 +53,7 @@ export default function InspectorDrawer({ open, onClose, title, summary, closeLa
     panelRef.current?.focus();
     return () => {
       window.removeEventListener("keydown", handler);
+      document.body.style.overflow = previousOverflow;
       const trigger = triggerRef.current;
       if (trigger) window.setTimeout(() => trigger.focus(), 0);
     };
@@ -57,21 +63,22 @@ export default function InspectorDrawer({ open, onClose, title, summary, closeLa
     <div className="inspector-drawer-backdrop" onClick={onClose}>
       <div
         ref={panelRef}
-        className="inspector-drawer"
+        className={`inspector-drawer${size === "wide" ? " size-wide" : ""}`}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
         tabIndex={-1}
         onClick={event => event.stopPropagation()}
       >
         <header>
           <div>
-            <strong>{title}</strong>
+            <strong id={titleId}>{title}</strong>
             {summary && <small className="muted">{summary}</small>}
           </div>
           <button type="button" onClick={onClose} aria-label={closeLabel}>×</button>
         </header>
         <div className="inspector-drawer-body">{children}</div>
+        {footer && <footer className="inspector-drawer-footer">{footer}</footer>}
       </div>
     </div>
   );
