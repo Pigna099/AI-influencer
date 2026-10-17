@@ -110,6 +110,26 @@ def test_identity_run_requires_anchor(monkeypatch):
     assert response.status_code == 400
     assert "profile picture" in response.json()["detail"]
 
+def test_identity_scoring_uses_requested_angle(monkeypatch):
+    prompts = []
+
+    def capturing_vision(model, prompt, images, **kwargs):
+        prompts.append(prompt)
+        return {"similarity": 80, "same_person": True, "angle_accuracy": 70, "quality_notes": ""}
+
+    monkeypatch.setattr("app.identity_api.qwen_image_edit", fake_edit)
+    monkeypatch.setattr("app.identity_api.vision_json", capturing_vision)
+    character_id = make_character("Angle Prompt")
+    run = client.post(
+        f"/api/characters/{character_id}/identity-runs",
+        json={"angles": ["profile_left", "front_neutral"], "per_angle": 1},
+    ).json()
+    assert run["status"] == "finished"
+    assert len(prompts) == 2
+    assert any("full left profile view" in prompt for prompt in prompts)
+    assert any("front view" in prompt for prompt in prompts)
+
+
 def test_identity_regenerate_rejected(monkeypatch):
     monkeypatch.setattr("app.identity_api.qwen_image_edit", fake_edit)
     monkeypatch.setattr("app.identity_api.vision_json", fake_vision)

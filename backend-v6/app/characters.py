@@ -599,7 +599,15 @@ def list_collections():
                 .select_from(LibraryCollectionItem)
                 .where(LibraryCollectionItem.collection_id == collection.id)
             ) or 0
-            result.append({"id": collection.id, "name": collection.name, "count": count})
+            videos = db.scalar(
+                select(func.count())
+                .select_from(LibraryCollectionItem)
+                .where(
+                    LibraryCollectionItem.collection_id == collection.id,
+                    LibraryCollectionItem.video_id.is_not(None),
+                )
+            ) or 0
+            result.append({"id": collection.id, "name": collection.name, "count": count, "videos": videos})
         return result
 
 
@@ -634,6 +642,41 @@ def add_collection_items(collection_id: str, body: CollectionItemsInput):
             db.add(LibraryCollectionItem(collection_id=collection_id, image_id=image_id))
             added += 1
     return {"added": added}
+
+
+@router.post("/collections/{collection_id}/videos")
+def add_collection_videos(collection_id: str, body: CollectionItemsInput):
+    with Session.begin() as db:
+        collection = db.get(LibraryCollection, collection_id)
+        if collection is None:
+            raise HTTPException(404, "Collection not found")
+        present = set(
+            db.scalars(
+                select(LibraryCollectionItem.video_id).where(
+                    LibraryCollectionItem.collection_id == collection_id,
+                    LibraryCollectionItem.video_id.is_not(None),
+                )
+            )
+        )
+        added = 0
+        for video_id in body.ids:
+            if video_id in present:
+                continue
+            db.add(LibraryCollectionItem(collection_id=collection_id, video_id=video_id))
+            added += 1
+    return {"added": added}
+
+
+@router.delete("/collections/{collection_id}/videos")
+def remove_collection_videos(collection_id: str, body: CollectionItemsInput):
+    with Session.begin() as db:
+        changed = db.execute(
+            delete(LibraryCollectionItem).where(
+                LibraryCollectionItem.collection_id == collection_id,
+                LibraryCollectionItem.video_id.in_(body.ids),
+            )
+        )
+    return {"removed": changed.rowcount or 0}
 
 
 @router.delete("/collections/{collection_id}/items")

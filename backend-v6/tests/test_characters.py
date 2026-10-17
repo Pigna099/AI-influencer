@@ -611,7 +611,7 @@ def test_library_collections():
     assert client.post(f"/api/collections/{collection['id']}/items", json={"ids": ids[:2]}).json()["added"] == 0
 
     listing = client.get("/api/collections").json()
-    assert listing == [{"id": collection["id"], "name": "Favorites", "count": 2}]
+    assert listing == [{"id": collection["id"], "name": "Favorites", "count": 2, "videos": 0}]
 
     filtered = client.get(f"/api/characters/{character['id']}/library", params={"collection_id": collection["id"]}).json()
     assert {item["id"] for item in filtered} == set(ids[:2])
@@ -789,3 +789,21 @@ def test_library_thumbnail_endpoint():
     assert again.status_code == 200 and again.content == thumb.content
 
     assert client.get("/api/library/does-not-exist/thumb").status_code == 404
+
+def test_alerts_are_deduplicated_and_tied_to_objects():
+    character = client.post("/api/characters", json={"name": "Alert Char", "profile": {"description": "x"}}).json()
+    first = client.get("/api/alerts").json()
+    keys = {alert["key"] for alert in first["alerts"]}
+    policy_key = f"character:{character['id']}:policy"
+    assert policy_key in keys
+    entry = next(alert for alert in first["alerts"] if alert["key"] == policy_key)
+    assert entry["object_type"] == "character" and entry["object_id"] == character["id"]
+    assert entry["remediation"]
+
+    # Completing the policy removes the alert; repeated calls never duplicate it.
+    client.put(f"/api/characters/{character['id']}", json={"age": 25, "synthetic_declared": True})
+    second = client.get("/api/alerts").json()
+    assert policy_key not in {alert["key"] for alert in second["alerts"]}
+    third = client.get("/api/alerts").json()
+    assert len(third["alerts"]) == len(second["alerts"])
+    assert len({alert["key"] for alert in third["alerts"]}) == len(third["alerts"])

@@ -12,7 +12,16 @@ from .audit import record as audit_record
 from .auth import authorize
 from .char_schemas import StrictModel
 from .config import settings
-from .db import ExecutionJob, ImageLibrary, Influencer, Session, VideoClip, identifier, now
+from .db import (
+    ExecutionJob,
+    ImageLibrary,
+    Influencer,
+    LibraryCollectionItem,
+    Session,
+    VideoClip,
+    identifier,
+    now,
+)
 from .integrations.comfyui import (
     ComfyUIError,
     comfyui_available,
@@ -108,12 +117,26 @@ def video_out(item: VideoClip) -> dict:
 
 
 @router.get("/characters/{character_id}/videos")
-def list_videos(character_id: str, limit: int = 100, offset: int = 0, review_status: str | None = None):
+def list_videos(
+    character_id: str,
+    limit: int = 100,
+    offset: int = 0,
+    review_status: str | None = None,
+    collection_id: str | None = None,
+):
     with Session() as db:
         required(db, Influencer, character_id)
         query = select(VideoClip).where(VideoClip.character_id == character_id)
         if review_status:
             query = query.where(VideoClip.review_status == review_status)
+        if collection_id:
+            query = query.where(
+                VideoClip.id.in_(
+                    select(LibraryCollectionItem.video_id).where(
+                        LibraryCollectionItem.collection_id == collection_id
+                    )
+                )
+            )
         items = db.scalars(
             query
             .order_by(VideoClip.created_at.desc())

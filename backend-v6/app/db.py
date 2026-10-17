@@ -272,7 +272,8 @@ class LibraryCollectionItem(Base):
     __tablename__ = "library_collection_items"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     collection_id: Mapped[str] = mapped_column(ForeignKey("library_collections.id"), index=True)
-    image_id: Mapped[str] = mapped_column(ForeignKey("image_library.id"), index=True)
+    image_id: Mapped[str | None] = mapped_column(ForeignKey("image_library.id"), nullable=True, index=True)
+    video_id: Mapped[str | None] = mapped_column(ForeignKey("videos.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now)
 
 

@@ -684,11 +684,12 @@ export class ApiClient {
     return this.request("/api/settings/defaults", { method: "PUT", body: JSON.stringify(data) });
   }
 
-  async getVideos(characterId: string, params: { limit?: number; offset?: number; review_status?: string } = {}): Promise<VideoClip[]> {
+  async getVideos(characterId: string, params: { limit?: number; offset?: number; review_status?: string; collection_id?: string } = {}): Promise<VideoClip[]> {
     const query = new URLSearchParams();
     if (params.limit != null) query.set("limit", String(params.limit));
     if (params.offset) query.set("offset", String(params.offset));
     if (params.review_status) query.set("review_status", params.review_status);
+    if (params.collection_id) query.set("collection_id", params.collection_id);
     const suffix = query.toString() ? `?${query.toString()}` : "";
     return this.request(`/api/characters/${characterId}/videos${suffix}`);
   }
@@ -823,6 +824,10 @@ export class ApiClient {
     return this.request(`/api/library/${id}/restore`, { method: "POST" });
   }
 
+  getAlerts(): Promise<{ alerts: { key: string; severity: string; object_type: string; object_id: string | null; title: string; remediation: string; since: string | null }[]; count: number }> {
+    return this.request("/api/alerts");
+  }
+
   getAudit(limit = 20): Promise<{ id: string; action: string; object_type: string; object_id: string | null; detail: Record<string, unknown>; created_at: string }[]> {
     return this.request(`/api/audit?limit=${limit}`);
   }
@@ -841,12 +846,16 @@ export class ApiClient {
     return this.request("/api/metrics");
   }
 
-  getCollections(): Promise<{ id: string; name: string; count: number }[]> {
+  getCollections(): Promise<{ id: string; name: string; count: number; videos?: number }[]> {
     return this.request("/api/collections");
   }
 
   createCollection(name: string): Promise<{ id: string; name: string }> {
     return this.request("/api/collections", { method: "POST", body: JSON.stringify({ name }) });
+  }
+
+  addCollectionVideos(collectionId: string, ids: string[]): Promise<{ added: number }> {
+    return this.request(`/api/collections/${collectionId}/videos`, { method: "POST", body: JSON.stringify({ ids }) });
   }
 
   addCollectionItems(collectionId: string, ids: string[]): Promise<{ added: number }> {

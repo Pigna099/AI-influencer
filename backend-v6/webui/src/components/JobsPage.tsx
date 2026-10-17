@@ -96,6 +96,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
   const [errorsByCode, setErrorsByCode] = useState<{ code: string; count: number }[]>([]);
   const [metrics, setMetrics] = useState<Awaited<ReturnType<typeof api.getMetrics>> | null>(null);
   const [audit, setAudit] = useState<{ id: string; action: string; object_type: string; object_id: string | null; detail: Record<string, unknown>; created_at: string }[]>([]);
+  const [alerts, setAlerts] = useState<{ key: string; severity: string; object_type: string; object_id: string | null; title: string; remediation: string }[]>([]);
 
   const load = useCallback(async (offset = 0) => {
     const data = await api.getJobs({
@@ -123,6 +124,7 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
     api.getJobSummary().then(summary => setErrorsByCode(summary.errors_by_code ?? [])).catch(() => undefined);
     api.getMetrics().then(setMetrics).catch(() => undefined);
     api.getAudit(15).then(setAudit).catch(() => undefined);
+    api.getAlerts().then(data => setAlerts(data.alerts)).catch(() => undefined);
   }, []);
 
   const reconcile = (deleteOrphans: boolean) => {
@@ -197,6 +199,12 @@ export default function JobsPage({ onLogout }: { onLogout: () => void }) {
         {!!errorsByCode.length && <div className="errors-by-code">
           <small className="muted">{t("jobs.errorsByCode")}</small>
           <ul>{errorsByCode.map(entry => <li key={entry.code} title={entry.code}><span>{t(`jobs.error.${entry.code}` as "jobs.error.checkpoint_missing")}</span><b>{entry.count}</b></li>)}</ul>
+        </div>}
+        {!!alerts.length && <div className="alerts-list">
+          {alerts.slice(0, 8).map(alert => <div className={`alert-row ${alert.severity}`} key={alert.key}>
+            <span className={`alert-dot ${alert.severity}`} aria-hidden="true" />
+            <div><strong>{alert.title}</strong><small>{alert.remediation} · {alert.object_type}{alert.object_id ? ` ${alert.object_id.slice(0, 8)}` : ""}</small></div>
+          </div>)}
         </div>}
         <details className="maintenance-panel">
           <summary>{t("jobs.maintenance")}</summary>

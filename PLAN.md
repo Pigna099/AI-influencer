@@ -461,6 +461,12 @@ Add required fields:
 
 ## 11. Phase 5 — One image to multi-angle canonical identity set
 
+Progress log — 17 October 2026:
+- Requested-angle accuracy: the identity scoring prompt now receives the candidate's requested
+  angle fragment, so `angle_accuracy` measures how well the image matches THAT angle (not a generic
+  neutral portrait); test asserts the per-candidate prompt.
+- (Face-embedding similarity was already done via local insightface scoring.)
+
 This phase implements the first part of the requested LoRA workflow.
 
 ### Generation matrix
@@ -800,6 +806,10 @@ Always show a compact “Effective recipe” before submission.
 ## 15. Phase 9 — Redesign video production
 
 Fixes — 17 October 2026:
+- **Video collections** (migration `0036`): collections accept videos (`POST/DELETE
+  /api/collections/{id}/videos`), `list_videos` filters by `collection_id`, counts split
+  images/videos; the Video page has a collection filter and "Add to collection" in the card
+  overflow. Live-verified.
 - **All media GPUs used**: `comfyui_targets()` now discovers every live instance (configured URLs +
   standard ports 8188-8191, probed with a 10 s cache) and `COMFYUI_URLS` lists all four; a 4-image
   reference batch dropped from 124 s to 65 s and instances 8190/8191 received jobs for the first time.
@@ -1024,6 +1034,13 @@ Progress log — 15 October 2026 (first slice):
 - Secrets and face embeddings are not exposed through normal API responses or logs.
 
 ## 19. Phase 13 — Observability, quality, and operations
+
+Progress log — 17 October 2026 (alerts):
+- `GET /api/alerts`: deduplicated, actionable alerts each tied to a domain object (`key`,
+  `severity`, `object_type`, `object_id`, `title`, `remediation`, `since`): failed jobs (with the
+  structured error summary/remediation), characters missing policy details or AI disclosure, LoRAs
+  with missing checkpoints, draft images awaiting review, stale/missing backups. Shown at the top of
+  the Jobs page; test covers dedupe + resolution.
 
 Progress log — 15 October 2026 (first slice):
 - Jobs page shows recent failures grouped by error code (not raw exceptions); `errors_by_code` in

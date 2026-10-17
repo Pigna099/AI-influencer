@@ -78,7 +78,7 @@ DWPose extraction via ComfyUI (`app/pose_api.py`, `POST /api/poses/extract`), sk
 ```bash
 cd backend-v6
 uv run ruff check .
-uv run pytest -q            # 190 tests, mock providers, temporary DB
+uv run pytest -q            # 194 tests, mock providers, temporary DB
 cd webui && npm run lint && npm test && npm run build
 # optional UI sweeps (ad-hoc puppeteer install): scripts/ui/ui_check.mjs (no overflow 812/1280/1440),
 # scripts/ui/a11y_check.mjs (axe-core, 0 serious violations)

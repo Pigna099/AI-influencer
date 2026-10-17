@@ -969,6 +969,7 @@ const en = {
   "lp.pose.back_arch_bed": "Looking back on the bed",
   "lp.pose.oil_body": "Oiled skin",
   "lp.pose.bath_foam": "Bath with foam",
+  "ip.collectionAdded": "Added to collection",
 } as const;
 
 type Catalog = typeof en;

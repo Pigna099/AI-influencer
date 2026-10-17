@@ -624,3 +624,12 @@
 
 
 .section-title .library-count, .section-actions .library-count { color: #b0c3dd; }
+
+.alerts-list { display: grid; gap: 6px; margin-bottom: 12px; }
+.alert-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--border-1); border-radius: 10px; background: var(--surface-2); }
+.alert-row strong { display: block; font-size: .78rem; }
+.alert-row small { color: #9db2cf; font-size: .7rem; }
+.alert-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.alert-dot.critical { background: var(--st-bad-fg); }
+.alert-dot.warning { background: var(--st-busy-fg); }
+.alert-dot.info { background: #7fd7cf; }

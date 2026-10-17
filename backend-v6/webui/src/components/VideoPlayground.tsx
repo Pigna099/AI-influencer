@@ -12,16 +12,19 @@ import StatusBadge from "./ui/StatusBadge";
 import PageHeader from "./ui/PageHeader";
 import EmptyState from "./ui/EmptyState";
 
-function VideoCard({ item, sourceImage, busy, onDelete, onReview, onError }: {
+function VideoCard({ item, sourceImage, busy, onDelete, onReview, onError, collections, onAddToCollection }: {
   item: VideoClip;
   sourceImage: LibraryImage | undefined;
   busy: boolean;
   onDelete: (item: VideoClip) => void;
   onReview: (item: VideoClip, review: "draft" | "approved" | "rejected", label?: "sfw" | "suggestive" | "explicit") => void;
   onError: (message: string) => void;
+  collections: { id: string; name: string }[];
+  onAddToCollection: (item: VideoClip, collectionId: string) => void;
 }) {
   const { t } = useI18n();
   const [poster, setPoster] = useState("");
+  const [collectionPick, setCollectionPick] = useState("");
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -90,7 +93,14 @@ function VideoCard({ item, sourceImage, busy, onDelete, onReview, onError }: {
           <option value="suggestive">{t("ip.label.suggestive")}</option>
           <option value="explicit">{t("ip.label.explicit")}</option>
         </select>
-        <OverflowMenu label={t("common.more")}><button className="danger" disabled={busy} onClick={() => onDelete(item)}>{t("common.delete")}</button></OverflowMenu>
+        <OverflowMenu label={t("common.more")}>
+          {!!collections.length && <select value={collectionPick} disabled={busy} onChange={e => setCollectionPick(e.target.value)} aria-label={t("ip.addToCollection")}>
+            <option value="">{t("ip.addToCollection")}</option>
+            {collections.map(entry => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
+          </select>}
+          {!!collectionPick && <button disabled={busy} onClick={() => { onAddToCollection(item, collectionPick); setCollectionPick(""); }}>{t("ip.collectionAdd")}</button>}
+          <button className="danger" disabled={busy} onClick={() => onDelete(item)}>{t("common.delete")}</button>
+        </OverflowMenu>
       </div>
     </div>
   </article>;
@@ -147,11 +157,14 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   const [library, setLibrary] = useState<LibraryImage[]>([]);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [prompt, setPrompt] = useState("");
   const [negative, setNegative] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [lastImageId, setLastImageId] = useState("");
   const [sourceSearch, setSourceSearch] = useState("");
+  const [collectionFilter, setCollectionFilter] = useState("");
+  const [collections, setCollections] = useState<{ id: string; name: string; count: number; videos?: number }[]>([]);
   const [reviewFilter, setReviewFilter] = useState("");
   const isNarrow = useMediaQuery("(max-width: 1279px)");
   const [generatorOpen, setGeneratorOpen] = useState(false);
@@ -170,7 +183,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   const load = useCallback(async (id: string) => {
     if (!id) { setVideos([]); setLibrary([]); setLoaded(true); return; }
     try {
-      const [clips, images] = await Promise.all([api.getVideos(id, { limit: VIDEOS_PAGE, review_status: reviewFilter || undefined }), api.getLibrary(id, { limit: 200, status: "approved" })]);
+      const [clips, images] = await Promise.all([api.getVideos(id, { limit: VIDEOS_PAGE, review_status: reviewFilter || undefined, collection_id: collectionFilter || undefined }), api.getLibrary(id, { limit: 200, status: "approved" })]);
       setVideos(clips);
       setVideosHasMore(clips.length === VIDEOS_PAGE);
       setLibrary(images);
@@ -178,7 +191,11 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
     } finally {
       setLoaded(true);
     }
-  }, [reviewFilter]);
+  }, [reviewFilter, collectionFilter]);
+
+  useEffect(() => {
+    api.getCollections().then(setCollections).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     api.getDefaults()
@@ -251,7 +268,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   const loadMoreVideos = () => {
     if (!characterId) return;
     void (async () => {
-      const clips = await api.getVideos(characterId, { limit: VIDEOS_PAGE, offset: videos.length, review_status: reviewFilter || undefined });
+      const clips = await api.getVideos(characterId, { limit: VIDEOS_PAGE, offset: videos.length, review_status: reviewFilter || undefined, collection_id: collectionFilter || undefined });
       setVideos(prev => [...prev, ...clips.filter(clip => !prev.some(entry => entry.id === clip.id))]);
       setVideosHasMore(clips.length === VIDEOS_PAGE);
     })();
@@ -294,6 +311,18 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
         setVideos(prev => prev.map(clip => clip.id === updated.id ? updated : clip));
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
+      }
+    })();
+  };
+
+  const addToCollection = (item: VideoClip, collectionId: string) => {
+    void (async () => {
+      try {
+        await api.addCollectionVideos(collectionId, [item.id]);
+        setCollections(await api.getCollections());
+        setNotice(t("ip.collectionAdded"));
+      } catch (error) {
+        setError(error instanceof Error ? error.message : String(error));
       }
     })();
   };
@@ -397,6 +426,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
   return <div className="playground theme-images">
     <AppHeader current="/video" onLogout={onLogout} busy={!!busy} />
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")} aria-label={t("pg.error.closeAria")}>×</button></div>}
+    {notice && <div className="info-banner" role="status">{notice}<button onClick={() => setNotice("")} aria-label={t("common.close")}>×</button></div>}
     <div className="workspace image-workspace" style={{ gridTemplateColumns: "225px minmax(320px, 1fr) 380px" }}>
       {!isNarrow && <aside className="character-rail">
         <div className="section-title"><h2>{t("ip.characters")}</h2><span>{characters.length}</span></div>
@@ -408,7 +438,10 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
           eyebrow={characterId ? t("vd.subtitle") : t("ip.title")}
           title={characters.find(item => item.id === characterId)?.name || t("vd.selectCharacter")}
           subtitle={t("vd.subtitle")}
-          aside={<div className="section-actions"><span className="narrow-only"><ContextSelector label={t("ip.characters")} options={characters.map(item => ({ id: item.id, name: item.name }))} value={characterId} onChange={setCharacterId} disabled={!!busy} /></span><button type="button" className="narrow-only" onClick={() => setGeneratorOpen(true)}>{t("ip.generator")}</button><select className="saved-filter-select" value={reviewFilter} disabled={!!busy} onChange={e => setReviewFilter(e.target.value)} aria-label={t("vd.reviewFilter")}>
+          aside={<div className="section-actions"><span className="narrow-only"><ContextSelector label={t("ip.characters")} options={characters.map(item => ({ id: item.id, name: item.name }))} value={characterId} onChange={setCharacterId} disabled={!!busy} /></span><button type="button" className="narrow-only" onClick={() => setGeneratorOpen(true)}>{t("ip.generator")}</button><select className="saved-filter-select" value={collectionFilter} disabled={!!busy || !collections.length} onChange={e => setCollectionFilter(e.target.value)} aria-label={t("ip.collection")}>
+            <option value="">{t("ip.collectionAll")}</option>
+            {collections.map(entry => <option key={entry.id} value={entry.id}>{entry.name} ({entry.videos ?? entry.count})</option>)}
+          </select><select className="saved-filter-select" value={reviewFilter} disabled={!!busy} onChange={e => setReviewFilter(e.target.value)} aria-label={t("vd.reviewFilter")}>
             <option value="">{t("vd.reviewAll")}</option>
             <option value="draft">{t("ip.statusDraft")}</option>
             <option value="approved">{t("ip.statusApproved")}</option>
@@ -423,7 +456,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
             loadingText={t("common.loadingData")}
             emptyState={<EmptyState symbol="▶" title={t("vd.empty")} />}
           >
-          <div className="video-grid">{videos.map(item => <VideoCard key={item.id} item={item} sourceImage={library.find(image => image.id === item.source_image_id)} busy={!!busy} onDelete={removeVideo} onReview={reviewVideo} onError={setError} />)}</div>
+          <div className="video-grid">{videos.map(item => <VideoCard key={item.id} item={item} sourceImage={library.find(image => image.id === item.source_image_id)} busy={!!busy} onDelete={removeVideo} onReview={reviewVideo} onError={setError} collections={collections} onAddToCollection={addToCollection} />)}</div>
           {videosHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreVideos}>{t("common.loadMore")}</button></div>}
           </AsyncBoundary>
         </div>

@@ -233,3 +233,36 @@ def test_ltx_last_frame_graph_and_api():
     )
     assert rejected.status_code == 400
     assert "LTX" in rejected.json()["detail"]
+
+def test_video_collections():
+    character_id = make_character("Video Collections")
+    clip = client.post(
+        f"/api/characters/{character_id}/videos",
+        json={"prompt": "x", "mode": "text", "length": 49},
+    ).json()
+    other = client.post(
+        f"/api/characters/{character_id}/videos",
+        json={"prompt": "y", "mode": "text", "length": 49},
+    ).json()
+
+    collection = client.post("/api/collections", json={"name": "Best clips"}).json()
+    added = client.post(f"/api/collections/{collection['id']}/videos", json={"ids": [clip["id"], other["id"]]})
+    assert added.status_code == 200 and added.json()["added"] == 2
+    assert client.post(f"/api/collections/{collection['id']}/videos", json={"ids": [clip["id"]]}).json()["added"] == 0
+
+    filtered = client.get(
+        f"/api/characters/{character_id}/videos", params={"collection_id": collection["id"]}
+    ).json()
+    assert {item["id"] for item in filtered} == {clip["id"], other["id"]}
+
+    listing = client.get("/api/collections").json()
+    entry = next(item for item in listing if item["id"] == collection["id"])
+    assert entry["count"] == 2 and entry["videos"] == 2
+
+    removed = client.request("DELETE", f"/api/collections/{collection['id']}/videos", json={"ids": [clip["id"]]})
+    assert removed.json()["removed"] == 1
+    filtered = client.get(
+        f"/api/characters/{character_id}/videos", params={"collection_id": collection["id"]}
+    ).json()
+    assert [item["id"] for item in filtered] == [other["id"]]
+    client.delete(f"/api/collections/{collection['id']}")

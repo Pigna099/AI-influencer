@@ -74,9 +74,10 @@ CANONICAL_MAX = 10
 SCORE_PROMPT = (
     "You are checking identity consistency for a fictional adult (25+) character. "
     "Image 1 is the anchor. Image 2 is a generated candidate that should show the SAME person "
-    "at a requested angle. Score similarity (how much the face is the same person, 0-100), "
-    "same_person (boolean), angle_accuracy (how well the candidate matches a neutral portrait "
-    "angle, 0-100), and quality_notes (short text: blur, occlusion, artifacts; empty if fine)."
+    "at this requested angle: {angle}. Score similarity (how much the face is the same person, "
+    "0-100), same_person (boolean), angle_accuracy (how well the candidate actually shows the "
+    "requested angle, 0-100), and quality_notes (short text: blur, occlusion, artifacts; empty "
+    "if fine)."
 )
 SCORE_SCHEMA = {
     "type": "object",
@@ -150,10 +151,11 @@ def score_candidates(anchor_bytes: bytes, entries: list[dict], candidate_data: d
         data = candidate_data.get(entry["id"])
         if not data:
             continue
+        angle_fragment = ANGLE_INDEX.get(entry.get("angle", ""), ("neutral portrait angle", ""))[0]
         try:
             verdict = vision_json(
                 settings.consistency_model,
-                SCORE_PROMPT,
+                SCORE_PROMPT.format(angle=angle_fragment),
                 [anchor_b64, resize_jpeg(data)],
                 schema=SCORE_SCHEMA,
                 max_tokens=160,
