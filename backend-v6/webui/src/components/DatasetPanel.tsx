@@ -98,11 +98,18 @@ interface Props {
   perform: (label: string, work: () => Promise<void>) => Promise<void>;
   refresh: () => Promise<void>;
   onView: (url: string, alt: string) => void;
+  openId?: string;
+  onOpenIdChange?: (id: string) => void;
 }
 
-export default function DatasetPanel({ character, datasets, busy, perform, refresh, onView }: Props) {
+export default function DatasetPanel({ character, datasets, busy, perform, refresh, onView, openId: controlledOpenId, onOpenIdChange }: Props) {
   const { t } = useI18n();
-  const [openId, setOpenId] = useState("");
+  const [localOpenId, setLocalOpenId] = useState("");
+  const openId = controlledOpenId ?? localOpenId;
+  const setOpenId = (id: string) => {
+    if (onOpenIdChange) onOpenIdChange(id);
+    else setLocalOpenId(id);
+  };
   const [detail, setDetail] = useState<LoraDatasetDetail | null>(null);
   const [analysis, setAnalysis] = useState<DatasetAnalysis | null>(null);
   const [blueprint, setBlueprint] = useState<Awaited<ReturnType<typeof api.getDatasetBlueprint>> | null>(null);

@@ -68,3 +68,63 @@ describe("LoraPlayground structured errors", () => {
     expect(screen.getByText(/FileNotFoundError/)).toBeInTheDocument();
   });
 });
+
+import { resetLoraWorkspaceState } from "../hooks/useLoraWorkspaceState";
+import { api } from "../api";
+
+const TWO_CHARACTERS = [
+  { id: "c1", name: "Nikita", version: 1, image_style: "real" },
+  { id: "c2", name: "Akula", version: 1, image_style: "real" },
+];
+
+describe("LoraPlayground workspace persistence", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetLoraWorkspaceState();
+    vi.mocked(api.getCharacters).mockResolvedValue(TWO_CHARACTERS as never);
+  });
+
+  it("restores character and stage after a route switch (unmount/remount)", async () => {
+    const first = renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /Akula/ }));
+    fireEvent.click(screen.getByRole("button", { name: /LoRA dataset/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /LoRA dataset/ })).toHaveAttribute("aria-current", "step"));
+    first.unmount();
+
+    renderPage();
+    const datasetStep = await screen.findByRole("button", { name: /LoRA dataset/ });
+    await waitFor(() => expect(datasetStep).toHaveAttribute("aria-current", "step"));
+    const akula = screen.getByRole("button", { name: /Akula/ });
+    await waitFor(() => expect(akula.className).toContain("selected"));
+  });
+
+  it("restores the saved workspace after a reload (sessionStorage)", async () => {
+    const first = renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /Akula/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Training/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Training/ })).toHaveAttribute("aria-current", "step"));
+    first.unmount();
+
+    const saved = window.sessionStorage.getItem("lora_workspace_v1");
+    expect(saved).toContain('"characterId":"c2"');
+    resetLoraWorkspaceState();
+    window.sessionStorage.setItem("lora_workspace_v1", saved || "");
+
+    renderPage();
+    const trainingStep = await screen.findByRole("button", { name: /Training/ });
+    await waitFor(() => expect(trainingStep).toHaveAttribute("aria-current", "step"));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Akula/ }).className).toContain("selected"));
+  });
+
+  it("falls back to the first character when the saved one no longer exists", async () => {
+    window.sessionStorage.setItem("lora_workspace_v1", JSON.stringify({
+      version: 1,
+      state: { characterId: "deleted", stage: "dataset", scrollTop: 0, guideOpen: false, updatedAt: 1 },
+    }));
+    renderPage();
+    const nikita = await screen.findByRole("button", { name: /Nikita/ });
+    await waitFor(() => expect(nikita.className).toContain("selected"));
+    expect(screen.getByRole("button", { name: /LoRA dataset/ })).toHaveAttribute("aria-current", "step");
+    expect(window.sessionStorage.getItem("lora_workspace_v1")).toContain('"characterId":"c1"');
+  });
+});

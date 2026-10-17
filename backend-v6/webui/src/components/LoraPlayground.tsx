@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, Character, CharacterLora, CharacterProfile, CheckpointInfo, LoraDataset, TrainingJob } from "../api";
 import {useI18n} from "../i18n";
@@ -8,6 +8,7 @@ import CharacterForm from "./CharacterForm";
 
 const NO_OLLAMA_MODELS: never[] = [];
 import DatasetPanel from "./DatasetPanel";
+import { LORA_STAGES, readLoraScrollTop, saveLoraScroll, useLoraWorkspaceState } from "../hooks/useLoraWorkspaceState";
 import StatusBadge from "./ui/StatusBadge";
 import JobProgress from "./ui/JobProgress";
 import { formatDuration } from "../lib/format";
@@ -153,8 +154,13 @@ function LoraCard({
 
 export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   const { t } = useI18n();
+  const { workspace, updateWorkspace } = useLoraWorkspaceState();
   const [characters, setCharacters] = useState<Character[]>([]);
-  const [characterId, setCharacterId] = useState("");
+  const [characterId, setCharacterId] = useState(workspace.characterId);
+  const selectCharacter = useCallback((id: string) => {
+    setCharacterId(id);
+    updateWorkspace({ characterId: id, datasetId: undefined, expandedLoraId: undefined });
+  }, [updateWorkspace]);
   const [loras, setLoras] = useState<CharacterLora[]>([]);
   const [jobs, setJobs] = useState<TrainingJob[]>([]);
   const [checkpoints, setCheckpoints] = useState<CheckpointInfo[]>([]);
@@ -166,18 +172,19 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   const [trigger, setTrigger] = useState("");
   const [rank, setRank] = useState(32);
   const [baseCheckpoint, setBaseCheckpoint] = useState("");
-  const [queueFor, setQueueFor] = useState("");
+  const [queueFor, setQueueFor] = useState(workspace.expandedLoraId || "");
   const [editing, setEditing] = useState<Character | "new" | null>(null);
   const [avatarCheckpoint, setAvatarCheckpoint] = useState("");
   const [avatarPrompt, setAvatarPrompt] = useState("");
-  const [guideOpen, setGuideOpen] = useState(() => localStorage.getItem("lora_guide") !== "0");
+  const [guideOpen, setGuideOpen] = useState(workspace.guideOpen);
   const isNarrow = useMediaQuery("(max-width: 1279px)");
   const [guideDrawerOpen, setGuideDrawerOpen] = useState(false);
-  const [stage, setStage] = useState(0);
+  const stage = LORA_STAGES.indexOf(workspace.stage);
+  const setStage = (index: number) => updateWorkspace({ stage: LORA_STAGES[index] ?? "character" });
   const toggleGuide = () => {
     const next = !guideOpen;
     setGuideOpen(next);
-    localStorage.setItem("lora_guide", next ? "1" : "0");
+    updateWorkspace({ guideOpen: next });
   };
   const [datasets, setDatasets] = useState<LoraDataset[]>([]);
   const [viewer, setViewer] = useState<{ url: string; alt: string } | null>(null);
@@ -190,7 +197,14 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
         if (!live) return;
         setCharacters(chars);
         setCheckpoints(checkpointData.checkpoints.filter(item => item.usable));
-        if (chars[0]) setCharacterId(chars[0].id);
+        if (!chars.length) return;
+        const saved = workspace.characterId;
+        if (saved && chars.some(item => item.id === saved)) {
+          setCharacterId(saved);
+        } else {
+          setCharacterId(chars[0].id);
+          if (saved) updateWorkspace({ characterId: chars[0].id, datasetId: undefined, expandedLoraId: undefined });
+        }
       })
       .catch(e => { if (live) setError(e instanceof Error ? e.message : t("common.failed")); });
     return () => { live = false; };
@@ -200,6 +214,21 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   const [jobsHasMore, setJobsHasMore] = useState(false);
   const [showAllJobs, setShowAllJobs] = useState(false);
   const JOBS_PAGE = 30;
+  const contentRef = useRef<HTMLDivElement>(null);
+  const lastScrollSave = useRef(0);
+  const scrollRestored = useRef(false);
+  const onContentScroll = () => {
+    const now = Date.now();
+    if (now - lastScrollSave.current < 300) return;
+    lastScrollSave.current = now;
+    saveLoraScroll(contentRef.current?.scrollTop ?? 0);
+  };
+  useEffect(() => {
+    if (scrollRestored.current || !loaded) return;
+    scrollRestored.current = true;
+    const top = readLoraScrollTop();
+    if (top && contentRef.current) contentRef.current.scrollTop = top;
+  }, [loaded]);
 
   const refresh = useCallback(async (id: string) => {
     if (!id) { setLoras([]); setJobs([]); setDatasets([]); setLoaded(true); return; }
@@ -228,6 +257,12 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   };
 
   useEffect(() => { void refresh(characterId).catch(() => undefined); }, [characterId, refresh]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    const id = workspace.datasetId;
+    if (id && !datasets.some(item => item.id === id)) updateWorkspace({ datasetId: undefined });
+  }, [datasets, loaded]);
 
   const running = jobs.some(job => job.status === "queued" || job.status === "running");
   useEffect(() => {
@@ -258,11 +293,16 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     });
   };
 
+  const selectQueue = (id: string) => {
+    setQueueFor(id);
+    updateWorkspace({ expandedLoraId: id || undefined });
+  };
+
   const remove = (item: CharacterLora) => {
     if (!window.confirm(t("lp.deleteConfirm"))) return;
     void perform("", async () => {
       await api.deleteLora(item.id);
-      setQueueFor("");
+      selectQueue("");
       await refresh(characterId);
     });
   };
@@ -274,7 +314,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
 
   const queue = (item: CharacterLora, data: QueuePayload) => void perform(t("lp.queueHint"), async () => {
     await api.queueTraining(item.id, data);
-    setQueueFor("");
+    selectQueue("");
     await refresh(characterId);
   });
 
@@ -318,7 +358,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     void perform(t("pg.busy.duplicate"), async () => {
       const copy = await api.cloneCharacter(character.id, `${character.name} ${t("pg.copySuffix")}`);
       setCharacters(prev => [...prev, copy]);
-      setCharacterId(copy.id);
+      selectCharacter(copy.id);
     });
   };
 
@@ -328,14 +368,14 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
       await api.deleteCharacter(character.id);
       const rest = characters.filter(item => item.id !== character.id);
       setCharacters(rest);
-      setCharacterId(rest[0]?.id || "");
+      selectCharacter(rest[0]?.id || "");
     });
   };
 
   const saveCharacter = async (data: { name: string; profile: CharacterProfile; age?: number | null; synthetic_declared?: boolean; provenance?: string; source_category?: string; rights_notes?: string; permitted_uses?: string; lifecycle_state?: string; platform_policy?: {platforms: Record<string, {ai_disclosure: boolean; terms_reviewed: boolean; content_rules_ok: boolean}>}; ppv_enabled?: boolean; ppv_price_cents?: number }) => {
     const saved = editing && editing !== "new" ? await api.updateCharacter(editing.id, data) : await api.createCharacter(data);
     setCharacters(prev => [...prev.filter(item => item.id !== saved.id), saved]);
-    setCharacterId(saved.id);
+    selectCharacter(saved.id);
     setEditing(null);
   };
 
@@ -420,7 +460,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     <div className="workspace image-workspace" style={{ gridTemplateColumns: guideOpen ? "225px minmax(320px, 1fr) 340px" : "225px minmax(320px, 1fr)" }}>
       <aside className="character-rail">
         <div className="section-title"><h2>{t("ip.characters")}</h2><span>{characters.length}</span><button aria-label={t("lp.addCharacter")} disabled={!!busy} onClick={() => setEditing("new")}>+</button></div>
-        <div className="character-list">{characters.map((item, index) => <button key={item.id} disabled={!!busy} onClick={() => setCharacterId(item.id)} className={`character-row ${characterId === item.id ? "selected" : ""}`}>
+        <div className="character-list">{characters.map((item, index) => <button key={item.id} disabled={!!busy} onClick={() => selectCharacter(item.id)} className={`character-row ${characterId === item.id ? "selected" : ""}`}>
           <CharacterAvatar character={item} index={index} onView={(url, alt) => setViewer({ url, alt })} altTemplate={t("pg.avatarAlt")} /><span><strong>{item.name}</strong><small>{item.image_style === "anime" ? t("pg.style.anime") : t("pg.style.real")}{item.age == null ? ` · ⚠ ${t("form.policyMissing")}` : ""}</small></span></button>)}
           {!characters.length && <p className="muted">{t("pg.noCharacters")}</p>}</div>
       </aside>
@@ -445,7 +485,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
             </button>;
           })}
         </nav>
-        <div className="lora-content">
+        <div className="lora-content" ref={contentRef} onScroll={onContentScroll}>
           <section className="lora-step" hidden={stage !== 0}>
             <div className="lora-step-head"><span className="step-badge">1</span><h2>{t("lp.step.character")}</h2></div>
             <p className="muted">{t("lp.stage.next.character")}</p>
@@ -479,7 +519,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
             <div className="lora-step-head"><span className="step-badge">2</span><h2>{t("lp.step.dataset")}</h2></div>
             <p className="muted">{t("lp.stage.next.dataset")}</p>
             <p className="muted">{t("lp.step.datasetHint")}</p>
-            <DatasetPanel character={character} datasets={datasets} busy={!!busy} perform={perform} refresh={() => refresh(characterId)} onView={(url, alt) => setViewer({ url, alt })} />
+            <DatasetPanel character={character} datasets={datasets} busy={!!busy} perform={perform} refresh={() => refresh(characterId)} onView={(url, alt) => setViewer({ url, alt })} openId={workspace.datasetId || ""} onOpenIdChange={id => updateWorkspace({ datasetId: id || undefined })} />
           </section>
           <section className="lora-step" hidden={stage !== 2}>
             <div className="lora-step-head"><span className="step-badge">3</span><h2>{t("lp.step.training")}</h2></div>
@@ -510,7 +550,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
           <section>
             <div className="section-title"><h2>{t("lp.title")}</h2><span>{loras.length}</span></div>
             {!loras.length && (loaded ? <p className="muted">{t("lp.empty")}</p> : <p className="muted"><span className="spinner" /> {t("common.loadingData")}</p>)}
-            <div className="lora-grid">{loras.map(item => <LoraCard key={item.id} item={item} busy={!!busy} queueOpen={queueFor === item.id} onToggleQueue={lora => setQueueFor(current => current === lora.id ? "" : lora.id)} onDelete={remove} onActivate={activate} onValidate={validate} onRollback={rollback} onQueue={queue} checkpoints={checkpoints} datasets={datasets} />)}</div>
+            <div className="lora-grid">{loras.map(item => <LoraCard key={item.id} item={item} busy={!!busy} queueOpen={queueFor === item.id} onToggleQueue={lora => selectQueue(queueFor === lora.id ? "" : lora.id)} onDelete={remove} onActivate={activate} onValidate={validate} onRollback={rollback} onQueue={queue} checkpoints={checkpoints} datasets={datasets} />)}</div>
           </section>
           <section>
             <div className="section-title"><h2>{t("lp.jobs")}</h2><div className="preset-actions">{hiddenJobs > 0 && <button disabled={!!busy} onClick={() => setShowAllJobs(value => !value)}>{showAllJobs ? t("lp.showRecentJobs") : t("lp.showAllJobs", { count: hiddenJobs })}</button>}<button disabled={!!busy} onClick={() => void refresh(characterId)}>{t("lp.refresh")}</button></div></div>
