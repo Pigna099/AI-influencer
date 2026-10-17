@@ -16,6 +16,7 @@
     "react-router-dom": "^6.20.0"
   },
   "devDependencies": {
+    "@axe-core/puppeteer": "^4.14.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^26.6.5",

@@ -661,3 +661,8 @@
 .job-tray-error { color: var(--st-bad-fg); font-size: .7rem; }
 .job-tray-foot { display: flex; justify-content: flex-end; border-top: 1px solid var(--border-1); padding-top: 10px; }
 .job-tray-foot a { text-decoration: none; font-size: .8rem; padding: .4rem .8rem; border-radius: 8px; }
+.lora-guide-body { display: grid; gap: 10px; font-size: .8rem; line-height: 1.55; }
+.lora-guide-body p, .lora-guide-body ul { max-width: 62ch; }
+.lora-guide-body ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.guide-step summary { cursor: pointer; font-weight: 600; font-size: .82rem; color: var(--text-1); }
+.guide-step[open] summary { margin-bottom: 6px; }

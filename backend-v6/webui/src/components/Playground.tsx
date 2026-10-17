@@ -83,7 +83,7 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
   const [newMemory, setNewMemory] = useState("");
   const [historyPage, setHistoryPage] = useState(1);
   const [convSearch, setConvSearch] = useState("");
-  const [inspectorTab, setInspectorTab] = useState<"character" | "memory" | "timing">("character");
+  const [inspectorTab, setInspectorTab] = useState<"character" | "media" | "memory" | "timing">("character");
   const isNarrow = useMediaQuery("(max-width: 1279px)");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const generation = useRef(0);
@@ -327,12 +327,25 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
     <>
 
         <div className="view-tabs inspector-tabs" role="tablist" aria-label={t("pg.inspectorTabs")}>
-          <button role="tab" aria-selected={inspectorTab === "character"} onClick={() => setInspectorTab("character")}>{t("pg.characterSettings")}</button>
-          <button role="tab" aria-selected={inspectorTab === "memory"} onClick={() => setInspectorTab("memory")}>{t("pg.memory.title")}</button>
-          <button role="tab" aria-selected={inspectorTab === "timing"} onClick={() => setInspectorTab("timing")}>{t("pg.times.title")}</button>
+          <button role="tab" aria-selected={inspectorTab === "character"} onClick={() => setInspectorTab("character")}>{t("pg.tab.character")}</button>
+          <button role="tab" aria-selected={inspectorTab === "media"} onClick={() => setInspectorTab("media")}>{t("pg.tab.media")}</button>
+          <button role="tab" aria-selected={inspectorTab === "memory"} onClick={() => setInspectorTab("memory")}>{t("pg.tab.memory")}</button>
+          <button role="tab" aria-selected={inspectorTab === "timing"} onClick={() => setInspectorTab("timing")}>{t("pg.tab.timing")}</button>
         </div>
         {inspectorTab === "character" && (
-        <details className="inspector-settings" open><summary>{t("pg.characterSettings")}</summary>
+        <div className="inspector-settings">
+        {character ? <>
+          <div className="section-title"><h2>{character.name}</h2><span>{t("pg.version", { version: character.version ?? 1 })}</span></div>
+          <p className="muted">{character.profile.personality_traits || t("pg.noTraits")}</p>
+          <div className="character-actions">
+            <button disabled={!!busy} onClick={() => setEditing(character)}>{t("pg.editPersonality")}</button>
+            <Link className="text-button" to="/loras">{t("pg.editInCharacterTab")}</Link>
+          </div>
+        </> : <p className="muted">{t("pg.noCharacters")}</p>}
+        </div>
+        )}
+        {inspectorTab === "media" && (
+        <div className="inspector-settings">
         {character && <label className="image-checkpoint">{t("pg.imageStyle")}<select value={character.image_style || "real"} disabled={!!busy} onChange={e => void perform(t("pg.busy.style"), async () => {
           const updated = await api.setImageStyle(character.id, e.target.value as "anime" | "real");
           setCharacters(prev => prev.map(item => (item.id === updated.id ? updated : item)));
@@ -353,7 +366,11 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
           {conversation.ppv_price_cents != null && <button type="button" className="text-button" disabled={!!busy} onClick={() => saveConvPpv({ ppv_price_cents: null })}>{t("pg.ppvReset")}</button>}
         </div>}
         {character && !conversation && <p className="muted">{t("pg.ppvDefaultsInEditor")}</p>}
-        {character && <details className="realism-settings">
+        </div>
+        )}
+        {inspectorTab === "timing" && (<>
+        <div className="inspector-settings">
+        {character && <details className="realism-settings" open>
           <summary title={t("pg.realismHint")}>{t("pg.realism")}</summary>
           <div className="ppv-settings">
             <div className="realism-delays">
@@ -376,7 +393,13 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
             </>}
           </div>
         </details>}
-        </details>
+        </div>
+        <div className="rail-divider" />
+        <div className="section-title"><h2>{t("pg.times.title")}</h2></div>
+        <p className="muted">{t("pg.times.note")}</p>
+        <div className="metric-list">{metrics.map(m => <article key={m.model}><strong>{m.model}</strong><div><b>{m.mean_seconds.toFixed(2)} s</b><span>{t("pg.times.mean", { count: m.samples })}</span></div><small>{t("pg.times.detail", { median: m.median_seconds.toFixed(2), load: m.mean_load_seconds.toFixed(2) })}</small></article>)}
+          {!metrics.length && <p className="muted">{t("pg.times.empty")}</p>}</div>
+        </>
         )}
         {inspectorTab === "memory" && (<>
         <div className="section-title"><h2>{t("pg.memory.title")}</h2><span>{memories.length}</span></div>
@@ -393,12 +416,6 @@ export default function Playground({ onLogout }: { onLogout: () => void }) {
             if (!window.confirm(t("pg.memory.clearConfirm", { fan: fan.name, character: character.name }))) return;
             void perform(t("pg.busy.clearMemory"), async () => { await api.request(`/api/characters/${characterId}/memories?${scope}`, { method: "DELETE" }); setMemories([]); });
           }}>{t("pg.memory.clear")}</button>}</>}
-        </>)}
-        {inspectorTab === "timing" && (<>
-        <div className="rail-divider" /><div className="section-title"><h2>{t("pg.times.title")}</h2></div>
-        <p className="muted">{t("pg.times.note")}</p>
-        <div className="metric-list">{metrics.map(m => <article key={m.model}><strong>{m.model}</strong><div><b>{m.mean_seconds.toFixed(2)} s</b><span>{t("pg.times.mean", { count: m.samples })}</span></div><small>{t("pg.times.detail", { median: m.median_seconds.toFixed(2), load: m.mean_load_seconds.toFixed(2) })}</small></article>)}
-          {!metrics.length && <p className="muted">{t("pg.times.empty")}</p>}</div>
         </>)}
     </>
   );

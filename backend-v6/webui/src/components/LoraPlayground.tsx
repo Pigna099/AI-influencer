@@ -438,19 +438,17 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   };
 
   const guideContent = (
-    <>
-
-        <div className="section-title"><h2>{t("lp.guide.title")}</h2><button type="button" onClick={toggleGuide} aria-label={t("lp.guide.hide")}>×</button></div>
+    <div className="lora-guide-body">
         <p className="muted">{t("lp.guide.intro")}</p>
-        <section><h3>{t("lp.guide.character")}</h3><p>{t("lp.guide.characterText")}</p></section>
-        <section><h3>{t("lp.guide.dataset")}</h3><p>{t("lp.guide.datasetText")}</p></section>
-        <section><h3>{t("lp.guide.training")}</h3><p>{t("lp.guide.trainingText")}</p>
-          <ul><li>{t("lp.guide.rank")}</li><li>{t("lp.guide.stepsTraining")}</li><li>{t("lp.guide.activation")}</li></ul></section>
-        <section><h3>{t("lp.guide.usage")}</h3><p>{t("lp.guide.usageText")}</p>
-          <ul><li>{t("lp.guide.weights")}</li><li>{t("lp.guide.clip")}</li><li>{t("lp.guide.poses")}</li></ul></section>
-        <section><h3>{t("lp.guide.glossary")}</h3>
-          <ul><li>{t("lp.guide.glossaryCheckpoint")}</li><li>{t("lp.guide.glossaryLora")}</li><li>{t("lp.guide.glossaryTrigger")}</li><li>{t("lp.guide.glossaryIpadapter")}</li><li>{t("lp.guide.glossaryControlnet")}</li><li>{t("lp.guide.glossaryQwen")}</li></ul></section>
-    </>
+        <details className="guide-step" open={stage === 0}><summary>{t("lp.guide.character")}</summary><p>{t("lp.guide.characterText")}</p></details>
+        <details className="guide-step" open={stage === 1}><summary>{t("lp.guide.dataset")}</summary><p>{t("lp.guide.datasetText")}</p></details>
+        <details className="guide-step" open={stage === 2}><summary>{t("lp.guide.training")}</summary><p>{t("lp.guide.trainingText")}</p>
+          <ul><li>{t("lp.guide.rank")}</li><li>{t("lp.guide.stepsTraining")}</li><li>{t("lp.guide.activation")}</li></ul></details>
+        <details className="guide-step"><summary>{t("lp.guide.usage")}</summary><p>{t("lp.guide.usageText")}</p>
+          <ul><li>{t("lp.guide.weights")}</li><li>{t("lp.guide.clip")}</li><li>{t("lp.guide.poses")}</li></ul></details>
+        <details className="guide-step"><summary>{t("lp.guide.glossary")}</summary>
+          <ul><li>{t("lp.guide.glossaryCheckpoint")}</li><li>{t("lp.guide.glossaryLora")}</li><li>{t("lp.guide.glossaryTrigger")}</li><li>{t("lp.guide.glossaryIpadapter")}</li><li>{t("lp.guide.glossaryControlnet")}</li><li>{t("lp.guide.glossaryQwen")}</li></ul></details>
+    </div>
   );
 
   return <div className="playground theme-lora">

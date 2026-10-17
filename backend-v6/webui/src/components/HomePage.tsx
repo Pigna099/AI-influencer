@@ -35,7 +35,7 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
   const [savingPlan, setSavingPlan] = useState(false);
 
   const [overview, setOverview] = useState<Awaited<ReturnType<typeof api.getOverview>> | null>(null);
-  const [infraOpen, setInfraOpen] = useState(() => localStorage.getItem("home_infra") !== "0");
+  const [infraOpen, setInfraOpen] = useState(() => localStorage.getItem("home_infra") === "1");
   const [recentJobs, setRecentJobs] = useState<Awaited<ReturnType<typeof api.getJobs>>>([]);
 
   useEffect(() => {
@@ -238,7 +238,11 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
         ) : <p className="muted">{t("home.attention.empty")}</p>)}
       </section>
       <details className="home-infra" open={infraOpen} onToggle={e => { const open = (e.currentTarget as HTMLDetailsElement).open; setInfraOpen(open); localStorage.setItem("home_infra", open ? "1" : "0"); }}>
-      <summary><h2>{t("home.infra.title")}</h2><span className="muted">{t("home.infra.hint")}</span></summary>
+      <summary><h2>{t("home.infra.title")}</h2><span className="muted">{infraOpen
+        ? t("home.infra.hint")
+        : [flags.length ? `${flags.filter(flag => flag.state === "ok").length}/${flags.length} ${t("home.infra.services")}` : null,
+           gpu ? `${gpu.gpus?.length ?? 0} GPU` : null,
+           checkpoints.length ? `${checkpoints.length} ${t("home.infra.models")}` : null].filter(Boolean).join(" · ") || t("home.infra.hint")}</span></summary>
       <section>
         <div className="section-title"><h2>{t("home.status")}</h2><button disabled={loading} onClick={() => void load()}>{t("lp.refresh")}</button></div>
         <div className="flag-grid">{flags.map(flag => <div className={`flag-card ${flag.state}`} key={flag.key}>
