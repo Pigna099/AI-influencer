@@ -542,17 +542,6 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
           <label>{t("ip.prompt")}<textarea rows={4} value={prompt} disabled={!!busy} onChange={e => setPrompt(e.target.value)} placeholder={t("ip.promptPlaceholder")} maxLength={2000} /></label>
           <label>{t("ip.direction")}<input value={direction} disabled={!!busy} onChange={e => setDirection(e.target.value)} placeholder={t("ip.directionPlaceholder")} maxLength={1000} /></label>
           <button type="button" disabled={!!busy || !prompt.trim()} onClick={augment}>{t("ip.augment")}</button>
-          <AdvancedSettings title={t("ip.details")} summary={[
-            style === "anime" ? t("pg.style.anime") : t("pg.style.real"),
-            checkpoint || t("ip.default"),
-            `${Object.values(loraSel).filter(item => item?.on).length} LoRA`,
-            poseIds.length ? `${poseIds.length} ${t("lp.poses")}` : null,
-            seed ? `${t("ip.seed")} ${seed}` : null,
-          ].filter(Boolean).join(" · ")}>
-            <label>{t("ip.negative")}<textarea rows={2} value={negative} disabled={!!busy} onChange={e => setNegative(e.target.value)} placeholder={t("ip.negativeHint")} maxLength={4000} /></label>
-            <label>{t("ip.style")}<select value={style} disabled={!!busy} onChange={e => setStyle(e.target.value as "real" | "anime")}><option value="real">{t("pg.style.real")}</option><option value="anime">{t("pg.style.anime")}</option></select></label>
-            <label>{t("ip.checkpoint")}<select value={checkpoint} disabled={!!busy} onChange={e => setCheckpoint(e.target.value)}><option value="">{t("ip.default")}</option>{checkpoints.filter(c => c.usable).map(checkpoint => <option key={checkpoint.name} value={checkpoint.name}>{checkpoint.name} · {checkpoint.family}</option>)}</select></label>
-          </AdvancedSettings>
           <div className="lora-picker"><span>{t("ip.loras")}</span>
             {!loras.length && !characterLoras.length && <small className="muted">{t("ip.noLoras")}</small>}
             {Object.entries(loraSel).filter(([, entry]) => entry?.on).map(([name, entry]) => <span className="lora-chip" key={name}>
@@ -560,36 +549,75 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
               <button type="button" disabled={!!busy} aria-label={`${t("ip.loraRemove")} ${name}`} onClick={() => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: false } }))}>×</button>
             </span>)}
             {hiddenLoras > 0 && <small className="muted">{t("ip.lorasHidden", { count: hiddenLoras })}</small>}
-            <details className="lora-manager">
-              <summary>{t("ip.manageLoras", { count: Object.values(loraSel).filter(entry => entry?.on).length })}</summary>
-              <input value={loraSearch} disabled={!!busy} onChange={e => setLoraSearch(e.target.value)} placeholder={t("ip.loraSearch")} aria-label={t("ip.loraSearch")} maxLength={60} />
-              {compatibleLoras.filter(name => name.toLowerCase().includes(loraSearch.trim().toLowerCase())).map(name => <div className="lora-row" key={name}>
-              <input type="checkbox" checked={loraSel[name]?.on || false} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: e.target.checked, weight: prev[name]?.weight ?? 0.8 } }))} />
-              <span className="lora-name" title={name}>{name}</span>
-              <input type="number" min="0" max="2" step="0.05" value={loraSel[name]?.weight ?? 0.8} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: prev[name]?.on ?? false, weight: Number(e.target.value) } }))} />
-              {loraSel[name]?.on && <div className="lora-extra">
-                <select value={loraSel[name]?.category ?? "other"} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: prev[name]?.on ?? false, weight: prev[name]?.weight ?? 0.8, category: e.target.value } }))}>
-                  {LORA_CATEGORIES.map(category => <option key={category} value={category}>{t(`ip.loraCat.${category}`)}</option>)}
-                </select>
-                <label>CLIP<input type="number" min="0" max="2" step="0.05" value={loraSel[name]?.clip ?? ""} placeholder="auto" disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: prev[name]?.on ?? false, weight: prev[name]?.weight ?? 0.8, clip: e.target.value === "" ? null : Number(e.target.value) } }))} /></label>
-              </div>}
-            </div>)}
-            </details>
           </div>
-          {activeCharacterLora?.filename && loraSel[activeCharacterLora.filename]?.on && <p className="muted">{t("ip.characterLoraOn", { name: activeCharacterLora.filename })}</p>}
-          <div className="pose-picker"><span>{t("lp.poseSelect")}</span>
-            {!poses.length && <small className="muted">{t("lp.noPoses")}</small>}
-            {poses.filter(pose => pose.active).map(pose => <label className="pose-choice" key={pose.id}>
-              <input type="checkbox" checked={poseIds.includes(pose.id)} disabled={!!busy} onChange={e => setPoseIds(prev => e.target.checked ? [...prev, pose.id] : prev.filter(id => id !== pose.id))} />
-              {pose.name}
-            </label>)}
-          </div>
-          {!!poseIds.length && <label className="auto-label">{t("lp.poseStrength")} <input type="number" min={0} max={2} step={0.05} value={poseStrength} disabled={!!busy} onChange={e => setPoseStrength(e.target.value)} /></label>}
-          <div className="benchmark-options">
+          <p className="muted pose-summary">{poseIds.length
+            ? poseIds.map(id => poses.find(pose => pose.id === id)?.name).filter(Boolean).join(", ")
+            : t("lp.poseNone")}</p>
+          <section className="generator-section">
+            <h3>{t("ip.genSettings")}</h3>
+            <label>{t("ip.negative")}<textarea rows={2} value={negative} disabled={!!busy} onChange={e => setNegative(e.target.value)} placeholder={t("ip.negativeHint")} maxLength={4000} /></label>
+            <label>{t("ip.style")}<select value={style} disabled={!!busy} onChange={e => setStyle(e.target.value as "real" | "anime")}><option value="real">{t("pg.style.real")}</option><option value="anime">{t("pg.style.anime")}</option></select></label>
+            <label>{t("ip.checkpoint")}<select value={checkpoint} disabled={!!busy} onChange={e => setCheckpoint(e.target.value)}><option value="">{t("ip.default")}</option>{checkpoints.filter(c => c.usable).map(checkpoint => <option key={checkpoint.name} value={checkpoint.name}>{checkpoint.name} · {checkpoint.family}</option>)}</select></label>
             <label>{t("ip.count")}<select value={count} disabled={!!busy} onChange={e => setCount(Number(e.target.value))}>{[1, 2, 3, 4].map(value => <option key={value}>{value}</option>)}</select></label>
+            <label className="auto-label">{t("ip.classify")} <input type="checkbox" checked={classify} disabled={!!busy} onChange={e => setClassify(e.target.checked)} /></label>
+          </section>
+          <AdvancedSettings title={t("ip.advanced")} summary={[
+            style === "anime" ? t("pg.style.anime") : t("pg.style.real"),
+            checkpoint || t("ip.default"),
+            `${Object.values(loraSel).filter(item => item?.on).length} LoRA`,
+            poseIds.length ? `${poseIds.length} ${t("lp.poses")}` : null,
+            seed ? `${t("ip.seed")} ${seed}` : null,
+          ].filter(Boolean).join(" · ")}>
             <label>{t("ip.seed")}<input type="number" min="0" value={seed} disabled={!!busy} onChange={e => setSeed(e.target.value)} placeholder="—" /></label>
-          </div>
-          <label className="auto-label">{t("ip.classify")} <input type="checkbox" checked={classify} disabled={!!busy} onChange={e => setClassify(e.target.checked)} /></label>
+            <div className="lora-manager-block">
+              <span className="scope-label">{t("ip.loras")}</span>
+              <details className="lora-manager">
+                <summary>{t("ip.manageLoras", { count: Object.values(loraSel).filter(entry => entry?.on).length })}</summary>
+                <input value={loraSearch} disabled={!!busy} onChange={e => setLoraSearch(e.target.value)} placeholder={t("ip.loraSearch")} aria-label={t("ip.loraSearch")} maxLength={60} />
+                {compatibleLoras.filter(name => name.toLowerCase().includes(loraSearch.trim().toLowerCase())).map(name => <div className="lora-row" key={name}>
+                <input type="checkbox" checked={loraSel[name]?.on || false} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: e.target.checked, weight: prev[name]?.weight ?? 0.8 } }))} />
+                <span className="lora-name" title={name}>{name}</span>
+                <input type="number" min="0" max="2" step="0.05" value={loraSel[name]?.weight ?? 0.8} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: prev[name]?.on ?? false, weight: Number(e.target.value) } }))} />
+                {loraSel[name]?.on && <div className="lora-extra">
+                  <select value={loraSel[name]?.category ?? "other"} disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: prev[name]?.on ?? false, weight: prev[name]?.weight ?? 0.8, category: e.target.value } }))}>
+                    {LORA_CATEGORIES.map(category => <option key={category} value={category}>{t(`ip.loraCat.${category}`)}</option>)}
+                  </select>
+                  <label>CLIP<input type="number" min="0" max="2" step="0.05" value={loraSel[name]?.clip ?? ""} placeholder="auto" disabled={!!busy} onChange={e => setLoraSel(prev => ({ ...prev, [name]: { ...prev[name], on: prev[name]?.on ?? false, weight: prev[name]?.weight ?? 0.8, clip: e.target.value === "" ? null : Number(e.target.value) } }))} /></label>
+                </div>}
+              </div>)}
+              </details>
+            </div>
+            {activeCharacterLora?.filename && loraSel[activeCharacterLora.filename]?.on && <p className="muted">{t("ip.characterLoraOn", { name: activeCharacterLora.filename })}</p>}
+            <div className="pose-picker"><span>{t("lp.poseSelect")}</span>
+              {!poses.length && <small className="muted">{t("lp.noPoses")}</small>}
+              {poses.filter(pose => pose.active).map(pose => <label className="pose-choice" key={pose.id}>
+                <input type="checkbox" checked={poseIds.includes(pose.id)} disabled={!!busy} onChange={e => setPoseIds(prev => e.target.checked ? [...prev, pose.id] : prev.filter(id => id !== pose.id))} />
+                {pose.name}
+              </label>)}
+            </div>
+            {!!poseIds.length && <label className="auto-label">{t("lp.poseStrength")} <input type="number" min={0} max={2} step={0.05} value={poseStrength} disabled={!!busy} onChange={e => setPoseStrength(e.target.value)} /></label>}
+            <details className="consistency-box">
+              <summary>{t("ip.consistency")}</summary>
+              <p className="muted">{t("ip.consistencyHint")}</p>
+              <div className="consistency-actions">
+                <select value={consistencyLimit} disabled={!!busy} onChange={e => setConsistencyLimit(Number(e.target.value))}>
+                  <option value={10}>10</option><option value={20}>20</option><option value={40}>40</option><option value={60}>60</option>
+                </select>
+                <button type="button" disabled={!!busy || !characterId} onClick={runConsistency}>{t("ip.consistencyRun")}</button>
+              </div>
+              {consistency && <>
+                <small>{t("ip.consistencyResult", { flagged: consistency.flagged_count, checked: consistency.checked })}</small>
+                <ul className="consistency-list">{consistency.results.slice(0, 12).map(entry => <li key={entry.image_id} className={entry.score < 60 || !entry.same_person ? "flagged" : ""}>
+                  <b>{entry.score}</b>
+                  <span title={entry.caption}>{entry.reason || entry.caption || entry.filename}</span>
+                </li>)}</ul>
+              </>}
+            </details>
+            <details className="pose-library-panel">
+              <summary>{t("lp.poses")}</summary>
+              <PoseLibrary poses={poses} busy={!!busy} perform={perform} onView={(url, alt) => setViewer({ url, alt })} onChange={refreshPoses} />
+            </details>
+          </AdvancedSettings>
           {busy && <p className="memory-status" role="status"><span className="spinner" />{busy} <b>{elapsed.toFixed(0)} s</b> <button className="text-button danger" onClick={() => void api.interruptGeneration()}>{t("common.cancel")}</button></p>}
           {isNarrow
             ? <button type="button" className="recipe-line recipe-button" onClick={() => setGeneratorOpen(true)}>{[style === "anime" ? t("pg.style.anime") : t("pg.style.real"), checkpoint || t("ip.default"), `${Object.values(loraSel).filter(item => item?.on).length} LoRA`, poseIds.length ? `${poseIds.length} ${t("lp.poses")}` : null, seed ? `${t("ip.seed")} ${seed}` : null].filter(Boolean).join(" · ")}</button>
@@ -597,27 +625,6 @@ export default function ImagePlayground({ onLogout }: { onLogout: () => void }) 
           <button className="primary generate-sticky" disabled={!!busy || !character || !prompt.trim()} onClick={generate}>{t("ip.generate")}</button>
           {!busy && !prompt.trim() && <small className="hint">{t("hint.enterPrompt")}</small>}
           {!busy && !character && <small className="hint">{t("hint.selectCharacter")}</small>}
-          <details className="consistency-box">
-            <summary>{t("ip.consistency")}</summary>
-            <p className="muted">{t("ip.consistencyHint")}</p>
-            <div className="consistency-actions">
-              <select value={consistencyLimit} disabled={!!busy} onChange={e => setConsistencyLimit(Number(e.target.value))}>
-                <option value={10}>10</option><option value={20}>20</option><option value={40}>40</option><option value={60}>60</option>
-              </select>
-              <button type="button" disabled={!!busy || !characterId} onClick={runConsistency}>{t("ip.consistencyRun")}</button>
-            </div>
-            {consistency && <>
-              <small>{t("ip.consistencyResult", { flagged: consistency.flagged_count, checked: consistency.checked })}</small>
-              <ul className="consistency-list">{consistency.results.slice(0, 12).map(entry => <li key={entry.image_id} className={entry.score < 60 || !entry.same_person ? "flagged" : ""}>
-                <b>{entry.score}</b>
-                <span title={entry.caption}>{entry.reason || entry.caption || entry.filename}</span>
-              </li>)}</ul>
-            </>}
-          </details>
-          <details className="pose-library-panel">
-            <summary>{t("lp.poses")}</summary>
-            <PoseLibrary poses={poses} busy={!!busy} perform={perform} onView={(url, alt) => setViewer({ url, alt })} onChange={refreshPoses} />
-          </details>
         </div>
     </>
   );

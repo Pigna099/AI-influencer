@@ -666,3 +666,24 @@
 .lora-guide-body ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
 .guide-step summary { cursor: pointer; font-weight: 600; font-size: .82rem; color: var(--text-1); }
 .guide-step[open] summary { margin-bottom: 6px; }
+.dataset-detail-preview { position: relative; display: grid; place-items: center; margin-bottom: 10px; border-radius: 12px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--border-1); }
+.dataset-detail-preview img { width: 100%; max-height: 320px; object-fit: contain; display: block; }
+.detail-state { justify-content: flex-start; margin-bottom: 8px; }
+.dataset-details.two-col { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); display: grid; }
+.technical-details summary { cursor: pointer; font-size: .75rem; color: var(--text-3); }
+.technical-details { margin-top: 10px; }
+.generator-section { display: grid; gap: 10px; padding: 10px 12px; border: 1px solid var(--border-1); border-radius: 10px; background: var(--surface-2); }
+.generator-section h3 { font-size: .82rem; font-weight: 600; }
+.generator-section label { display: block; font-size: .78rem; }
+.pose-summary { font-size: .75rem; }
+.lora-manager-block { display: grid; gap: 6px; }
+.character-summary { display: flex; gap: 16px; align-items: flex-start; padding: 14px; border: 1px solid var(--border-1); border-radius: 12px; background: var(--surface-2); }
+.character-summary > .avatar, .character-summary > .avatar-photo { width: 72px; height: 72px; border-radius: 16px; font-size: 1.3rem; flex-shrink: 0; }
+.character-summary-info { flex: 1; min-width: 0; display: grid; gap: 8px; }
+.summary-facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.summary-facts li { display: flex; justify-content: space-between; gap: 12px; font-size: .8rem; color: var(--text-2); border-bottom: 1px dashed var(--border-1); padding-bottom: 3px; }
+.summary-facts b { font-weight: 550; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+.summary-facts b.ok { color: var(--st-ok-fg); }
+.summary-facts b.warn { color: var(--st-busy-fg); }
+.summary-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.identity-subview { margin-top: 12px; border-top: 1px solid var(--border-1); padding-top: 10px; }

@@ -17,6 +17,30 @@ import Lightbox from "./Lightbox";
 
 const detailFields = ["pose", "setting", "lighting", "scene", "outfit", "body", "skin", "camera", "mood", "art_style"] as const;
 
+function DatasetDetailPreview({ item, videoLabel }: { item: DatasetImage; videoLabel: string }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    let objectUrl = "";
+    let alive = true;
+    setUrl("");
+    api.fetchBlob(`/api/dataset/images/${item.id}/thumb`)
+      .then(blob => {
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => setUrl(""));
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [item.id]);
+  return <div className="dataset-detail-preview">
+    {url ? <img src={url} alt={item.caption || item.filename} /> : <span className="spinner" />}
+    {item.kind === "video" && <span className="badge video">▶ {videoLabel}</span>}
+  </div>;
+}
+
 function DatasetThumb({ item, select, videoLabel }: { item: DatasetImage; select: () => void; videoLabel: string }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
@@ -239,18 +263,35 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
     })();
   };
 
+  const poseButton = selected?.kind === "image"
+    ? <button disabled={!!busy} onClick={() => extractPose(selected)}>{t("ds.poseExtract")}</button>
+    : null;
+
   const detailsContent = (
     <>
-
-        <div className="section-title"><h2>{t("ds.details")}</h2></div>
         {!selected && <p className="muted">{t("ds.noImageSelected")}</p>}
         {selected && <>
-          <p className="scope-label">{selected.kind === "video" ? t("ds.video") : t("ds.image")} · {selected.status}{selected.kind === "image" ? ` · ${selected.width}×${selected.height}` : ""}</p>
+          <DatasetDetailPreview item={selected} videoLabel={t("ds.video")} />
+          <div className="section-actions detail-state">
+            <StatusBadge status={selected.status} />
+            <small className="muted">{selected.kind === "video" ? t("ds.video") : t("ds.image")}</small>
+            <OverflowMenu label={t("common.more")}>
+              <button className="danger" disabled={!!busy} onClick={() => removeImage(selected)}>{t("common.delete")}</button>
+            </OverflowMenu>
+          </div>
           <p className="dataset-caption">{selected.kind === "video" ? t("ds.videoNoCaption") : selected.caption}</p>
-          <dl className="dataset-details">{detailFields.map(field => <div key={field}><dt>{t(`ds.fields.${field}` as "ds.fields.pose")}</dt><dd title={String(selected.details?.[field] || "")}>{selected.details?.[field] || "—"}</dd></div>)}</dl>
           {!!selected.tags.length && <div className="library-tags">{selected.tags.map(tag => <span key={tag}>{tag}</span>)}</div>}
-          {selected.kind === "image" && <button disabled={!!busy} onClick={() => extractPose(selected)}>{t("ds.poseExtract")}</button>}
-          <button className="danger text-button" disabled={!!busy} onClick={() => removeImage(selected)}>{t("common.delete")}</button>
+          <dl className="dataset-details two-col">{detailFields.map(field => <div key={field}><dt>{t(`ds.fields.${field}` as "ds.fields.pose")}</dt><dd title={String(selected.details?.[field] || "")}>{selected.details?.[field] || "—"}</dd></div>)}</dl>
+          <details className="technical-details"><summary>{t("ds.technical")}</summary>
+            <dl className="dataset-details">
+              <div><dt>{t("ds.technicalId")}</dt><dd>{selected.id}</dd></div>
+              <div><dt>{t("ds.technicalFile")}</dt><dd title={selected.filename}>{selected.filename}</dd></div>
+              {selected.kind === "image" && <div><dt>{t("ds.technicalSize")}</dt><dd>{selected.width}×{selected.height}</dd></div>}
+              <div><dt>{t("ds.technicalCreated")}</dt><dd>{new Date(selected.created_at).toLocaleString()}</dd></div>
+              <div><dt>{t("ds.technicalUpdated")}</dt><dd>{selected.updated_at ? new Date(selected.updated_at).toLocaleString() : "—"}</dd></div>
+            </dl>
+          </details>
+          {!isNarrow && poseButton}
         </>}
     </>
   );
@@ -333,12 +374,12 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
             emptyState={<EmptyState symbol="◎" title={t("ds.noImages")} />}
           >
           <div className="library-grid">{visibleImages.map(item => <article className={`library-card status-${item.status === "ready" ? "approved" : item.status === "failed" || item.status === "blocked" ? "rejected" : ""}`} key={item.id}>
-            <DatasetThumb item={item} select={() => setSelected(item)} videoLabel={t("ds.video")} />
+            <DatasetThumb item={item} select={() => { setSelected(item); if (isNarrow) setDetailsOpen(true); }} videoLabel={t("ds.video")} />
             <div className="library-meta">
               <p>{item.caption || item.filename}</p>
               {!!item.tags.length && <div className="library-tags">{item.tags.slice(0, 8).map(tag => <span key={tag}>{tag}</span>)}</div>}
               <div className="library-actions">
-                <button onClick={() => setSelected(item)}>{t("ds.details")}</button>
+                <button onClick={() => { setSelected(item); if (isNarrow) setDetailsOpen(true); }}>{t("ds.details")}</button>
                 <button disabled={!!busy} onClick={() => openViewer(item)}>{t("ds.openMedia")}</button>
                 <OverflowMenu label={t("common.more")}><button className="danger" disabled={!!busy} onClick={() => removeImage(item)}>{t("common.delete")}</button></OverflowMenu>
               </div>
@@ -348,9 +389,8 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
           </AsyncBoundary>
         </div>
       </main>
-      <button type="button" className="narrow-only details-toggle" onClick={() => setDetailsOpen(true)}>{t("ds.details")}</button>
       {isNarrow
-        ? <InspectorDrawer open={detailsOpen} onClose={() => setDetailsOpen(false)} title={t("ds.details")} closeLabel={t("common.close")}>{detailsContent}</InspectorDrawer>
+        ? <InspectorDrawer open={detailsOpen} onClose={() => setDetailsOpen(false)} title={t("ds.details")} closeLabel={t("common.close")} footer={poseButton}>{detailsContent}</InspectorDrawer>
         : <aside className="inspector dataset-inspector">{detailsContent}</aside>}
     </div>
     {sourceModalOpen && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={t("ds.newSource")}>

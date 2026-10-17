@@ -14,7 +14,7 @@ import JobProgress from "./ui/JobProgress";
 import { formatDuration } from "../lib/format";
 import InspectorDrawer from "./ui/InspectorDrawer";
 import { useMediaQuery } from "../hooks/useMediaQuery";
-import DangerZone from "./ui/DangerZone";
+import OverflowMenu from "./ui/OverflowMenu";
 import IdentityPanel from "./ui/IdentityPanel";
 import PageHeader from "./ui/PageHeader";
 import Lightbox from "./Lightbox";
@@ -188,6 +188,10 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   };
   const [datasets, setDatasets] = useState<LoraDataset[]>([]);
   const [viewer, setViewer] = useState<{ url: string; alt: string } | null>(null);
+  const [avatarSettingsOpen, setAvatarSettingsOpen] = useState(false);
+  const [identitySubviewOpen, setIdentitySubviewOpen] = useState(false);
+  const [identitySummary, setIdentitySummary] = useState<{ status: string; accepted: number; total: number } | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const character = characters.find(item => item.id === characterId);
 
   useEffect(() => {
@@ -211,9 +215,8 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   }, []);
 
   const [loaded, setLoaded] = useState(false);
-  const [jobsHasMore, setJobsHasMore] = useState(false);
-  const [showAllJobs, setShowAllJobs] = useState(false);
-  const JOBS_PAGE = 30;
+  const JOBS_PAGE = 10;
+  const RECENT_JOBS = 3;
   const contentRef = useRef<HTMLDivElement>(null);
   const lastScrollSave = useRef(0);
   const scrollRestored = useRef(false);
@@ -241,20 +244,10 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
       setLoras(loraItems);
       setJobs(jobItems);
       setDatasets(datasetItems);
-      setJobsHasMore(jobItems.length === JOBS_PAGE);
     } finally {
       setLoaded(true);
     }
   }, []);
-
-  const loadMoreJobs = () => {
-    if (!characterId) return;
-    void perform("", async () => {
-      const items = await api.getTrainingJobs({ character_id: characterId, limit: JOBS_PAGE, offset: jobs.length });
-      setJobs(prev => [...prev, ...items.filter(job => !prev.some(entry => entry.id === job.id))]);
-      setJobsHasMore(items.length === JOBS_PAGE);
-    });
-  };
 
   useEffect(() => { void refresh(characterId).catch(() => undefined); }, [characterId, refresh]);
 
@@ -263,6 +256,20 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
     const id = workspace.datasetId;
     if (id && !datasets.some(item => item.id === id)) updateWorkspace({ datasetId: undefined });
   }, [datasets, loaded]);
+
+  const refreshIdentitySummary = useCallback(() => {
+    if (!characterId) { setIdentitySummary(null); return; }
+    api.getIdentityRuns(characterId, 1)
+      .then(runs => runs.length ? api.getIdentityRun(runs[0].id) : null)
+      .then(run => setIdentitySummary(run ? {
+        status: run.status,
+        accepted: run.candidates.filter(candidate => candidate.status === "accepted").length,
+        total: run.candidates.length,
+      } : null))
+      .catch(() => setIdentitySummary(null));
+  }, [characterId]);
+
+  useEffect(() => { refreshIdentitySummary(); }, [refreshIdentitySummary, loaded]);
 
   const running = jobs.some(job => job.status === "queued" || job.status === "running");
   useEffect(() => {
@@ -402,7 +409,6 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
   };
 
   const visibleJobs = (() => {
-    if (showAllJobs) return jobs;
     const seenFailures = new Set<string>();
     return jobs.filter(job => {
       if (job.status !== "failed" && job.status !== "canceled") return true;
@@ -410,7 +416,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
       if (seenFailures.has(key)) return false;
       seenFailures.add(key);
       return true;
-    });
+    }).slice(0, RECENT_JOBS);
   })();
   const hiddenJobs = jobs.length - visibleJobs.length;
   const activeLora = loras.find(lora => lora.is_active);
@@ -486,32 +492,37 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
         <div className="lora-content" ref={contentRef} onScroll={onContentScroll}>
           <section className="lora-step" hidden={stage !== 0}>
             <div className="lora-step-head"><span className="step-badge">1</span><h2>{t("lp.step.character")}</h2></div>
-            <p className="muted">{t("lp.stage.next.character")}</p>
-            {character ? <div className="lora-avatar">
+            {character ? <>
+            {!identitySubviewOpen && <div className="character-summary">
               <CharacterAvatar character={character} index={0} onView={(url, alt) => setViewer({ url, alt })} altTemplate={t("pg.avatarAlt")} />
-              <div>
-                <strong>{t("lp.avatarTitle")}</strong>
-                <p className="muted">{t("lp.avatarHint")}</p>
-                <label className="lora-avatar-model">{t("lp.avatarModel")}<select value={avatarCheckpoint} disabled={!!busy} onChange={e => setAvatarCheckpoint(e.target.value)}>
-                  <option value="">{t("lp.baseCheckpointAuto")}</option>
-                  {checkpoints.map(checkpoint => <option key={checkpoint.name} value={checkpoint.name}>{checkpoint.name} · {checkpoint.family}</option>)}
-                </select></label>
-                <div className="lora-actions">
-                  <button disabled={!!busy || character.source_category === "reference_only"} title={character.source_category === "reference_only" ? t("form.referenceOnlyWarning") : undefined} onClick={generateAvatar}>{character.avatar_filename ? t("lp.avatarRegenerate") : t("lp.avatarGenerate")}</button>
-                  <label className="text-button upload-avatar">{t("lp.avatarUpload")}<input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={!!busy || character.source_category === "reference_only"} onChange={e => { const file = e.target.files?.[0]; if (file) uploadAvatarFile(file); e.target.value = ""; }} /></label>
-                  {character.avatar_validation?.source === "upload" && <small className="muted">{t("lp.avatarChecks")}: {character.avatar_validation.adult ? "✓" : "✕"} {t("lp.avatarCheck.adult")} · {character.avatar_validation.one_person ? "✓" : "✕"} {t("lp.avatarCheck.onePerson")} · {character.avatar_validation.face_visible ? "✓" : "✕"} {t("lp.avatarCheck.face")} · {character.avatar_validation.sharp ? "✓" : "✕"} {t("lp.avatarCheck.sharp")}{character.avatar_validation.quality_notes ? ` · ${character.avatar_validation.quality_notes}` : ""}</small>}
-                  <button disabled={!!busy} title={t("pg.duplicateTitle")} onClick={duplicateCharacter}>{t("pg.duplicate")}</button>
+              <div className="character-summary-info">
+                <div className="section-title"><h2>{character.name}</h2><small className="muted">{character.image_style === "anime" ? t("pg.style.anime") : t("pg.style.real")}</small></div>
+                <ul className="summary-facts">
+                  <li><span>{t("lp.avatarTitle")}</span><b className={character.avatar_filename ? "ok" : "warn"}>{character.avatar_filename ? "✓" : "—"}</b></li>
+                  <li><span>{t("idr.title")}</span><b className={identitySummary ? (identitySummary.status === "frozen" ? "ok" : "") : "warn"}>
+                    {!identitySummary ? t("lp.identityNone") : identitySummary.status === "frozen" ? `✓ ${t("idr.frozen")}` : `${identitySummary.accepted}/${identitySummary.total} ${t("idr.accepted")}`}
+                  </b></li>
+                  <li><span>{t("lp.activeLora")}</span><b>{activeLora ? activeLora.name : "—"}</b></li>
+                </ul>
+                <div className="summary-actions">
+                  <button className="primary" disabled={!!busy} onClick={() => setIdentitySubviewOpen(true)}>{identitySummary ? t("lp.identityReview") : t("lp.identityGenerate")}</button>
+                  <button disabled={!!busy} onClick={() => setAvatarSettingsOpen(true)}>{t("lp.settings")}</button>
+                  <button disabled={!!busy || character.source_category === "reference_only"} title={character.source_category === "reference_only" ? t("form.referenceOnlyWarning") : undefined} onClick={() => uploadInputRef.current?.click()}>{t("lp.changeImage")}</button>
+                  <OverflowMenu label={t("common.more")}>
+                    <button disabled={!!busy} onClick={duplicateCharacter}>{t("pg.duplicate")}</button>
+                    <button className="danger" disabled={!!busy} onClick={removeCharacter}>{t("common.delete")}</button>
+                  </OverflowMenu>
                 </div>
-                {character.avatar_filename && <div className="avatar-edit">
-                  <input value={avatarPrompt} disabled={!!busy} onChange={e => setAvatarPrompt(e.target.value)} placeholder={t("lp.avatarEditPlaceholder")} maxLength={1000} />
-                  <button disabled={!!busy || !avatarPrompt.trim()} onClick={editAvatar}>{t("lp.avatarEdit")}</button>
-                </div>}
-                <IdentityPanel character={character} busy={!!busy} perform={perform} onView={(url, alt) => setViewer({ url, alt })} onError={setError} />
-                <DangerZone title={t("lp.dangerTitle")} hint={t("lp.dangerHint")}>
-                  <button className="danger" disabled={!!busy} onClick={removeCharacter}>{t("common.delete")}</button>
-                </DangerZone>
               </div>
-            </div> : <p className="muted">{t("pg.noCharacters")}</p>}
+            </div>}
+            <input ref={uploadInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={!!busy || character.source_category === "reference_only"} onChange={e => { const file = e.target.files?.[0]; if (file) uploadAvatarFile(file); e.target.value = ""; }} />
+            {identitySubviewOpen && <div className="identity-subview">
+              <div className="section-actions">
+                <button type="button" className="text-button" onClick={() => { setIdentitySubviewOpen(false); refreshIdentitySummary(); }}>← {t("lp.step.character")}</button>
+              </div>
+              <IdentityPanel character={character} busy={!!busy} perform={perform} onView={(url, alt) => setViewer({ url, alt })} onError={setError} />
+            </div>}
+            </> : <p className="muted">{t("pg.noCharacters")}</p>}
           </section>
           <section className="lora-step" hidden={stage !== 1}>
             <div className="lora-step-head"><span className="step-badge">2</span><h2>{t("lp.step.dataset")}</h2></div>
@@ -551,7 +562,7 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
             <div className="lora-grid">{loras.map(item => <LoraCard key={item.id} item={item} busy={!!busy} queueOpen={queueFor === item.id} onToggleQueue={lora => selectQueue(queueFor === lora.id ? "" : lora.id)} onDelete={remove} onActivate={activate} onValidate={validate} onRollback={rollback} onQueue={queue} checkpoints={checkpoints} datasets={datasets} />)}</div>
           </section>
           <section>
-            <div className="section-title"><h2>{t("lp.jobs")}</h2><div className="preset-actions">{hiddenJobs > 0 && <button disabled={!!busy} onClick={() => setShowAllJobs(value => !value)}>{showAllJobs ? t("lp.showRecentJobs") : t("lp.showAllJobs", { count: hiddenJobs })}</button>}<button disabled={!!busy} onClick={() => void refresh(characterId)}>{t("lp.refresh")}</button></div></div>
+            <div className="section-title"><h2>{t("lp.jobs")}</h2><div className="preset-actions">{hiddenJobs > 0 && <small className="muted">{t("lp.moreJobs", { count: hiddenJobs })}</small>}<button disabled={!!busy} onClick={() => void refresh(characterId)}>{t("lp.refresh")}</button><Link className="text-button" to={`/jobs?type=training&character_id=${encodeURIComponent(characterId)}`}>{t("lp.viewAllJobs")}</Link></div></div>
             {!jobs.length && (loaded ? <p className="muted">{t("lp.noJobs")}</p> : <p className="muted"><span className="spinner" /> {t("common.loadingData")}</p>)}
             <div className="job-list">{visibleJobs.map(job => <div key={job.id} className={`job-row status-${job.status}`}>
               <header><strong>{job.name || job.lora?.name || job.lora_id || t("lp.jobs")}</strong><StatusBadge status={job.status} label={t(`lp.jobStatus.${job.status}`)} /><small>{new Date(job.created_at).toLocaleString()}</small></header>
@@ -567,13 +578,30 @@ export default function LoraPlayground({ onLogout }: { onLogout: () => void }) {
               {job.log_path && <details className="job-log"><summary>{t("lp.logPath")}</summary><pre>{job.log_path}</pre></details>}
               {(job.status === "queued" || job.status === "running") && <div className="lora-actions"><button disabled={!!busy} onClick={() => cancel(job)}>{t("lp.cancelJob")}</button></div>}
             </div>)}</div>
-            {jobsHasMore && <div className="load-more"><button disabled={!!busy} onClick={loadMoreJobs}>{t("common.loadMore")}</button></div>}
           </section>
           </section>
         </div>
       </main>
       {!isNarrow && guideOpen && <aside className="lora-guide">{guideContent}</aside>}
       {isNarrow && <InspectorDrawer open={guideDrawerOpen} onClose={() => setGuideDrawerOpen(false)} title={t("lp.guide.title")} closeLabel={t("common.close")}>{guideContent}</InspectorDrawer>}
+      <InspectorDrawer open={avatarSettingsOpen} onClose={() => setAvatarSettingsOpen(false)} title={t("lp.settings")} summary={character?.name} closeLabel={t("common.close")}>
+        {character && <div className="ip-form">
+          <p className="muted">{t("lp.avatarHint")}</p>
+          <label className="lora-avatar-model">{t("lp.avatarModel")}<select value={avatarCheckpoint} disabled={!!busy} onChange={e => setAvatarCheckpoint(e.target.value)}>
+            <option value="">{t("lp.baseCheckpointAuto")}</option>
+            {checkpoints.map(checkpoint => <option key={checkpoint.name} value={checkpoint.name}>{checkpoint.name} · {checkpoint.family}</option>)}
+          </select></label>
+          <div className="lora-actions">
+            <button disabled={!!busy || character.source_category === "reference_only"} title={character.source_category === "reference_only" ? t("form.referenceOnlyWarning") : undefined} onClick={generateAvatar}>{character.avatar_filename ? t("lp.avatarRegenerate") : t("lp.avatarGenerate")}</button>
+            <button disabled={!!busy || character.source_category === "reference_only"} title={character.source_category === "reference_only" ? t("form.referenceOnlyWarning") : undefined} onClick={() => uploadInputRef.current?.click()}>{t("lp.avatarUpload")}</button>
+          </div>
+          {character.avatar_validation?.source === "upload" && <small className="muted">{t("lp.avatarChecks")}: {character.avatar_validation.adult ? "✓" : "✕"} {t("lp.avatarCheck.adult")} · {character.avatar_validation.one_person ? "✓" : "✕"} {t("lp.avatarCheck.onePerson")} · {character.avatar_validation.face_visible ? "✓" : "✕"} {t("lp.avatarCheck.face")} · {character.avatar_validation.sharp ? "✓" : "✕"} {t("lp.avatarCheck.sharp")}{character.avatar_validation.quality_notes ? ` · ${character.avatar_validation.quality_notes}` : ""}</small>}
+          {character.avatar_filename && <div className="avatar-edit">
+            <input value={avatarPrompt} disabled={!!busy} onChange={e => setAvatarPrompt(e.target.value)} placeholder={t("lp.avatarEditPlaceholder")} maxLength={1000} />
+            <button disabled={!!busy || !avatarPrompt.trim()} onClick={editAvatar}>{t("lp.avatarEdit")}</button>
+          </div>}
+        </div>}
+      </InspectorDrawer>
     </div>
     {viewer && <Lightbox src={viewer.url} alt={viewer.alt} onClose={() => setViewer(null)} />}
     {editing && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={t("form.aria")}><CharacterForm character={editing === "new" ? undefined : editing} models={NO_OLLAMA_MODELS} onSave={saveCharacter} onCancel={() => setEditing(null)} /></div></div>}

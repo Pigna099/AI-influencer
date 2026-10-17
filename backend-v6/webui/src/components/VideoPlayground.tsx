@@ -339,6 +339,8 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
     })();
   };
 
+  const generateButton = <button className="primary generate-sticky" disabled={!!busy || !characterId || !prompt.trim() || (mode === "image" && !sourceId)} onClick={generate}>{t("vd.generate")}</button>;
+
   const inspectorContent = (
     <>
 
@@ -371,7 +373,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
             <small className="muted">{t("vd.motion.title")}</small>
             {MOTION_PRESETS.map(([key, fragment]) => <button key={key} type="button" disabled={!!busy} onClick={() => addMotion(fragment)}>{t(key as "vd.motion.subtle")}</button>)}
           </div>
-          <AdvancedSettings title={t("ip.details")} summary={[
+          <AdvancedSettings title={t("vd.settings")} summary={[
             resolution.replace("x", "×"),
             t("vd.secondsFrames", { seconds: seconds(length), frames: length }),
             `${steps} steps`,
@@ -414,7 +416,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
             </div>
           </AdvancedSettings>
           <p className="recipe-line" role="note">{[resolution.replace("x", "×"), t("vd.secondsFrames", { seconds: seconds(length), frames: length }), `${steps} steps`, Object.keys(loraSel).length ? `${Object.keys(loraSel).length} LoRA` : null, seed ? `${t("vd.seed")} ${seed}` : null].filter(Boolean).join(" · ")}</p>
-          <button className="primary generate-sticky" disabled={!!busy || !characterId || !prompt.trim() || (mode === "image" && !sourceId)} onClick={generate}>{t("vd.generate")}</button>
+          {!isNarrow && generateButton}
           {!busy && !characterId && <small className="hint">{t("hint.selectCharacter")}</small>}
           {!busy && characterId && mode === "image" && !library.length && loaded && <small className="hint">{t("vd.noApproved")}</small>}
           {!busy && characterId && mode === "image" && !!library.length && !sourceId && <small className="hint">{t("hint.selectSource")}</small>}
@@ -462,7 +464,7 @@ export default function VideoPlayground({ onLogout }: { onLogout: () => void }) 
         </div>
       </main>
       {isNarrow
-        ? <InspectorDrawer open={generatorOpen} onClose={() => setGeneratorOpen(false)} title={t("vd.generatePanel")} closeLabel={t("common.close")}>{inspectorContent}</InspectorDrawer>
+        ? <InspectorDrawer open={generatorOpen} onClose={() => setGeneratorOpen(false)} title={t("vd.generatePanel")} closeLabel={t("common.close")} size="wide" footer={generateButton}>{inspectorContent}</InspectorDrawer>
         : <aside className="inspector image-inspector">{inspectorContent}</aside>}
     </div>
   </div>;
