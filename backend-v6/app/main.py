@@ -71,7 +71,8 @@ def _index_response():
     webui_dir = Path(__file__).parent.parent / "webui_dist"
     index_file = webui_dir / "index.html"
     if index_file.exists():
-        return FileResponse(index_file)
+        # Never cache the HTML shell: hashed assets change on every deploy.
+        return FileResponse(index_file, headers={"Cache-Control": "no-cache, must-revalidate"})
     raise HTTPException(status_code=404)
 
 
