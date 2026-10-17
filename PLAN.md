@@ -1037,7 +1037,9 @@ Progress log — 15 October 2026 (first slice):
 
 Progress log — 17 October 2026 (alerts):
 - Keyboard audit (`scripts/ui/tab_order_check.mjs`): 18 Tab stops per route, 0 invisible or
-  off-viewport focus targets. Final sweeps after the day's changes: axe 0 serious violations, no
+  off-viewport focus targets.
+- Dataset source selector at the top below 1280 px (ContextSelector replaces the rail list; the
+  rail keeps the "+ New source" action). Final sweeps after the day's changes: axe 0 serious violations, no
   horizontal overflow on 21 route/width combinations.
 - `GET /api/alerts`: deduplicated, actionable alerts each tied to a domain object (`key`,
   `severity`, `object_type`, `object_id`, `title`, `remediation`, `since`): failed jobs (with the

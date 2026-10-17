@@ -6,6 +6,7 @@ import AsyncBoundary from "./ui/AsyncBoundary";
 import InspectorDrawer from "./ui/InspectorDrawer";
 import OverflowMenu from "./ui/OverflowMenu";
 import ProgressSummary from "./ui/ProgressSummary";
+import ContextSelector from "./ui/ContextSelector";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import PageHeader from "./ui/PageHeader";
 import StatusBadge from "./ui/StatusBadge";
@@ -251,19 +252,28 @@ export default function DatasetPlayground({ onLogout }: { onLogout: () => void }
 
         <div className="rail-divider" />
         <div className="section-title"><h2>{t("ds.sources")}</h2><span>{sources.length}</span></div>
-        <div className="dataset-sources">{sources.map(item => <button key={item.id} className={`dataset-source ${sourceId === item.id ? "selected" : ""}`} disabled={!!busy} onClick={() => setSourceId(item.id)}>
+        {!isNarrow && <div className="dataset-sources">{sources.map(item => <button key={item.id} className={`dataset-source ${sourceId === item.id ? "selected" : ""}`} disabled={!!busy} onClick={() => setSourceId(item.id)}>
           <strong>{item.name}</strong>
           <small>{item.kind} · {t("ds.mediaCounts", { images: item.images, videos: item.videos })} · {item.status}{item.error ? ` · ${item.error}` : ""}</small>
         </button>)}
           {!sources.length && (sourcesLoaded ? <p className="muted">{t("ds.noSources")}</p> : <p className="muted"><span className="spinner" /> {t("common.loadingData")}</p>)}
-        </div>
+        </div>}
       </aside>
       <main className="main-panel">
         <PageHeader
           eyebrow={t("ds.title")}
           title={source?.name || t("ds.sources")}
           subtitle={t("ds.subtitle")}
-          aside={images.length ? <span className="library-count">{t("ip.imagesCount", { count: images.length })}</span> : undefined}
+          aside={<div className="section-actions">
+            <span className="narrow-only"><ContextSelector
+              label={t("ds.sources")}
+              options={sources.map(item => ({ id: item.id, name: item.name, hint: item.status }))}
+              value={sourceId}
+              onChange={setSourceId}
+              disabled={!!busy}
+            /></span>
+            {images.length ? <span className="library-count">{t("ip.imagesCount", { count: images.length })}</span> : undefined}
+          </div>}
         />
         {active && <p className="memory-status" role="status"><span className="spinner" />{source.status === "importing" ? t("ds.queueImporting", { imported: source.imported, total: source.total || "?" }) : source.status === "classifying" ? t("ds.queueClassifying", { classified: source.classified, total: source.imported || "?" }) : t("ds.queuePending")}</p>}
         {active && <ProgressSummary
