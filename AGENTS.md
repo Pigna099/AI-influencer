@@ -11,7 +11,7 @@ Use `backend-v6/README.md` (operations, UI guide) and `backend-v6/STATO.md` (cur
 - **Chat playground**: characters + simulated fans, per-fan memory, model benchmarking, personality A/B, simulated PPV.
 - **Image playground**: ComfyUI NSFW generation with checkpoints/families/LoRAs, per-character image library, AI tagging, curation, reuse in chat.
 - **Video playground**: text-to-video and image-to-video clips per character (Wan 2.2 I2V/T2V + lightx2v; LTX-2.3 distilled/dev, WebM).
-- **Dataset pipeline**: importers (Telegram channels, image URLs, server folders, X/Twitter profiles, public Nextcloud shares), AI descriptions, pose extraction (DWPose) into the pose library.
+- **Dataset pipeline**: importers (Telegram channels, image URLs, server folders, X/Twitter profiles, public Nextcloud shares), AI descriptions, pose extraction (DWPose) into the pose library. Classification runs as a durable `dataset_classify` execution job (progress, heartbeat, idempotent resume); interrupted in-process jobs are failed at API startup and stuck sources become `stalled` with a Resume action.
 - **LoRA pipeline**: per-character LoRA registry, dataset curation with canonical references, training jobs (SDXL families via kohya sd-scripts; `qwen-image` via musubi-tuner), automatic publishing to ComfyUI.
 
 ## Repository layout
@@ -78,7 +78,7 @@ DWPose extraction via ComfyUI (`app/pose_api.py`, `POST /api/poses/extract`), sk
 ```bash
 cd backend-v6
 uv run ruff check .
-uv run pytest -q            # 194 tests, mock providers, temporary DB
+uv run pytest -q            # 201 tests, mock providers, temporary DB
 cd webui && npm run lint && npm test && npm run build
 # optional UI sweeps (ad-hoc puppeteer install): scripts/ui/ui_check.mjs (no overflow 812/1280/1440),
 # scripts/ui/a11y_check.mjs (axe-core, 0 serious violations), scripts/ui/tab_order_check.mjs

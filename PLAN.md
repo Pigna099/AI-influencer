@@ -2,7 +2,7 @@
 
 **Prepared:** 14 October 2026  
 **Implementation baseline:** `/data/data_ssd/pigni/ai-influencer/backend-v6`  
-**Companion document:** `report.md`
+**History:** the 14 Oct audit (`report.md`), the UI modification plan (`UI_modification_plan.md`) and the UI polish plan (`UI_POLISH_PLAN.md`) were implemented and removed from the repo on 17 Oct 2026 (recoverable from git history).
 
 ## 1. Goal
 
@@ -1329,3 +1329,19 @@ The product vision is achieved when an operator can:
 11. understand any failure and recover without reading raw implementation logs or editing database records.
 
 Until those conditions are met, keep the product labelled as a private production playground rather than an autonomous influencer platform.
+
+
+## 25. UI Polish pass — outcome (17 October 2026)
+
+Implemented from `UI_POLISH_PLAN.md` (deleted after completion; recoverable from git history):
+
+1. **Foundations (P1)**: all shared CSS tokens defined (`--surface-*`, `--border-*`, `--text-*`, `--st-*`), routine action buttons never wrap (`white-space: nowrap`, multiline tiles opted out), `InspectorDrawer` rebuilt (opaque surface, `size="wide"`, footer slot, `aria-labelledby`, body scroll lock, full width below 640 px).
+2. **Drawer/menu content (P2)**: Chat Settings now has four short tabs (Character/Media/Memory/Timing) with no duplicated accordion titles; LoRA guide is step-linked with no inner close button; Images Generator/Video Generator/Dataset Details keep their single Settings/Details vocabulary.
+3. **Images Review (P3)**: viewport workspace (`flex` chain, `object-fit: contain`, sticky decision bar with rating/Approve/Reject/label/Info/counter visible together at 812x726 with zero document scroll); compact 68 px filmstrip, collapsed by default below 900 px with sessionStorage preference; Info drawer for metadata; error card with Retry/Skip; automatic cursor prefetch near the end; review image/mode/character persisted across route switches.
+4. **LoRA workspace (P4)**: `useLoraWorkspaceState` (versioned, sessionStorage mirror) persists character, stage, dataset, expanded LoRA queue, guide state and scroll position; saved character validated against the loaded list with graceful fallback.
+5. **Durable classification (P5)**: `dataset_classify` execution jobs with cumulative DB-derived counters (`ready/pending/failed/blocked/skipped`), idempotent enqueue, stale-heartbeat recovery, startup failure of interrupted in-process jobs and `stalled` reconciliation; `nenne_02` repaired live (26 ready preserved, resumed to 70/70, 0 failed) without re-importing.
+6. **Global job tray (P6)**: header indicator opens a popover (bottom-sheet drawer below 640 px) with up to 5 active jobs (type, context name, state, progress, counts, ETA or queue position), recent failures, and "View all jobs"; polling pauses when the tab is hidden; combined accessible label; `/api/jobs` gained `external_id` and the Jobs page reads URL filters.
+7. **Home/Jobs compaction (P7, partial)**: infrastructure section closed by default with a one-line summary (services ok · GPUs · models); Jobs KPI strip reduced to four primary metrics with durations/approval/backups under System metrics.
+8. **QA (P8)**: zero document overflow on all routes at 812/1024/1280/1440, axe-core 0 serious/critical violations, tab order 18 stops/route with 0 problems, drawer opacity/scroll-lock/one-close verified live.
+
+Remaining (optional, low priority): Images Generator grouping into Generation/Advanced sections, Video Generator sticky footer, Dataset image-details two-column layout, LoRA Character summary-first compaction, adjacent-image preloading and filmstrip virtualization.

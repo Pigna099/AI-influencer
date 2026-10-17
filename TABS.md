@@ -20,11 +20,13 @@ pose/style references only.
 - **Backend**: FastAPI routers in `backend-v6/app/` (`characters.py`, `lora_api.py`, `video_api.py`,
   `dataset_api.py`, `pose_api.py`, `presets_api.py`, `settings_api.py`, `consistency_api.py`, `main.py`).
 - **Text models (2 providers)**:
-  - **vLLM** (default): serves `qwen3.8` (Qwen3.8-27B FP8, vision-capable) on GPUs 2+3, OpenAI-compatible
-    API at `http://127.0.0.1:8000`. Chat and benchmark use it; `thinking` is disabled for chat speed.
-  - **Ollama** (fallback/backup): other text models and embeddings (`nomic-embed-text`), vision tagging
-    (`gemma3:27b`), plus automatic fallback if vLLM is down (`TEXT_PROVIDER=ollama|vllm`).
-- **Image/video models (ComfyUI)**: on the media GPUs (default 0+1, ports 8188/8189), families:
+  - **Ollama** (current default): text models, embeddings (`nomic-embed-text`) and vision tagging
+    (`gemma3:27b`) from `TEXT_PROVIDER=ollama`.
+  - **vLLM** (optional): OpenAI-compatible API at `http://127.0.0.1:8000`, used when the GPU plan
+    reserves two GPUs for text (`TEXT_PROVIDER=vllm`); it is currently stopped because all four GPUs
+    run photo/video ComfyUI instances (8188-8191).
+- **Image/video models (ComfyUI)**: on the media GPUs from the saved GPU plan (currently all four,
+  ports 8188-8191, discovered automatically), families:
   - SDXL: `real`, `pony`, `anime`, `playground` (Playground v2.5, EDM sampling).
   - Diffusers families: `qwen-image` (2512 + **2.1**), `z-image`, `flux2` (**Klein 4B** base/distilled).
   - Video: `wan` (2.2 I2V/T2V + lightx2v 4-step), `ltx-distilled`/`ltx-dev` (LTX-2.3, 24 fps),
