@@ -25,7 +25,7 @@ Use `backend-v6/README.md` (operations, UI guide) and `backend-v6/STATO.md` (cur
 | `backend-v6/webui/` | React + Vite frontend (built into the Docker image; `webui_dist/` is untracked). Shared primitives in `webui/src/components/ui/` (AppHeader, Banner, AsyncBoundary, StatusBadge, EmptyState, JobProgress, JobTray, PageHeader, DangerZone, AdvancedSettings, InspectorDrawer, ContextSelector, OverflowMenu, ProgressSummary, CompactToolbar, ReviewStage, IdentityPanel, GpuCard); `useMediaQuery` hook for responsive drawers. |
 | `backend-v6/scripts/` | Model downloads, startup scripts, trainer (`scripts/trainer/`) |
 | `backend-v6/tests/` | Pytest suite (mock providers) |
-| `/data/data_ssd/pigni/comfyUI/ComfyUI` | ComfyUI install + models (4 instances, ports 8188-8191, one per GPU) |
+| `/data/data_ssd/pigni/comfyUI/ComfyUI` | ComfyUI install + models (4 instances, ports 8188-8191, one per GPU; updated 21 Oct 2026 with MOSS-Image support) |
 | `/data/data_ssd/pigni/trainer/` | Host training: `venv` (kohya), `musubi-venv`, `runs/`, `worker.log` |
 | `/data/data_ssd/pigni/Ollama/models` | Ollama models |
 | `/data/data_ssd/pigni/huggingface` | HuggingFace cache (HF_HOME) |

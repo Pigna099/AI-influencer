@@ -271,10 +271,10 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
           </select></label>
           {(["character", "create", "edit"] as const).map(step => {
             const stepDefaults = defaults?.image_steps?.[step] ?? { checkpoint: "", loras: [] };
-            const qwenModels = checkpoints.filter(item => item.usable && (
+            const stepModels = checkpoints.filter(item => item.usable && (
               step === "edit"
                 ? /edit/i.test(item.name) && item.family === "qwen-image"
-                : item.family === "qwen-image" && !/edit/i.test(item.name)
+                : (item.family === "qwen-image" && !/edit/i.test(item.name)) || item.family === "moss"
             ));
             const toggleLora = (name: string, on: boolean) => setDefaults(current => {
               if (!current) return current;
@@ -287,7 +287,7 @@ export default function HomePage({ onLogout }: { onLogout: () => void }) {
               <label>{t(step === "character" ? "home.defaults.character" : step === "create" ? "home.defaults.create" : "home.defaults.edit")}
                 <select value={stepDefaults.checkpoint} disabled={!defaults} onChange={e => setDefaults(current => current ? { ...current, image_steps: { ...current.image_steps, [step]: { ...current.image_steps[step], checkpoint: e.target.value } } } : current)}>
                   <option value="">{t("home.defaults.auto")}</option>
-                  {qwenModels.map(item => <option key={item.name} value={item.name}>{item.name}</option>)}
+                  {stepModels.map(item => <option key={item.name} value={item.name}>{item.name}</option>)}
                 </select>
               </label>
               <details className="step-loras">

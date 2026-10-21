@@ -16,7 +16,7 @@ export interface OllamaModel {
 
 export interface CheckpointInfo {
   name: string;
-  family: "real" | "anime" | "pony" | "qwen-image" | "z-image" | "flux2" | "playground" | "video" | "unsupported";
+  family: "real" | "anime" | "pony" | "qwen-image" | "z-image" | "flux2" | "playground" | "moss" | "video" | "unsupported";
   usable: boolean;
 }
 

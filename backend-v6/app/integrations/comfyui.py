@@ -1018,6 +1018,8 @@ def checkpoint_meta(name: str) -> dict:
         return {"name": name, "family": "z-image", "usable": True}
     if "playground" in lower:
         return {"name": name, "family": "playground", "usable": True}
+    if "moss" in lower and "image" in lower:
+        return {"name": name, "family": "moss", "usable": True}
     if any(hint in lower for hint in UNSUPPORTED_HINTS):
         return {"name": name, "family": "unsupported", "usable": False}
     if "pony" in lower:
@@ -1029,7 +1031,7 @@ def checkpoint_meta(name: str) -> dict:
     return {"name": name, "family": family, "usable": True}
 
 
-DIFFUSION_FAMILIES = ("qwen-image", "z-image", "flux2", "playground")
+DIFFUSION_FAMILIES = ("qwen-image", "z-image", "flux2", "playground", "moss")
 
 
 def get_checkpoints() -> list[dict]:
@@ -1189,6 +1191,48 @@ def _style_workflows(style: str, family: str | None = None) -> tuple[Path, Path]
     if not plain.is_file():
         return settings.chat_workflow_path, settings.chat_reference_workflow_path
     return plain, reference
+
+
+MOSS_TURBO_LORA = "moss_image_sft_4step_v2.0.safetensors"
+MOSS_TEXT_ENCODER = "qwen3.5_9b_int8_convrot.safetensors"
+MOSS_VAE = "flux2-vae.safetensors"
+MOSS_DEFAULT_MODEL = "moss_image_sft_bf16.safetensors"
+
+
+def _moss_graph(checkpoint: str, prompt: str, negative: str, seed: int, loras: list[dict] | None = None) -> dict:
+    """MOSS-Image-SFT with the 4-step turbo LoRA: stock Euler, 4 steps, no CFG."""
+    width, height = 832, 1216
+    graph = {
+        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": checkpoint or MOSS_DEFAULT_MODEL, "weight_dtype": "default"}},
+        "12": {"class_type": "LoraLoaderModelOnly", "inputs": {"model": ["1", 0], "lora_name": MOSS_TURBO_LORA, "strength_model": 1.0}},
+        "10": {"class_type": "CLIPLoader", "inputs": {"clip_name": MOSS_TEXT_ENCODER, "type": "moss_image", "device": "default"}},
+        "11": {"class_type": "VAELoader", "inputs": {"vae_name": MOSS_VAE}},
+        "3": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["10", 0], "text": prompt}},
+        "4": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["10", 0], "text": negative}},
+        "6": {"class_type": "EmptyFlux2LatentImage", "inputs": {"width": width, "height": height, "batch_size": 1}},
+        "7": {
+            "class_type": "KSampler",
+            "inputs": {
+                "model": ["12", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["6", 0],
+                "seed": seed, "steps": 4, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0,
+            },
+        },
+        "8": {"class_type": "VAEDecode", "inputs": {"samples": ["7", 0], "vae": ["11", 0]}},
+        "9": {"class_type": "SaveImage", "inputs": {"images": ["8", 0], "filename_prefix": "moss"}},
+    }
+    model_ref = ["12", 0]
+    for index, lora in enumerate(loras or [], start=1):
+        name = str(lora.get("name") or "").strip()
+        if not name or name == MOSS_TURBO_LORA:
+            continue
+        node_id = f"mlora{index}"
+        graph[node_id] = {
+            "class_type": "LoraLoaderModelOnly",
+            "inputs": {"model": model_ref, "lora_name": name, "strength_model": float(lora.get("weight", 0.8))},
+        }
+        model_ref = [node_id, 0]
+    graph["7"]["inputs"]["model"] = model_ref
+    return graph
 
 
 def _diffusion_graph(
@@ -1449,6 +1493,21 @@ def generate_image(
     family = family or style
     base_url = base_url or pick_target()
     if family in DIFFUSION_FAMILIES:
+        if family == "moss":
+            workflow = _moss_graph(checkpoint or "", prompt, negative_prompt, seed, loras=loras)
+            started = time.perf_counter()
+            data = _submit_and_wait(workflow, settings.generation_timeout, base_url=base_url)
+            return data, {
+                "provider": "comfyui",
+                "seed": seed,
+                "checkpoint": checkpoint,
+                "style": style,
+                "family": family,
+                "loras": loras or [],
+                "reference": False,
+                "pose": False,
+                "seconds": time.perf_counter() - started,
+            }
         reference_name = None
         pose_name = None
         if family == "playground":

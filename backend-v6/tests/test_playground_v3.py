@@ -1362,3 +1362,29 @@ def test_checkpoint_preflight_falls_back_and_reports_missing(monkeypatch):
 
     monkeypatch.setattr(comfyui, "instance_checkpoints", lambda base_url, ttl_seconds=60.0: None)
     assert comfyui.ensure_checkpoint_available("anything.safetensors", "real", "http://x") == "anything.safetensors"
+
+
+def test_moss_family_detection_and_graph():
+    from app.integrations import comfyui
+
+    meta = comfyui.checkpoint_meta("moss_image_sft_bf16.safetensors")
+    assert meta["family"] == "moss" and meta["usable"] is True
+    assert comfyui.checkpoint_meta("moss_image_base_bf16.safetensors")["family"] == "moss"
+    assert "moss" in comfyui.DIFFUSION_FAMILIES
+
+    graph = comfyui._moss_graph(
+        "moss_image_sft_bf16.safetensors",
+        "a portrait",
+        "",
+        7,
+        loras=[{"name": "style_moss.safetensors", "weight": 0.5}, {"name": comfyui.MOSS_TURBO_LORA, "weight": 1.0}],
+    )
+    assert graph["1"]["inputs"]["unet_name"] == "moss_image_sft_bf16.safetensors"
+    assert graph["10"]["inputs"]["type"] == "moss_image"
+    assert graph["12"]["inputs"]["lora_name"] == comfyui.MOSS_TURBO_LORA
+    assert graph["6"]["class_type"] == "EmptyFlux2LatentImage"
+    assert graph["7"]["inputs"]["steps"] == 4 and graph["7"]["inputs"]["cfg"] == 1.0
+    assert graph["7"]["inputs"]["sampler_name"] == "euler" and graph["7"]["inputs"]["scheduler"] == "simple"
+    assert graph["7"]["inputs"]["model"] == ["mlora1", 0]
+    assert graph["mlora1"]["inputs"]["lora_name"] == "style_moss.safetensors"
+    assert "mlora2" not in graph
